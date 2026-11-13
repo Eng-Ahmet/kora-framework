@@ -289,8 +289,8 @@ if [[ -z "$VSIX_PATH" ]]; then
     VSIX_PATH="$ROOT_DIR/integrations/vscode/kora-vscode-0.4.1.vsix"
 fi
 
-# If VSIX does not exist, package it automatically
-if [[ ! -f "$VSIX_PATH" ]] && [[ -d "$ROOT_DIR/integrations/vscode" ]]; then
+# Always refresh and package VSIX with all current icons and assets
+if [[ -d "$ROOT_DIR/integrations/vscode" ]]; then
     if command -v python3 &>/dev/null; then
         python3 -c "
 import os, zipfile
@@ -368,16 +368,10 @@ TARGET_EXT_DIRS=(
     "$HOME/.windsurf/extensions/kora-vscode"
 )
 
-# Unpack from VSIX if available, or copy from source
+# Direct directory deployment for all IDE profiles
 for EXT_PATH in "${TARGET_EXT_DIRS[@]}"; do
     mkdir -p "$EXT_PATH" 2>/dev/null || true
-    if [[ -f "$VSIX_PATH" ]] && command -v unzip &>/dev/null; then
-        TMP_EXT="$(mktemp -d)"
-        if unzip -q -o "$VSIX_PATH" -d "$TMP_EXT" 2>/dev/null && [[ -d "$TMP_EXT/extension" ]]; then
-            cp -rf "$TMP_EXT/extension/"* "$EXT_PATH/" 2>/dev/null || true
-        fi
-        rm -rf "$TMP_EXT"
-    elif [[ -d "$ROOT_DIR/integrations/vscode" ]]; then
+    if [[ -d "$ROOT_DIR/integrations/vscode" ]]; then
         mkdir -p "$EXT_PATH/client" "$EXT_PATH/icons" "$EXT_PATH/snippets" "$EXT_PATH/syntaxes" 2>/dev/null || true
         cp -f "$ROOT_DIR/integrations/vscode/package.json" "$EXT_PATH/package.json" 2>/dev/null || true
         cp -f "$ROOT_DIR/integrations/vscode/kora-icons.json" "$EXT_PATH/kora-icons.json" 2>/dev/null || true
@@ -386,11 +380,18 @@ for EXT_PATH in "${TARGET_EXT_DIRS[@]}"; do
         cp -rf "$ROOT_DIR/integrations/vscode/icons/"* "$EXT_PATH/icons/" 2>/dev/null || true
         cp -rf "$ROOT_DIR/integrations/vscode/snippets/"* "$EXT_PATH/snippets/" 2>/dev/null || true
         cp -rf "$ROOT_DIR/integrations/vscode/syntaxes/"* "$EXT_PATH/syntaxes/" 2>/dev/null || true
+    elif [[ -f "$VSIX_PATH" ]] && command -v unzip &>/dev/null; then
+        TMP_EXT="$(mktemp -d)"
+        if unzip -q -o "$VSIX_PATH" -d "$TMP_EXT" 2>/dev/null && [[ -d "$TMP_EXT/extension" ]]; then
+            cp -rf "$TMP_EXT/extension/"* "$EXT_PATH/" 2>/dev/null || true
+        fi
+        rm -rf "$TMP_EXT"
     else
         # Remote fallback
         BASE_RAW="https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode"
-        mkdir -p "$EXT_PATH/client" "$EXT_PATH/syntaxes" "$EXT_PATH/snippets" 2>/dev/null || true
+        mkdir -p "$EXT_PATH/client" "$EXT_PATH/icons" "$EXT_PATH/syntaxes" "$EXT_PATH/snippets" 2>/dev/null || true
         curl -fsSL "$BASE_RAW/package.json" -o "$EXT_PATH/package.json" 2>/dev/null || true
+        curl -fsSL "$BASE_RAW/kora-icons.json" -o "$EXT_PATH/kora-icons.json" 2>/dev/null || true
         curl -fsSL "$BASE_RAW/language-configuration.json" -o "$EXT_PATH/language-configuration.json" 2>/dev/null || true
         curl -fsSL "$BASE_RAW/client/extension.js" -o "$EXT_PATH/client/extension.js" 2>/dev/null || true
         curl -fsSL "$BASE_RAW/syntaxes/kora.tmLanguage.json" -o "$EXT_PATH/syntaxes/kora.tmLanguage.json" 2>/dev/null || true
@@ -400,12 +401,12 @@ done
 echo -e "${COLOR_GREEN}✓ Editor extension automatically deployed to all IDE profiles.${COLOR_RESET}"
 
 # 5.3 Automatically integrate with Material Icon Theme to prevent conflicts
-KORA_SVG="$ROOT_DIR/integrations/vscode/icons/kora-file.svg"
-if [[ -f "$KORA_SVG" ]]; then
+if [[ -d "$ROOT_DIR/integrations/vscode/icons" ]]; then
     while IFS= read -r MAT_DIR; do
         if [[ -d "$MAT_DIR/icons" ]]; then
-            cp -f "$KORA_SVG" "$MAT_DIR/icons/kora.svg" 2>/dev/null || true
-            echo -e "${COLOR_GREEN}✓ Seamlessly integrated Kora icons into Material Icon Theme (${MAT_DIR##*/}).${COLOR_RESET}"
+            cp -rf "$ROOT_DIR/integrations/vscode/icons/"*.svg "$MAT_DIR/icons/" 2>/dev/null || true
+            cp -f "$ROOT_DIR/integrations/vscode/icons/kora-file.svg" "$MAT_DIR/icons/kora.svg" 2>/dev/null || true
+            echo -e "${COLOR_GREEN}✓ Seamlessly integrated all Kora icons into Material Icon Theme (${MAT_DIR##*/}).${COLOR_RESET}"
         fi
     done < <(find "$HOME" -maxdepth 5 -type d -name "pkief.material-icon-theme*" 2>/dev/null)
 fi
