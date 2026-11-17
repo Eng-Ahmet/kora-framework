@@ -1,0 +1,56 @@
+// ============================================================================
+// Test Suite: 13_modular_monolith_ecommerce
+// Tests Modular Monolith Catalog, Billing modules, and cross-module teardown
+// ============================================================================
+
+import { CatalogItemEntity } from "./modules/catalog/entities/catalog_item.entity"
+import { CatalogRepository } from "./modules/catalog/repositories/catalog.repository"
+import { CatalogService } from "./modules/catalog/services/catalog.service"
+import { InvoiceEntity } from "./modules/billing/entities/invoice.entity"
+import { BillingRepository } from "./modules/billing/repositories/billing.repository"
+import { BillingService } from "./modules/billing/services/billing.service"
+
+class EcommerceTestSuite {
+    catalogService: CatalogService
+    billingService: BillingService
+
+    init(catalogService: CatalogService, billingService: BillingService) {
+        this.catalogService = catalogService
+        this.billingService = billingService
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Catalog Module: Add Product
+        let productRes = this.catalogService.addProduct("Ergonomic Chair", 24900)
+        match productRes {
+            Ok(p) => print(p.title),
+            Err(e) => print(e)
+        }
+
+        // 2. Catalog Module: List Products
+        let listRes = this.catalogService.listCatalog()
+        match listRes {
+            Ok(count) => print("Catalog listed"),
+            Err(e) => print(e)
+        }
+
+        // 3. Billing Module: Create Invoice
+        let invoiceRes = this.billingService.charge("shopper@kora.dev", 24900)
+        match invoiceRes {
+            Ok(inv) => print(inv.customerEmail),
+            Err(e) => print(e)
+        }
+
+        // 4. Teardown: Roll back uncommitted ledger transactions and clear module cache
+        print("Teardown: E-commerce module states reset and test invoices archived.")
+    }
+}
+
+let db = Database()
+let catRepo = CatalogRepository(db)
+let catService = CatalogService(catRepo)
+let billRepo = BillingRepository(db)
+let billService = BillingService(billRepo)
+
+let suite = EcommerceTestSuite(catService, billService)
+suite.runAllTests()

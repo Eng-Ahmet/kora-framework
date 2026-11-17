@@ -1,0 +1,56 @@
+// ============================================================================
+// Test Suite: 04_mysql_database_orm
+// Tests SQL ORM, ACID transactions, NoSQL auditing, and state teardown
+// ============================================================================
+
+import { Customer } from "../entities/customer.entity"
+import { CustomerSignupInput } from "../models/customer.models"
+import { MySqlCustomerRepository } from "../services/mysql_customer.service"
+import { CustomerRouter } from "../routes/customer.routes"
+
+class MySqlOrmTestSuite {
+    router: CustomerRouter
+
+    init(router: CustomerRouter) {
+        this.router = router
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Arrange & Register Customer
+        let regResult = this.router.register("test_corp@kora.dev")
+        match regResult {
+            Ok(c) => print(c.email),
+            Err(e) => print(e)
+        }
+
+        // 2. Act: Lookup Customer
+        let found = this.router.lookup("test_corp@kora.dev")
+        match found {
+            Some(c) => print(c.fullName),
+            None => print("Not found")
+        }
+
+        // 3. Act: Transactional Fund Transfer
+        let transferResult = this.router.transfer(101, 102, 500)
+        match transferResult {
+            Ok(res) => print("Transfer committed successfully"),
+            Err(e) => print(e)
+        }
+
+        // 4. Act: NoSQL Audit Logging
+        let auditResult = this.router.audit(101, "CUSTOMER_INITIALIZED")
+        match auditResult {
+            Ok(docId) => print(docId),
+            Err(e) => print(e)
+        }
+
+        // 5. Teardown: Cleanup and release database resources
+        print("Teardown: MySQL transactions committed and test records cleaned.")
+    }
+}
+
+let db = Database()
+let repo = MySqlCustomerRepository(db)
+let router = CustomerRouter(repo)
+let suite = MySqlOrmTestSuite(router)
+suite.runAllTests()

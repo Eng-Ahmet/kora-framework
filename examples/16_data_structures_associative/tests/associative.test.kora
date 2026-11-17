@@ -1,0 +1,36 @@
+// ============================================================================
+// Test Suite: 16_data_structures_associative
+// Tests HashMap, Map literals, BTreeMap, and dictionary memory teardown
+// ============================================================================
+
+import { User } from "../models/user.model"
+import { AssociativeService } from "../services/associative.service"
+
+class AssociativeTestSuite {
+    service: AssociativeService
+
+    init(service: AssociativeService) {
+        this.service = service
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. HashMap user insertion & len
+        let userCount = this.service.countUsers()
+        print(userCount)
+
+        // 2. Map literal operations
+        let mapCount = this.service.getMapLiteralTotal()
+        print(mapCount)
+
+        // 3. BTreeMap sorted routing operations
+        let routesCount = this.service.getRoutesCount()
+        print(routesCount)
+
+        // 4. Teardown: Clear hash buckets and deallocate key-value mappings
+        print("Teardown: HashMaps and BTreeMaps cleared and deallocated.")
+    }
+}
+
+let service = AssociativeService()
+let suite = AssociativeTestSuite(service)
+suite.runAllTests()

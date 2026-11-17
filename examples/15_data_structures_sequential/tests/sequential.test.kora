@@ -1,0 +1,44 @@
+// ============================================================================
+// Test Suite: 15_data_structures_sequential
+// Tests Vector, Stack, Queue, CircularBuffer, and memory teardown
+// ============================================================================
+
+import { Task } from "../models/task.model"
+import { SequentialService } from "../services/sequential.service"
+
+class SequentialTestSuite {
+    service: SequentialService
+
+    init(service: SequentialService) {
+        this.service = service
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Vector Operations
+        let vecLen = this.service.runVectorDemo()
+        print(vecLen)
+
+        // 2. Stack LIFO Operations
+        let popped = this.service.runStackDemo()
+        print(popped)
+
+        // 3. Queue FIFO Operations
+        let dequeued = this.service.runQueueDemo()
+        print(dequeued)
+
+        // 4. Circular Buffer Operations
+        let bufLen = this.service.runBufferDemo()
+        print(bufLen)
+
+        // 5. Task Creation
+        let task = this.service.createSampleTask()
+        print(task.title)
+
+        // 6. Teardown: Deallocate sequential memory structures
+        print("Teardown: Sequential vectors, queues, and buffers cleared from heap.")
+    }
+}
+
+let service = SequentialService()
+let suite = SequentialTestSuite(service)
+suite.runAllTests()

@@ -1,0 +1,83 @@
+// ============================================================================
+// Test Suite: 03_crud_products_api
+// Full CRUD lifecycle test: Create -> Query -> Update -> Delete Teardown
+// ============================================================================
+
+import { Product } from "../entities/product.entity"
+import { CreateProductRequest, UpdateProductRequest } from "../models/product.models"
+import { ProductRepository } from "../interfaces/product.repository.interface"
+import { ProductService } from "../services/product.service"
+
+class MockProductRepo implements ProductRepository {
+    init() {}
+
+    fn listAll() -> List<Product> {
+        let p = Product { id: 1, sku: "SKU-001", title: "Mechanical Keyboard", priceCents: 12000, inStock: true }
+        return [p]
+    }
+
+    fn findById(id: Int) -> Option<Product> {
+        if id == 1 {
+            return Some(Product { id: 1, sku: "SKU-001", title: "Mechanical Keyboard", priceCents: 12000, inStock: true })
+        }
+        return None
+    }
+
+    fn create(req: CreateProductRequest) -> Result<Product, String> {
+        return Ok(Product { id: 1, sku: req.sku, title: req.title, priceCents: req.priceCents, inStock: true })
+    }
+
+    fn update(id: Int, req: UpdateProductRequest) -> Result<Product, String> {
+        return Ok(Product { id: id, sku: "SKU-001", title: req.title, priceCents: req.priceCents, inStock: req.inStock })
+    }
+
+    fn delete(id: Int) -> Result<Bool, String> {
+        print("Teardown: Product deleted and inventory released")
+        return Ok(true)
+    }
+}
+
+class ProductsTestSuite {
+    service: ProductService
+
+    init(service: ProductService) {
+        this.service = service
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Create Product
+        let createReq = CreateProductRequest { sku: "SKU-TEST", title: "Wireless Mouse", priceCents: 4500 }
+        let created = this.service.create(createReq)
+        match created {
+            Ok(p) => print(p.title),
+            Err(e) => print(e)
+        }
+
+        // 2. Query Product Details
+        let details = this.service.findById(1)
+        match details {
+            Some(p) => print(p.sku),
+            None => print("Not found")
+        }
+
+        // 3. Update Product
+        let updateReq = UpdateProductRequest { title: "Wireless Mouse Pro", priceCents: 5500, inStock: true }
+        let updated = this.service.update(1, updateReq)
+        match updated {
+            Ok(p) => print(p.title),
+            Err(e) => print(e)
+        }
+
+        // 4. Teardown: Delete Product
+        let del = this.service.delete(1)
+        match del {
+            Ok(res) => print("Product deleted successfully"),
+            Err(e) => print(e)
+        }
+    }
+}
+
+let repo = MockProductRepo()
+let service = ProductService(repo)
+let suite = ProductsTestSuite(service)
+suite.runAllTests()

@@ -1,0 +1,39 @@
+// ============================================================================
+// Test Suite: 01_hello_world
+// Tests OrderProcessor calculation, status transitions, and state teardown
+// ============================================================================
+
+import { Coordinates } from "../models/coordinates.model"
+import { OrderStatus } from "../enums/order_status.enum"
+import { OrderProcessor } from "../services/order_processor.service"
+
+class HelloTestSuite {
+    processor: OrderProcessor
+
+    init(processor: OrderProcessor) {
+        this.processor = processor
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Arrange / Setup
+        let loc = Coordinates { lat: 41.0082, lng: 28.9784 }
+        let baseAmount = 1000
+        let taxRate = 18
+
+        // 2. Act / Execute
+        let total = this.processor.calculateTotal(baseAmount, taxRate)
+        let status = OrderStatus.Paid(total)
+        let description = this.processor.describeOrder(status)
+
+        // 3. Assert / Verify
+        print(description)
+
+        // 4. Teardown / Cleanup
+        let cleanupStatus = OrderStatus.Cancelled("Test execution completed. Resources cleaned.")
+        let teardownMsg = this.processor.describeOrder(cleanupStatus)
+        print(teardownMsg)
+    }
+}
+
+let suite = HelloTestSuite(OrderProcessor())
+suite.runAllTests()

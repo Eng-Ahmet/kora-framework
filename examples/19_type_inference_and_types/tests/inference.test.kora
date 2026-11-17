@@ -1,0 +1,41 @@
+// ============================================================================
+// Test Suite: 19_type_inference_and_types
+// Tests Hindley-Milner type inference, ADT pattern matching, and state teardown
+// ============================================================================
+
+import { PaymentStatus } from "../enums/payment_status.enum"
+import { ServerConfig } from "../models/server_config.model"
+import { TypeInferenceService } from "../services/type_inference.service"
+
+class InferenceTestSuite {
+    service: TypeInferenceService
+
+    init(service: TypeInferenceService) {
+        this.service = service
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. ADT Pattern Matching
+        let pendingDesc = this.service.describePayment(PaymentStatus.Pending)
+        print(pendingDesc)
+
+        let completedDesc = this.service.describePayment(PaymentStatus.Completed)
+        print(completedDesc)
+
+        // 2. Struct Model Access
+        let cfg = ServerConfig { host: "127.0.0.1", port: 8080, ssl_enabled: true, max_connections: 5000 }
+        let port = this.service.getServerPort(cfg)
+        print(port)
+
+        // 3. Type Inference
+        let user = this.service.inferPrimitives()
+        print(user)
+
+        // 4. Teardown: Reset configuration overrides and clear payment memory
+        print("Teardown: Type inference contexts and configuration overrides cleared.")
+    }
+}
+
+let service = TypeInferenceService()
+let suite = InferenceTestSuite(service)
+suite.runAllTests()

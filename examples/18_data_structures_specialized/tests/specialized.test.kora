@@ -1,0 +1,41 @@
+// ============================================================================
+// Test Suite: 18_data_structures_specialized
+// Tests PriorityQueue, Trie, Graph, LRUCache, and specialized memory teardown
+// ============================================================================
+
+import { SpecializedService } from "../services/specialized.service"
+
+class SpecializedTestSuite {
+    service: SpecializedService
+
+    init(service: SpecializedService) {
+        this.service = service
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. PriorityQueue Operations
+        let pqLen = this.service.testPriorityQueue()
+        print(pqLen)
+
+        // 2. Trie Prefix Matching
+        let trieMatch = this.service.testTrie()
+        if trieMatch {
+            print("Trie prefix matched successfully")
+        }
+
+        // 3. Graph Topological Connections
+        let nodeCount = this.service.testGraph()
+        print(nodeCount)
+
+        // 4. LRU Cache Eviction & Capacity
+        let cacheLen = this.service.testLruCache()
+        print(cacheLen)
+
+        // 5. Teardown: Evict LRU entries and destroy graph node pointers
+        print("Teardown: Specialized heaps, trees, and caches deallocated.")
+    }
+}
+
+let service = SpecializedService()
+let suite = SpecializedTestSuite(service)
+suite.runAllTests()

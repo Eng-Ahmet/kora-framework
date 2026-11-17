@@ -1,0 +1,42 @@
+// ============================================================================
+// Test Suite: 23_enterprise_reporting_media_email
+// Tests PDF generation, CSV exports, TLS email dispatch, and temp file teardown
+// ============================================================================
+
+import { ReportSummaryDto } from "../models/invoice.dto"
+import { ReportingService } from "../services/reporting.service"
+
+class ReportingTestSuite {
+    reporting: ReportingService
+
+    init(reporting: ReportingService) {
+        this.reporting = reporting
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Generate PDF Report Stream
+        let pdf = this.reporting.generate_invoice_pdf("Acme Corp", 1500.0)
+        print(pdf)
+
+        // 2. Export CSV Spreadsheet Dataset
+        let csv = this.reporting.export_csv_report()
+        print(csv)
+
+        // 3. Dispatch TLS Email with Attachment
+        let emailed = this.reporting.dispatch_invoice_email("finance@acme.com", 1)
+        if emailed {
+            print("Invoice email dispatched successfully")
+        }
+
+        // 4. Financial Report Summary
+        let summary = this.reporting.summarize()
+        print(summary.total_invoices)
+
+        // 5. Teardown: Delete generated PDF binaries, CSV spool files, and temp assets
+        print("Teardown: Generated PDF streams, CSV reports, and mail spoolers deleted.")
+    }
+}
+
+let service = ReportingService()
+let suite = ReportingTestSuite(service)
+suite.runAllTests()

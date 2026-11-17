@@ -1,0 +1,53 @@
+// ============================================================================
+// Test Suite: 09_enterprise_clean_architecture
+// Tests Enterprise Router orchestration, Order lifecycle, and teardown cleanup
+// ============================================================================
+
+import { OrderRouter } from "./routes/order.routes"
+import { OrderController } from "./modules/orders/order.controller"
+import { OrderService } from "./modules/orders/order.service"
+import { OrderRepository } from "./modules/orders/order.repository"
+import { OrderEventEmitter } from "./modules/orders/order.events"
+import { AmbientDatabasePool } from "./database/database.pool"
+import { ApiResponse } from "./middleware/api_response_factory.middleware"
+
+class EnterpriseTestSuite {
+    orderRouter: OrderRouter
+    orderController: OrderController
+
+    init(orderRouter: OrderRouter, orderController: OrderController) {
+        this.orderRouter = orderRouter
+        this.orderController = orderController
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Create Enterprise Order
+        let createResp = this.orderRouter.createOrder(101, 3, 14999)
+        print(createResp.message)
+
+        // 2. Fetch Order Details
+        let getResp = this.orderRouter.getOrder(1)
+        print(getResp.message)
+
+        // 3. Cancel Order (Lifecycle state transition)
+        let cancelResp = this.orderRouter.cancelOrder(1)
+        print(cancelResp.message)
+
+        // 4. Teardown: Call destroy() on controller and release DB pool
+        let destroyed = this.orderController.destroy()
+        if destroyed {
+            print("Teardown: Enterprise pool connections released and controllers destroyed.")
+        }
+    }
+}
+
+let dbPool = AmbientDatabasePool()
+let events = OrderEventEmitter()
+let orderRepo = OrderRepository(dbPool)
+let orderService = OrderService(orderRepo, events)
+let apiResp = ApiResponse()
+let controller = OrderController(orderService, apiResp)
+let router = OrderRouter(controller)
+
+let suite = EnterpriseTestSuite(router, controller)
+suite.runAllTests()

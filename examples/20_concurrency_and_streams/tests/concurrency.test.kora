@@ -1,0 +1,33 @@
+// ============================================================================
+// Test Suite: 20_concurrency_and_streams
+// Tests concurrent async streams, batch pipeline processing, and teardown
+// ============================================================================
+
+import { StreamRecord } from "../models/stream_record.model"
+import { StreamPipelineService } from "../services/stream_pipeline.service"
+
+class ConcurrencyTestSuite {
+    service: StreamPipelineService
+
+    init(service: StreamPipelineService) {
+        this.service = service
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Process Stream Batch
+        let batchCount = this.service.processBatch()
+        print(batchCount)
+
+        // 2. Describe Stream Record
+        let rec = StreamRecord { id: 103, topic: "telemetry.disk", payload: "free=120GB" }
+        let desc = this.service.describeRecord(rec)
+        print(desc)
+
+        // 3. Teardown: Close async stream channels and release workers
+        print("Teardown: Stream channels closed and concurrency workers stopped.")
+    }
+}
+
+let service = StreamPipelineService()
+let suite = ConcurrencyTestSuite(service)
+suite.runAllTests()

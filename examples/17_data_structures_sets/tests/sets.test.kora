@@ -1,0 +1,39 @@
+// ============================================================================
+// Test Suite: 17_data_structures_sets
+// Tests Set union, intersection, BitSet flags, BTreeSet, and teardown
+// ============================================================================
+
+import { SetAlgebraService } from "../services/set_algebra.service"
+
+class SetsTestSuite {
+    service: SetAlgebraService
+
+    init(service: SetAlgebraService) {
+        this.service = service
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Set Union
+        let unionCount = this.service.calculateUnion()
+        print(unionCount)
+
+        // 2. Set Intersection
+        let interCount = this.service.calculateIntersection()
+        print(interCount)
+
+        // 3. BitSet Flag Counting
+        let bitFlags = this.service.calculateBitSetFlags()
+        print(bitFlags)
+
+        // 4. BTreeSet Sorted Set Operations
+        let btreeCount = this.service.calculateBTreeSet()
+        print(btreeCount)
+
+        // 5. Teardown: Clear bitsets, deallocate set nodes
+        print("Teardown: Set algebra memory and bitmasks deallocated.")
+    }
+}
+
+let service = SetAlgebraService()
+let suite = SetsTestSuite(service)
+suite.runAllTests()

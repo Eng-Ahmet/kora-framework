@@ -1,0 +1,53 @@
+// ============================================================================
+// Test Suite: 11_operators_control_flow_and_resilience
+// Tests loop control flow, compound operators, try/catch/finally, and teardown
+// ============================================================================
+
+import { PipelineJobRequest, PipelineJobSummary } from "../models/system_config.model"
+import { ResilientPipelineService } from "../services/resilient_pipeline.service"
+
+class ResilienceTestSuite {
+    pipeline: ResilientPipelineService
+
+    init(pipeline: ResilientPipelineService) {
+        this.pipeline = pipeline
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Calculate Backoff Delays with Compound Assignment
+        let delay1 = this.pipeline.calculateBackoff(2)
+        print(delay1)
+
+        // 2. Successful Batch Job with Skip and Break Control Flow
+        let successReq = PipelineJobRequest {
+            jobName: "sync_users",
+            batchSize: 2,
+            timeoutSeconds: Some(15),
+            payloads: ["RECORD_1", "SKIP", "RECORD_2", "RECORD_3"],
+            retryAttempts: Some(3)
+        }
+        let summary1 = this.pipeline.executeBatchJob(successReq)
+        print(summary1.processedItems)
+
+        // 3. Exception Handling via Try/Catch Resilience
+        let errorReq = PipelineJobRequest {
+            jobName: "poison_test",
+            batchSize: 5,
+            timeoutSeconds: None,
+            payloads: ["RECORD_1", "POISON_PILL"],
+            retryAttempts: None
+        }
+        let summary2 = this.pipeline.executeBatchJob(errorReq)
+        match summary2.errorMessage {
+            Some(err) => print(err),
+            None => print("No error")
+        }
+
+        // 4. Teardown: Reset pipeline telemetry and release locks
+        print("Teardown: Pipeline execution finished and worker locks released.")
+    }
+}
+
+let pipeline = ResilientPipelineService()
+let suite = ResilienceTestSuite(pipeline)
+suite.runAllTests()

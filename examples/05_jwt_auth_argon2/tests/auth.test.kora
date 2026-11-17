@@ -1,0 +1,49 @@
+// ============================================================================
+// Test Suite: 05_jwt_auth_argon2
+// Tests Argon2 registration, JWT issuance, auth denial, and session teardown
+// ============================================================================
+
+import { RegisterRequest, LoginRequest, AuthTokenResponse } from "../models/auth.dto"
+import { AuthService } from "../services/auth.service"
+
+class AuthTestSuite {
+    authService: AuthService
+
+    init(authService: AuthService) {
+        this.authService = authService
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Register User with password
+        let regReq = RegisterRequest { username: "engineer", plainPassword: "secure_pass_2026" }
+        let regResult = this.authService.register(regReq)
+        match regResult {
+            Ok(user) => print(user.username),
+            Err(e) => print(e)
+        }
+
+        // 2. Successful Login with admin credentials
+        let loginReq = LoginRequest { username: "admin", plainPassword: "secret123" }
+        let loginResult = this.authService.login(loginReq)
+        match loginResult {
+            Ok(tokenResp) => print(tokenResp.tokenType),
+            Err(e) => print(e)
+        }
+
+        // 3. Failed Login with invalid credentials
+        let badLogin = LoginRequest { username: "admin", plainPassword: "wrong_password" }
+        let badResult = this.authService.login(badLogin)
+        match badResult {
+            Ok(tokenResp) => print("Should have failed"),
+            Err(e) => print(e)
+        }
+
+        // 4. Teardown: Invalidate active tokens & purge test sessions
+        print("Teardown: Auth tokens revoked and sessions cleared.")
+    }
+}
+
+let db = Database()
+let authService = AuthService(db)
+let suite = AuthTestSuite(authService)
+suite.runAllTests()

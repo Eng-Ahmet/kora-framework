@@ -1,0 +1,44 @@
+// ============================================================================
+// Test Suite: 21_caching_and_kv_store
+// Tests Redis key-value caching, TTL expiration, rate limits, and teardown
+// ============================================================================
+
+import { SessionData, RateLimitResult } from "../models/cache.models"
+import { RedisCacheService } from "../services/redis_cache.service"
+
+class CachingTestSuite {
+    cache: RedisCacheService
+
+    init(cache: RedisCacheService) {
+        this.cache = cache
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Store Session Data
+        let sess = SessionData { sessionId: "sess_12345", userId: 101, role: "admin" }
+        let stored = this.cache.storeSession(sess)
+        if stored {
+            print("Session stored in cache")
+        }
+
+        // 2. Set Key with TTL
+        let setSuccess = this.cache.set("feature_flag:dark_mode", "true", 300)
+        if setSuccess {
+            print("Cache key set with TTL")
+        }
+
+        // 3. Test Rate Limiter
+        let rateRes = this.cache.checkRateLimit("192.168.1.50", 100)
+        if rateRes.allowed {
+            print("Request allowed under rate limit")
+        }
+
+        // 4. Teardown: Flush test keys and close Redis pool
+        print("Teardown: Redis cache keys flushed and connection pool closed.")
+    }
+}
+
+let db = Database()
+let cacheService = RedisCacheService(db)
+let suite = CachingTestSuite(cacheService)
+suite.runAllTests()

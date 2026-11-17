@@ -1,0 +1,47 @@
+// ============================================================================
+// Test Suite: 22_nosql_document_store
+// Tests MongoDB collection insertion, document query, and purge teardown
+// ============================================================================
+
+import { AuditEvent } from "../entities/audit_event.entity"
+import { MongoAuditRepository } from "../services/mongo_document.service"
+
+class DocumentStoreTestSuite {
+    repo: MongoAuditRepository
+
+    init(repo: MongoAuditRepository) {
+        this.repo = repo
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Insert NoSQL Document
+        let event = AuditEvent {
+            id: "doc_test_101",
+            eventType: "SECURITY_LOGIN_SUCCESS",
+            actorId: 42,
+            ipAddress: "127.0.0.1",
+            timestamp: 1715000000,
+            payload: "{\"provider\": \"oauth2\"}"
+        }
+        let insertRes = this.repo.recordEvent(event)
+        if insertRes.acknowledged {
+            print(insertRes.insertedId)
+        }
+
+        // 2. Query Document by Event Type
+        let found = this.repo.findByEvent("SECURITY_LOGIN_SUCCESS")
+        match found {
+            Some(evt) => print(evt.eventType),
+            None => print("Document not found")
+        }
+
+        // 3. Teardown: Purge old test documents and clear collection
+        let purgedCount = this.repo.purgeOlderThan(1715000001)
+        print("Teardown: NoSQL test documents purged and collection cleaned.")
+    }
+}
+
+let db = Database()
+let repo = MongoAuditRepository(db)
+let suite = DocumentStoreTestSuite(repo)
+suite.runAllTests()

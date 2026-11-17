@@ -1,0 +1,70 @@
+// ============================================================================
+// Test Suite: 02_clean_architecture_users
+// Tests User entity validation, saving, retrieval, and teardown cleanup
+// ============================================================================
+
+import { User } from "../entities/user.entity"
+import { UserRepository } from "../interfaces/user.repository.interface"
+import { UserService } from "../services/user.service"
+
+class MockUserRepo implements UserRepository {
+    init() {}
+
+    fn findById(id: Int) -> Option<User> {
+        if id == 42 {
+            return Some(User { id: 42, name: "Test User", email: "test@kora.dev", active: true })
+        }
+        return None
+    }
+
+    fn save(user: User) -> Result<User, String> {
+        return Ok(user)
+    }
+
+    fn deleteById(id: Int) -> Result<Bool, String> {
+        print("Teardown: User record deleted and memory cleared")
+        return Ok(true)
+    }
+}
+
+class UsersTestSuite {
+    service: UserService
+    mockRepo: MockUserRepo
+
+    init(service: UserService, mockRepo: MockUserRepo) {
+        this.service = service
+        this.mockRepo = mockRepo
+    }
+
+    fn runAllTests() -> Unit {
+        // 1. Arrange & Validate User
+        let testUser = User { id: 42, name: "Alice", email: "alice@kora.dev", active: true }
+        let validationResult = this.service.validateNewUser(testUser)
+        match validationResult {
+            Ok(u) => print(u.name),
+            Err(e) => print(e)
+        }
+
+        // 2. Act: Save User
+        let saveResult = this.service.save(testUser)
+        match saveResult {
+            Ok(saved) => print(saved.email),
+            Err(e) => print(e)
+        }
+
+        // 3. Act: Find User
+        let found = this.service.findById(42)
+        match found {
+            Some(u) => print(u.name),
+            None => print("Not found")
+        }
+
+        // 4. Teardown: Cleanup and delete test data
+        this.mockRepo.deleteById(42)
+    }
+}
+
+let mockRepo = MockUserRepo()
+let service = UserService(mockRepo)
+let suite = UsersTestSuite(service, mockRepo)
+suite.runAllTests()
