@@ -31,19 +31,29 @@
   "icon": "./icon.png",
   "main": "./client/extension.js",
   "activationEvents": [
-    "onLanguage:kora"
+    "onLanguage:kora",
+    "onCommand:kora.runFile",
+    "onCommand:kora.checkFile",
+    "onCommand:kora.formatFile"
   ],
   "categories": [
     "Programming Languages",
     "Snippets",
-    "Linters"
+    "Linters",
+    "Themes"
   ],
   "keywords": [
     "kora",
+    "kora-lang",
     "rust",
     "backend",
     "syntax",
-    "framework"
+    "framework",
+    "clean-architecture",
+    "concurrency",
+    "actor",
+    "type-system",
+    "compiler"
   ],
   "contributes": {
     "languages": [
@@ -94,6 +104,58 @@
         "category": "Kora"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "kora.runFile",
+          "when": "editorLangId == kora",
+          "group": "1_kora@1"
+        },
+        {
+          "command": "kora.checkFile",
+          "when": "editorLangId == kora",
+          "group": "1_kora@2"
+        },
+        {
+          "command": "kora.formatFile",
+          "when": "editorLangId == kora",
+          "group": "1_kora@3"
+        }
+      ],
+      "editor/title/run": [
+        {
+          "command": "kora.runFile",
+          "when": "editorLangId == kora",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "Kora Language Support",
+      "properties": {
+        "kora.compilerPath": {
+          "type": "string",
+          "default": "kora",
+          "description": "Path to the Kora compiler CLI binary (defaults to 'kora' in PATH)."
+        },
+        "kora.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time compiler diagnostics, type-checking, and architectural linting."
+        },
+        "kora.debounceMs": {
+          "type": "number",
+          "default": 350,
+          "description": "Debounce delay (in milliseconds) before triggering real-time diagnostics on document change."
+        },
+        "kora.formatOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically run canonical code formatting on save for .kora and .kr files."
+        }
+      }
+    },
     "iconThemes": [
       {
         "id": "kora-icons",

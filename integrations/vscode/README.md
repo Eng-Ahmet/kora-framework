@@ -1,88 +1,200 @@
-# Kora Visual Studio Code & Antigravity IDE Extension
+<p align="center">
+  <img src="./icon.png" width="128" height="128" alt="Kora Logo" />
+</p>
 
-> Official language extension for the **Kora** programming language and framework (`.kora` and `.kr`).
+<h1 align="center">Kora Language Support for Visual Studio Code & Modern IDEs</h1>
 
----
+<p align="center">
+  <strong>The official development environment for the Kora programming language and framework.</strong>
+</p>
 
-## 🌟 Key Features
-
-1. **⚡ Real-time Diagnostics & Architectural Checking**:
-   - Runs compiler diagnostics in real-time with debouncing.
-   - Enforces clean architecture rules (`E5001`–`E5004`) directly in the editor.
-
-2. **▶ CodeLens Direct Execution (`▶ Run File` & `⚡ Check File`)**:
-   - Interactive buttons placed above `fn main()` and top-level entrypoints.
-   - Click to run your Kora app natively inside the integrated terminal without typing commands.
-
-3. **🎨 Canonical Code Formatting (`Shift+Alt+F`)**:
-   - Registered `DocumentFormattingEditProvider` powered by `kora fmt`.
-   - Supports `editor.formatOnSave: true` for zero-friction formatting.
-
-4. **🔍 Go To Definition (`F12` / `Ctrl+Click`)**:
-   - Instant symbol navigation to declarations of `model`, `class`, `interface`, `enum`, `fn`, `let`, and `var`.
-   - Navigates across local declarations and multi-file `import` statements.
-
-5. **📑 Document Symbols & Outline View (`Ctrl+Shift+O`)**:
-   - Renders a clean structural outline of all classes, models, interfaces, enums, and functions in the side panel and editor breadcrumbs.
-
-6. **💡 Contextual Hover Documentation**:
-   - Rich Markdown documentation displayed when hovering over keywords, decorators, types, and language primitives.
-
-7. **✨ Intelligent Autocompletion**:
-   - Suggestions for keywords, built-in types, ORM/validation decorators (`@table`, `@unique`, `@index`), and dynamic file symbols.
-
-8. **🏷️ Dot-Free Custom Icons**:
-   - Clean, modern file icons for `.kora`, `.kr`, models, modules, and tests.
+<p align="center">
+  <a href="https://open-vsx.org/extension/kora-framework/kora-vscode"><img src="https://img.shields.io/badge/Open%20VSX-kora--framework-blue?style=flat-square&logo=eclipse" alt="Open VSX"></a>
+  <a href="https://github.com/Hwai-technology/kora-framework/releases"><img src="https://img.shields.io/badge/version-v0.8.0-success?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/Hwai-technology/kora-framework/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?style=flat-square" alt="Platform">
+</p>
 
 ---
 
-## 🚀 Installation & Setup
+## 🌟 Overview
 
-### Automatic Installation
-Run the root setup script:
-```bash
-./scripts/setup.sh
+**Kora** is a high-throughput, memory-safe backend language and web framework that unifies the developer ergonomics of **TypeScript**, the raw speed and zero-cost abstractions of **Rust**, and the actor/channel concurrency model of **Go**.
+
+This extension turns **Visual Studio Code**, **Cursor**, **VSCodium**, and **Antigravity IDE** into a first-class Kora IDE with real-time compilation feedback, rich language intelligence, and domain-driven design tooling.
+
+---
+
+## 🚀 Key Features
+
+### 1. ⚡ Real-Time Compiler Diagnostics & Architectural Linting
+- **Continuous Background Validation**: Instant syntax and type-checking with intelligent debouncing (`350ms`) as you type.
+- **Clean Architecture Rules**: Enforces clean layer boundaries (`E5001`–`E5004`) directly in the editor, alerting you when controllers bypass service interfaces or leak database abstractions.
+
+### 2. ▶ Interactive CodeLens Execution
+- **One-Click Native Execution**: Interactive `▶ Run File` and `⚡ Check File` action buttons appear directly above `fn main()` and top-level entrypoints.
+- Runs your application in the integrated terminal without manually typing commands.
+
+### 3. 🎨 Canonical Code Formatting (`Shift+Alt+F`)
+- **Built-in Formatter**: Registered `DocumentFormattingEditProvider` backed by `kora fmt`.
+- Supports `editor.formatOnSave: true` for zero-configuration, deterministic, team-wide code formatting.
+
+### 4. 🔍 Go To Definition (`F12` / `Ctrl+Click`)
+- **Instant Symbol Navigation**: Jump directly to declarations of `model`, `class`, `interface`, `enum`, `fn`, `let`, and `var`.
+- Seamlessly resolves multi-file imports (`import { UserService } from "./services/user_service"`).
+
+### 5. 📑 Document Symbols & Outline View (`Ctrl+Shift+O`)
+- **Hierarchical Code Outline**: Renders a complete structural hierarchy of your models, services, methods, and types in the side outline and editor breadcrumbs.
+
+### 6. 💡 Contextual Hover Documentation
+- Hover over any language keyword, built-in primitive (`Int`, `Float`, `String`, `Option`, `Result`), decorator (`@entity`, `@unique`, `@index`), or actor construct to view rich Markdown documentation with usage examples.
+
+### 7. ✨ Intelligent Autocompletion & Snippets
+- Context-aware suggestions for keywords, types, REST route handlers (`get()`, `post()`, `put()`, `delete()`), concurrency primitives (`spawn`, `channel`, `broadcast`), and ORM decorators.
+- Rapid snippet templates: type `class`, `model`, `actor`, `enum`, or `test` and hit `Tab`.
+
+### 8. 📁 Domain-Driven File Icon Theme
+- Includes **19 custom vector icons** tailored for clean architecture files:
+  - `*.entity.kora` — Database Entity
+  - `*.dto.kora` — Request/Response DTO
+  - `*.service.kora` — Domain Service
+  - `*.controller.kora` — HTTP Controller / Router
+  - `*.repository.kora` — Database Repository
+  - `*.validator.kora` — RFC Input Validator
+  - `*.test.kora` — Lifecycle Test Suite
+  - `*.event.kora` — Domain Event
+  - And more (`module`, `middleware`, `config`, `enum`, `interface`, `routes`).
+
+---
+
+## 📖 Kora Syntax at a Glance
+
+### Clean Architecture & Data Transfer Objects
+```kora
+// models/user.dto.kora
+model CreateUserDto {
+    name: String,
+    email: String,
+    role: String
+}
+
+// entities/user.entity.kora
+@entity
+@table("users")
+model User {
+    @id @auto
+    id: Int,
+    @index
+    name: String,
+    @unique
+    email: String,
+    active: Bool
+}
 ```
 
-### Manual Installation
-Copy the extension into your VS Code / Antigravity IDE extensions directory:
-```bash
-# For VS Code:
-mkdir -p ~/.vscode/extensions/kora-lang.kora-vscode-0.4.1
-cp -r * ~/.vscode/extensions/kora-lang.kora-vscode-0.4.1/
+### Services & Interfaces
+```kora
+// interfaces/user_service.interface.kora
+interface IUserService {
+    fn register(dto: CreateUserDto) -> Result<User, String>
+}
 
-# For Antigravity IDE:
-mkdir -p ~/.antigravity-ide/extensions/kora-lang.kora-vscode-0.4.1
-cp -r * ~/.antigravity-ide/extensions/kora-lang.kora-vscode-0.4.1/
+// services/user.service.kora
+class UserService implements IUserService {
+    repo: IUserRepository
+
+    init(repo: IUserRepository) {
+        this.repo = repo
+    }
+
+    fn register(dto: CreateUserDto) -> Result<User, String> {
+        let user = User {
+            id: 0,
+            name: dto.name,
+            email: dto.email,
+            active: true
+        }
+        return this.repo.save(user)
+    }
+}
+```
+
+### High-Throughput Concurrency & Actors
+```kora
+// Concurrency with async channels and actors
+fn main() {
+    let chan = channel<String>(100)
+
+    spawn(async () => {
+        chan.send("Message from worker task")
+    })
+
+    let message = chan.recv()
+    println("Received: {}", message)
+}
 ```
 
 ---
 
-## 📦 CI/CD & Automated Marketplace Publishing
+## ⌨️ Commands & Shortcuts
 
-The extension is continuously built, packaged, and published via automated GitHub Actions:
-
-- **`.github/workflows/extension-ci.yml`**: Triggers on pushes touching `integrations/vscode/**` and tag releases (`v*`).
-- **`.github/workflows/publish-packages.yml`**: Integrated multi-platform release pipeline publishing `.vsix` binaries to GitHub Releases, Visual Studio Marketplace, and Open VSX Registry.
-
-### Required Secrets for Publishing:
-| Secret Name | Target Marketplace | Purpose |
+| Command | Title | Default Shortcut |
 |---|---|---|
-| `KORA_VSCODE_MARKETPLACE_TOKEN` (or `VSCE_PAT`) | Visual Studio Marketplace (Microsoft) | Personal Access Token with Marketplace Publish permissions |
-| `KORA_OVSX_TOKEN` (or `OVSX_PAT`) | Open VSX Registry (Eclipse Foundation) | Access token for publishing to Open VSX (used by VSCodium & Antigravity IDE) |
+| `kora.runFile` | **Kora: Run File** | `F5` / Context Menu |
+| `kora.checkFile` | **Kora: Check File** | Context Menu |
+| `kora.formatFile` | **Kora: Format Document** | `Shift+Alt+F` |
 
-### Manual Packaging & Publishing via CLI:
-```bash
-cd integrations/vscode
+---
 
-# Package .vsix
-npm run package
+## ⚙️ Configuration Settings
 
-# Publish to Visual Studio Marketplace
-npx @vscode/vsce publish -p <YOUR_VSCODE_MARKETPLACE_TOKEN>
+Access settings via `Ctrl+,` (or `Cmd+,` on macOS) and search for `kora`:
 
-# Publish to Open VSX Registry
-npx ovsx publish -p <YOUR_OVSX_TOKEN>
+```json
+{
+  // Custom path to the kora compiler binary (default: "kora" in PATH)
+  "kora.compilerPath": "kora",
+
+  // Enable or disable real-time compiler diagnostics and architectural checks
+  "kora.enableDiagnostics": true,
+
+  // Debounce delay (in ms) before triggering real-time diagnostics
+  "kora.debounceMs": 350,
+
+  // Automatically format .kora and .kr files on save
+  "kora.formatOnSave": true
+}
 ```
 
+---
 
+## 💻 Installation
+
+### Option 1: Open VSX Registry (VSCodium, Cursor, Antigravity IDE, Gitpod)
+Search for **Kora Language Support** in the Extensions view (`Ctrl+Shift+X`), or install via CLI:
+```bash
+ovsx get kora-framework.kora-vscode
+```
+
+### Option 2: Visual Studio Marketplace (VS Code)
+Search for **Kora Language Support** by **kora-framework** in the Extensions sidebar.
+
+### Option 3: Install from VSIX package
+Download `kora-vscode-0.8.0.vsix` from [GitHub Releases](https://github.com/Hwai-technology/kora-framework/releases) and run:
+```bash
+code --install-extension kora-vscode-0.8.0.vsix
+```
+
+---
+
+## 🤝 Community & Support
+
+- **Repository**: [https://github.com/Hwai-technology/kora-framework](https://github.com/Hwai-technology/kora-framework)
+- **Official Documentation**: [https://kora-lang.dev](https://kora-lang.dev)
+- **Bug Reports & RFCs**: [https://github.com/Hwai-technology/kora-framework/issues](https://github.com/Hwai-technology/kora-framework/issues)
+
+---
+
+<p align="center">
+  Distributed under the <a href="./LICENSE">GNU Affero General Public License v3.0 or later</a>.
+</p>
