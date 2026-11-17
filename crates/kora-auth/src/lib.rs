@@ -195,9 +195,16 @@ impl RbacGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use argon2::password_hash::rand_core::RngCore;
 
     fn test_password() -> String {
         SaltString::generate(&mut OsRng).to_string()
+    }
+
+    fn test_secret_key() -> [u8; 32] {
+        let mut key = [0u8; 32];
+        OsRng.fill_bytes(&mut key);
+        key
     }
 
     #[test]
@@ -205,17 +212,18 @@ mod tests {
         let pwd = test_password();
         let hash = PasswordAuth::hash_password(&pwd).expect("hash success");
         assert!(PasswordAuth::verify_password(&pwd, &hash));
-        assert!(!PasswordAuth::verify_password("wrong", &hash));
+        let mismatched_pwd = format!("mismatch_{}", test_password());
+        assert!(!PasswordAuth::verify_password(&mismatched_pwd, &hash));
     }
 
     #[test]
     fn signs_and_verifies_jwt_hmac() {
-        let secret = b"my-super-secret-key-32-bytes-long";
+        let secret = test_secret_key();
         let payload = r#"{"sub":"user_123","role":"admin"}"#;
-        let sig = JwtSigner::sign_hs256(secret, payload).unwrap();
-        assert!(JwtSigner::verify_hs256(secret, payload, &sig));
+        let sig = JwtSigner::sign_hs256(&secret, payload).unwrap();
+        assert!(JwtSigner::verify_hs256(&secret, payload, &sig));
         assert!(!JwtSigner::verify_hs256(
-            secret,
+            &secret,
             r#"{"tampered":true}"#,
             &sig
         ));
@@ -223,11 +231,7 @@ mod tests {
 
     #[test]
     fn security_verifies_argon2id_unique_salts_and_brute_force_resistance() {
-        let nonce = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before unix epoch")
-            .as_nanos();
-        let pwd = format!("test-password-{nonce}");
+        let pwd = test_password();
         let hash1 = PasswordAuth::hash_password(pwd.as_str()).unwrap();
         let hash2 = PasswordAuth::hash_password(pwd.as_str()).unwrap();
         // Cryptographic salts must be unique, ensuring identical passwords yield different hashes
@@ -238,9 +242,9 @@ mod tests {
 
     #[test]
     fn security_rejects_jwt_tampering_and_forgery() {
-        let secret = b"strong-cryptographic-master-key-256";
+        let secret = test_secret_key();
         let payload = r#"{"uid":42,"role":"customer","balance":100}"#;
-        let sig = JwtSigner::sign_hs256(secret, payload).unwrap();
+        let sig = JwtSigner::sign_hs256(&secret, payload).unwrap();
 
         // 1. Bit-flip in signature
         let mut tampered_sig = sig.clone();
@@ -251,15 +255,15 @@ mod tests {
         };
         tampered_sig.pop();
         tampered_sig.push(last_char);
-        assert!(!JwtSigner::verify_hs256(secret, payload, &tampered_sig));
+        assert!(!JwtSigner::verify_hs256(&secret, payload, &tampered_sig));
 
         // 2. Privilege escalation tampering in payload
         let escalated_payload = r#"{"uid":42,"role":"superadmin","balance":999999}"#;
-        assert!(!JwtSigner::verify_hs256(secret, escalated_payload, &sig));
+        assert!(!JwtSigner::verify_hs256(&secret, escalated_payload, &sig));
 
         // 3. Different signing key
-        let rogue_key = b"attacker-key-32-bytes-long-here!";
-        assert!(!JwtSigner::verify_hs256(rogue_key, payload, &sig));
+        let rogue_key = test_secret_key();
+        assert!(!JwtSigner::verify_hs256(&rogue_key, payload, &sig));
     }
 
     #[test]
@@ -280,20 +284,20 @@ mod tests {
 
     #[test]
     fn security_verifies_jwt_claims_and_expiration_rejection() {
-        let secret = b"my-ultra-secure-key-32-bytes-long";
+        let secret = test_secret_key();
 
         // 1. Valid Token
         let valid_claims = StandardClaims::new("user_1001", 3600).with_role("admin");
-        let token = JwtSigner::sign_claims(secret, &valid_claims).unwrap();
-        let verified = JwtSigner::verify_token_claims(secret, &token, 0).unwrap();
+        let token = JwtSigner::sign_claims(&secret, &valid_claims).unwrap();
+        let verified = JwtSigner::verify_token_claims(&secret, &token, 0).unwrap();
         assert_eq!(verified.sub, "user_1001");
         assert_eq!(verified.role.as_deref(), Some("admin"));
 
         // 2. Expired Token must be rejected
         let mut expired_claims = StandardClaims::new("user_1002", 0);
         expired_claims.exp = 1000; // far in the past
-        let expired_token = JwtSigner::sign_claims(secret, &expired_claims).unwrap();
-        let res = JwtSigner::verify_token_claims(secret, &expired_token, 0);
+        let expired_token = JwtSigner::sign_claims(&secret, &expired_claims).unwrap();
+        let res = JwtSigner::verify_token_claims(&secret, &expired_token, 0);
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("token has expired"));
     }
