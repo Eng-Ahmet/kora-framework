@@ -327,7 +327,22 @@
         "kora.copilot.apiKey": {
           "type": "string",
           "default": "",
-          "description": "API Key for cloud LLM providers (OpenAI, Gemini, Anthropic)."
+          "description": "API Key for cloud LLM providers (OpenAI, Gemini, Anthropic, or Custom)."
+        },
+        "kora.copilot.openaiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key (sk-...)."
+        },
+        "kora.copilot.geminiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Google Gemini API Key (AIza...)."
+        },
+        "kora.copilot.anthropicKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic Claude API Key (sk-ant-...)."
         }
       }
     },

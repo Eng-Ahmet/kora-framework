@@ -455,10 +455,94 @@ I understand the complete Kora Language specification, Clean Architecture invari
 - *"Audit current file against .agent standards"*`;
     }
 
+    _resolveEndpoint(provider, customEndpoint) {
+        if (provider === 'github') {
+            if (!customEndpoint) return 'https://models.inference.ai.azure.com/chat/completions';
+            try {
+                const u = new URL(customEndpoint);
+                if (u.hostname === 'models.inference.ai.azure.com') {
+                    if (!u.pathname.endsWith('/chat/completions')) {
+                        u.pathname = '/chat/completions';
+                    }
+                    return u.toString();
+                }
+                return customEndpoint;
+            } catch {
+                return 'https://models.inference.ai.azure.com/chat/completions';
+            }
+        }
+        if (provider === 'ollama') {
+            const raw = customEndpoint || 'http://localhost:11434/api/generate';
+            try {
+                const u = new URL(raw);
+                if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
+                    if (!u.pathname.startsWith('/api/')) {
+                        u.pathname = '/api/generate';
+                    }
+                    return u.toString();
+                }
+                return raw;
+            } catch {
+                return 'http://localhost:11434/api/generate';
+            }
+        }
+        if (provider === 'gemini') {
+            return customEndpoint || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+        }
+        if (provider === 'anthropic') {
+            return customEndpoint || 'https://api.anthropic.com/v1/messages';
+        }
+        if (provider === 'openai' || provider === 'custom') {
+            const raw = customEndpoint || 'https://api.openai.com/v1/chat/completions';
+            try {
+                const u = new URL(raw);
+                if (u.hostname === 'api.openai.com' && !u.pathname.endsWith('/chat/completions')) {
+                    u.pathname = '/v1/chat/completions';
+                    return u.toString();
+                }
+                return raw;
+            } catch {
+                return 'https://api.openai.com/v1/chat/completions';
+            }
+        }
+        return customEndpoint || '';
+    }
+
+    async testConnection(config) {
+        const start = Date.now();
+        const provider = (config.provider || 'embedded').toLowerCase();
+        if (provider === 'embedded') {
+            return {
+                success: true,
+                latencyMs: 1,
+                provider: 'embedded',
+                message: 'Embedded Knowledge Engine is active and indexed (offline).'
+            };
+        }
+        try {
+            await this._callExternalLlm('Respond with the word OK.', null, config);
+            const latencyMs = Date.now() - start;
+            return {
+                success: true,
+                latencyMs,
+                provider,
+                model: config.model || 'default',
+                message: `Successfully connected to ${provider} in ${latencyMs}ms!`
+            };
+        } catch (err) {
+            return {
+                success: false,
+                latencyMs: Date.now() - start,
+                provider,
+                error: err.message
+            };
+        }
+    }
+
     _callExternalLlm(prompt, activeDoc, config) {
         return new Promise((resolve, reject) => {
             const provider = (config.provider || 'embedded').toLowerCase();
-            let endpointUrl = config.endpoint || '';
+            const endpointUrl = this._resolveEndpoint(provider, config.endpoint);
 
             // 1. Augment system prompt with matching Kora rules and knowledge
             const query = prompt.toLowerCase();
@@ -493,13 +577,6 @@ CORE KORA INVARIANTS & ARCHITECTURAL RULES:
             let headers = { 'Content-Type': 'application/json' };
 
             if (provider === 'github') {
-                // GitHub Models API (Azure AI / GitHub Marketplace free inference)
-                if (!endpointUrl || endpointUrl.includes('localhost') || !endpointUrl.startsWith('http')) {
-                    endpointUrl = 'https://models.inference.ai.azure.com/chat/completions';
-                } else if (!endpointUrl.includes('/chat/completions')) {
-                    endpointUrl = endpointUrl.replace(/\/$/, '') + '/chat/completions';
-                }
-
                 const token = config.githubToken || config.apiKey || process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
                 if (!token) {
                     return reject(new Error("GitHub Token required. Set 'kora.copilot.githubToken' in VS Code settings or paste your GitHub Personal Access Token."));
@@ -516,12 +593,6 @@ CORE KORA INVARIANTS & ARCHITECTURAL RULES:
                     temperature: 0.2
                 });
             } else if (provider === 'ollama') {
-                // Local small English models via Ollama (e.g. phi3:mini, llama3.2:1b, qwen2.5-coder)
-                if (!endpointUrl || endpointUrl.includes('models.inference.ai.azure.com')) {
-                    endpointUrl = 'http://localhost:11434/api/generate';
-                } else if (!endpointUrl.includes('/api/')) {
-                    endpointUrl = endpointUrl.replace(/\/$/, '') + '/api/generate';
-                }
                 const model = config.model && config.model !== 'gpt-4o-mini' ? config.model : 'phi3:mini';
                 postData = JSON.stringify({
                     model: model,
@@ -529,9 +600,33 @@ CORE KORA INVARIANTS & ARCHITECTURAL RULES:
                     prompt: prompt,
                     stream: false
                 });
+            } else if (provider === 'gemini') {
+                const token = config.geminiKey || config.apiKey || process.env.GEMINI_API_KEY;
+                if (!token) return reject(new Error("Gemini API Key required. Set in Kora Settings."));
+                headers['Authorization'] = `Bearer ${token}`;
+                postData = JSON.stringify({
+                    model: config.model || 'gemini-1.5-flash',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: prompt }
+                    ]
+                });
+            } else if (provider === 'anthropic') {
+                const token = config.anthropicKey || config.apiKey || process.env.ANTHROPIC_API_KEY;
+                if (!token) return reject(new Error("Anthropic API Key required. Set in Kora Settings."));
+                headers['x-api-key'] = token;
+                headers['anthropic-version'] = '2023-06-01';
+                postData = JSON.stringify({
+                    model: config.model || 'claude-3-5-sonnet-20241022',
+                    system: systemPrompt,
+                    messages: [
+                        { role: 'user', content: prompt }
+                    ],
+                    max_tokens: 2048
+                });
             } else if (provider === 'openai' || provider === 'custom') {
-                if (!endpointUrl.includes('/chat/completions')) endpointUrl = endpointUrl.replace(/\/$/, '') + '/v1/chat/completions';
-                if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`;
+                const token = config.openaiKey || config.apiKey || process.env.OPENAI_API_KEY;
+                if (token) headers['Authorization'] = `Bearer ${token}`;
                 postData = JSON.stringify({
                     model: config.model || 'gpt-4o',
                     messages: [

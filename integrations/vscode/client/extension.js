@@ -11,6 +11,13 @@ let assistantViewProvider;
 let copilotEngine;
 
 /**
+ * Safely escape characters for RegExp dynamic interpolation (prevents ReDoS and syntax errors)
+ */
+function escapeRegex(str) {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Official 23 Examples Metadata Catalog
  */
 const EXAMPLES_CATALOG = [
@@ -293,23 +300,25 @@ function activate(context) {
                         }
 
                         const text = document.getText();
-                        const typeRegex = new RegExp(`(?:let|var|param)\\s+${varName}\\s*(?::\\s*([A-Za-z0-9_]+)|=\\s*([A-Za-z0-9_]+)\\s*\\{)`);
+                        const safeVar = escapeRegex(varName);
+                        const typeRegex = new RegExp(`(?:let|var|param)\\s+${safeVar}\\s*(?::\\s*([A-Za-z0-9_]+)|=\\s*([A-Za-z0-9_]+)\\s*\\{)`);
                         const typeMatch = text.match(typeRegex);
                         const typeName = typeMatch ? (typeMatch[1] || typeMatch[2]) : varName;
 
-                        const modelRegex = new RegExp(`(?:model|class|interface)\\s+${typeName}\\s*(?:implements\\s+[^{]+)?\\{([^}]+)\\}`, 's');
+                        const safeType = escapeRegex(typeName);
+                        const modelRegex = new RegExp(`(?:model|class|interface)\\s+${safeType}\\s*(?:implements\\s+[^{]+)?\\{([^}]+)\\}`, 's');
                         const modelMatch = text.match(modelRegex);
                         if (modelMatch) {
                             const body = modelMatch[1];
                             const memberCompletions = [];
                             for (const fl of body.split('\n')) {
-                                const fMatch = fl.trim().match(/^([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_?<>\[\]]+)/);
+                                const fMatch = fl.trim().match(/^([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_?<>[\]]+)/);
                                 if (fMatch) {
                                     const item = new vscode.CompletionItem(fMatch[1], vscode.CompletionItemKind.Field);
                                     item.detail = `${typeName}.${fMatch[1]}: ${fMatch[2]}`;
                                     memberCompletions.push(item);
                                 }
-                                const mMatch = fl.trim().match(/^fn\s+([A-Za-z0-9_]+)\s*\((.*?)\)(\s*->\s*([A-Za-z0-9_?<>\[\]]+))?/);
+                                const mMatch = fl.trim().match(/^fn\s+([A-Za-z0-9_]+)\s*\((.*?)\)(\s*->\s*([A-Za-z0-9_?<>[\]]+))?/);
                                 if (mMatch) {
                                     const item = new vscode.CompletionItem(mMatch[1], vscode.CompletionItemKind.Method);
                                     item.detail = `fn ${typeName}.${mMatch[1]}(${mMatch[2]}) -> ${mMatch[4] || 'Unit'}`;
@@ -366,12 +375,13 @@ function activate(context) {
             }
 
             const text = document.getText();
-            const modelMatch = text.match(new RegExp(`model\\s+${word}\\s*\\{([^}]+)\\}`));
+            const safeWord = escapeRegex(word);
+            const modelMatch = text.match(new RegExp(`model\\s+${safeWord}\\s*\\{([^}]+)\\}`));
             if (modelMatch) {
                 return new vscode.Hover(new vscode.MarkdownString(`### Model \`${word}\` (Pure DTO)\n\`\`\`kora\nmodel ${word} {\n${modelMatch[1].trim()}\n}\n\`\`\`\n- **Layer**: Boundary DTO / Domain Model`));
             }
 
-            const fnMatch = text.match(new RegExp(`(async\\s+)?fn\\s+${word}\\s*\\((.*?)\\)(\\s*->\\s*([A-Za-z0-9_?<>\[\]]+))?`));
+            const fnMatch = text.match(new RegExp(`(async\\s+)?fn\\s+${safeWord}\\s*\\((.*?)\\)(\\s*->\\s*([A-Za-z0-9_?<>\\[\\]]+))?`));
             if (fnMatch) {
                 return new vscode.Hover(new vscode.MarkdownString(`### Function \`${word}\`\n\`\`\`kora\n${fnMatch[0]}\n\`\`\`\n- **Return**: \`${fnMatch[4] || 'Unit'}\`\n- **Async**: ${fnMatch[1] ? 'Yes (Tokio)' : 'No'}`));
             }
@@ -390,14 +400,15 @@ function activate(context) {
 
             const text = document.getText();
             const lines = text.split('\n');
+            const safeWord = escapeRegex(word);
 
             const defRegexes = [
-                new RegExp(`\\bmodel\\s+${word}\\b`),
-                new RegExp(`\\bclass\\s+${word}\\b`),
-                new RegExp(`\\binterface\\s+${word}\\b`),
-                new RegExp(`\\benum\\s+${word}\\b`),
-                new RegExp(`\\bfn\\s+${word}\\s*\\(`),
-                new RegExp(`\\b(?:let|var)\\s+${word}\\b`)
+                new RegExp(`\\bmodel\\s+${safeWord}\\b`),
+                new RegExp(`\\bclass\\s+${safeWord}\\b`),
+                new RegExp(`\\binterface\\s+${safeWord}\\b`),
+                new RegExp(`\\benum\\s+${safeWord}\\b`),
+                new RegExp(`\\bfn\\s+${safeWord}\\s*\\(`),
+                new RegExp(`\\b(?:let|var)\\s+${safeWord}\\b`)
             ];
 
             for (let i = 0; i < lines.length; i++) {
@@ -967,6 +978,44 @@ class KoraAssistantViewProvider {
                         this.syncProviderToWebview();
                     }
                     break;
+                case 'saveAllSettings':
+                    {
+                        const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                        const s = message.settings || {};
+                        if (s.provider) await cfg.update('provider', s.provider, vscode.ConfigurationTarget.Global);
+                        if (s.githubToken !== undefined) await cfg.update('githubToken', s.githubToken, vscode.ConfigurationTarget.Global);
+                        if (s.openaiKey !== undefined) await cfg.update('openaiKey', s.openaiKey, vscode.ConfigurationTarget.Global);
+                        if (s.geminiKey !== undefined) await cfg.update('geminiKey', s.geminiKey, vscode.ConfigurationTarget.Global);
+                        if (s.anthropicKey !== undefined) await cfg.update('anthropicKey', s.anthropicKey, vscode.ConfigurationTarget.Global);
+                        if (s.model !== undefined) await cfg.update('model', s.model, vscode.ConfigurationTarget.Global);
+                        if (s.endpoint !== undefined) await cfg.update('endpoint', s.endpoint, vscode.ConfigurationTarget.Global);
+                        vscode.window.showInformationMessage(`✅ Kora Copilot settings saved! Active Provider: ${s.provider || cfg.get('provider')}`);
+                        this.syncProviderToWebview();
+                    }
+                    break;
+                case 'testConnection':
+                    {
+                        const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                        const s = message.settings || {};
+                        const testConfig = {
+                            provider: s.provider || cfg.get('provider', 'embedded'),
+                            model: s.model || cfg.get('model', 'gpt-4o-mini'),
+                            endpoint: s.endpoint || cfg.get('endpoint', ''),
+                            githubToken: s.githubToken || cfg.get('githubToken', ''),
+                            openaiKey: s.openaiKey || cfg.get('openaiKey', ''),
+                            geminiKey: s.geminiKey || cfg.get('geminiKey', ''),
+                            anthropicKey: s.anthropicKey || cfg.get('anthropicKey', ''),
+                            apiKey: cfg.get('apiKey', '')
+                        };
+                        const result = await this.engine.testConnection(testConfig);
+                        if (this.view) {
+                            this.view.webview.postMessage({
+                                type: 'testConnectionResult',
+                                result: result
+                            });
+                        }
+                    }
+                    break;
             }
         });
 
@@ -1051,8 +1100,11 @@ class KoraAssistantViewProvider {
 
         let provider = config.get('provider', 'embedded');
         let githubToken = config.get('githubToken', '');
+        let openaiKey = config.get('openaiKey', '');
+        let geminiKey = config.get('geminiKey', '');
+        let anthropicKey = config.get('anthropicKey', '');
         let model = config.get('model', 'gpt-4o-mini');
-        let endpoint = config.get('endpoint', 'https://models.inference.ai.azure.com');
+        let endpoint = config.get('endpoint', '');
         let apiKey = config.get('apiKey', '');
 
         // If provider is GitHub and token isn't in settings or env, try silent session lookup
@@ -1068,6 +1120,9 @@ class KoraAssistantViewProvider {
         const runtimeConfig = {
             provider,
             githubToken,
+            openaiKey,
+            geminiKey,
+            anthropicKey,
             model,
             endpoint,
             apiKey
@@ -1093,7 +1148,16 @@ class KoraAssistantViewProvider {
                 provider: config.get('provider', 'embedded'),
                 model: config.get('model', 'gpt-4o-mini'),
                 hasGitHubToken: Boolean(config.get('githubToken') || process.env.GITHUB_TOKEN),
-                endpoint: config.get('endpoint', 'http://localhost:11434')
+                endpoint: config.get('endpoint', ''),
+                settings: {
+                    provider: config.get('provider', 'embedded'),
+                    githubToken: config.get('githubToken', ''),
+                    openaiKey: config.get('openaiKey', ''),
+                    geminiKey: config.get('geminiKey', ''),
+                    anthropicKey: config.get('anthropicKey', ''),
+                    model: config.get('model', 'gpt-4o-mini'),
+                    endpoint: config.get('endpoint', '')
+                }
             });
         }
     }
@@ -1430,6 +1494,16 @@ class KoraAssistantViewProvider {
             border-radius: 3px;
             cursor: pointer;
         }
+        .settings-group {
+            margin-bottom: 10px;
+        }
+        .settings-label {
+            display: block;
+            font-size: 10.5px;
+            font-weight: 600;
+            opacity: 0.85;
+            margin-bottom: 3px;
+        }
         .provider-bar {
             display: flex;
             align-items: center;
@@ -1558,6 +1632,7 @@ class KoraAssistantViewProvider {
         <button class="tab-btn" onclick="switchTab('learn')">Learning</button>
         <button class="tab-btn" onclick="switchTab('ask')">AI Chat</button>
         <button class="tab-btn" onclick="switchTab('examples')">Examples (23)</button>
+        <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
     </div>
 
     <!-- 1. Inspector / Active File Copilot -->
@@ -1750,6 +1825,75 @@ class KoraAssistantViewProvider {
         </div>
     </div>
 
+    <!-- 4. Settings Section -->
+    <div id="tab-settings" class="section">
+        <div style="font-weight: 600; font-size: 12.5px; margin-bottom: 4px;">⚙️ AI Models & API Keys Settings</div>
+        <div style="font-size: 10.5px; opacity: 0.8; margin-bottom: 10px;">Configure AI engine providers, API keys, custom endpoints, and models:</div>
+
+        <div class="settings-group">
+            <label class="settings-label">Active Engine Provider:</label>
+            <select id="cfg-active-provider" class="provider-select" onchange="onSettingsProviderChange(this.value)">
+                <option value="embedded">⚡ Embedded Core (Offline Rules & Docs)</option>
+                <option value="github">🐙 GitHub Models (gpt-4o-mini / Phi-3.5)</option>
+                <option value="ollama">🦙 Local Ollama (phi3:mini / llama3.2:1b)</option>
+                <option value="openai">🤖 OpenAI (gpt-4o / gpt-4o-mini)</option>
+                <option value="gemini">✨ Google Gemini (gemini-1.5-flash)</option>
+                <option value="anthropic">🧠 Anthropic Claude (claude-3-5-sonnet)</option>
+                <option value="custom">🌐 Custom OpenAI-compatible Endpoint</option>
+            </select>
+        </div>
+
+        <div class="settings-group" id="cfg-field-github">
+            <label class="settings-label">GitHub Token / PAT:</label>
+            <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                <input type="password" id="cfg-input-github" class="chat-input" placeholder="ghp_... or github_pat_..." style="flex: 1;" />
+                <button class="chat-btn" onclick="togglePasswordVisibility('cfg-input-github')">👁️</button>
+            </div>
+            <button class="action-btn" style="width: 100%;" onclick="requestGitHubLogin()">🔗 Auto-Link GitHub Account</button>
+        </div>
+
+        <div class="settings-group" id="cfg-field-openai">
+            <label class="settings-label">OpenAI API Key:</label>
+            <div style="display: flex; gap: 4px;">
+                <input type="password" id="cfg-input-openai" class="chat-input" placeholder="sk-..." style="flex: 1;" />
+                <button class="chat-btn" onclick="togglePasswordVisibility('cfg-input-openai')">👁️</button>
+            </div>
+        </div>
+
+        <div class="settings-group" id="cfg-field-gemini">
+            <label class="settings-label">Google Gemini API Key:</label>
+            <div style="display: flex; gap: 4px;">
+                <input type="password" id="cfg-input-gemini" class="chat-input" placeholder="AIzaSy..." style="flex: 1;" />
+                <button class="chat-btn" onclick="togglePasswordVisibility('cfg-input-gemini')">👁️</button>
+            </div>
+        </div>
+
+        <div class="settings-group" id="cfg-field-anthropic">
+            <label class="settings-label">Anthropic Claude API Key:</label>
+            <div style="display: flex; gap: 4px;">
+                <input type="password" id="cfg-input-anthropic" class="chat-input" placeholder="sk-ant-..." style="flex: 1;" />
+                <button class="chat-btn" onclick="togglePasswordVisibility('cfg-input-anthropic')">👁️</button>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <label class="settings-label">Model Name:</label>
+            <input type="text" id="cfg-input-model" class="chat-input" placeholder="e.g. gpt-4o-mini, phi3:mini, claude-3-5-sonnet" style="width: 100%;" />
+        </div>
+
+        <div class="settings-group">
+            <label class="settings-label">Endpoint URL (Optional):</label>
+            <input type="text" id="cfg-input-endpoint" class="chat-input" placeholder="e.g. http://localhost:11434 or https://api.openai.com/v1" style="width: 100%;" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px;">
+            <button class="action-btn primary" onclick="saveAllSettings()">💾 Save Settings</button>
+            <button class="action-btn" onclick="testConnection()">⚡ Test Connection</button>
+        </div>
+
+        <div id="test-connection-status" style="margin-top: 10px; display: none; padding: 8px; border-radius: 5px; font-size: 11px; line-height: 1.4;"></div>
+    </div>
+
     <script>
         const vscode = acquireVsCodeApi();
 
@@ -1822,6 +1966,65 @@ class KoraAssistantViewProvider {
                 model: model
             });
             document.getElementById('provider-config-box').style.display = 'none';
+        }
+
+        function togglePasswordVisibility(id) {
+            const input = document.getElementById(id);
+            if (input) input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        function onSettingsProviderChange(val) {
+            const modelInput = document.getElementById('cfg-input-model');
+            const endInput = document.getElementById('cfg-input-endpoint');
+            if (val === 'github') {
+                if (modelInput && !modelInput.value) modelInput.value = 'gpt-4o-mini';
+            } else if (val === 'ollama') {
+                if (modelInput && (!modelInput.value || modelInput.value.includes('gpt'))) modelInput.value = 'phi3:mini';
+                if (endInput && !endInput.value) endInput.value = 'http://localhost:11434';
+            } else if (val === 'gemini') {
+                if (modelInput && (!modelInput.value || modelInput.value.includes('phi'))) modelInput.value = 'gemini-1.5-flash';
+            } else if (val === 'anthropic') {
+                if (modelInput && (!modelInput.value || modelInput.value.includes('phi'))) modelInput.value = 'claude-3-5-sonnet-20241022';
+            }
+        }
+
+        function saveAllSettings() {
+            const settings = {
+                provider: document.getElementById('cfg-active-provider').value,
+                githubToken: document.getElementById('cfg-input-github').value.trim(),
+                openaiKey: document.getElementById('cfg-input-openai').value.trim(),
+                geminiKey: document.getElementById('cfg-input-gemini').value.trim(),
+                anthropicKey: document.getElementById('cfg-input-anthropic').value.trim(),
+                model: document.getElementById('cfg-input-model').value.trim(),
+                endpoint: document.getElementById('cfg-input-endpoint').value.trim()
+            };
+            vscode.postMessage({
+                type: 'saveAllSettings',
+                settings: settings
+            });
+        }
+
+        function testConnection() {
+            const statusDiv = document.getElementById('test-connection-status');
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = 'var(--vscode-editorWidget-background)';
+            statusDiv.style.border = '1px solid var(--vscode-widget-border)';
+            statusDiv.style.color = 'var(--vscode-foreground)';
+            statusDiv.innerText = '⚡ Testing connection...';
+
+            const settings = {
+                provider: document.getElementById('cfg-active-provider').value,
+                githubToken: document.getElementById('cfg-input-github').value.trim(),
+                openaiKey: document.getElementById('cfg-input-openai').value.trim(),
+                geminiKey: document.getElementById('cfg-input-gemini').value.trim(),
+                anthropicKey: document.getElementById('cfg-input-anthropic').value.trim(),
+                model: document.getElementById('cfg-input-model').value.trim(),
+                endpoint: document.getElementById('cfg-input-endpoint').value.trim()
+            };
+            vscode.postMessage({
+                type: 'testConnection',
+                settings: settings
+            });
         }
 
         function sendPrompt() {
@@ -1920,6 +2123,21 @@ class KoraAssistantViewProvider {
                 if (msg.provider && msg.provider !== 'embedded') {
                     document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
                 }
+            } else if (msg.type === 'testConnectionResult') {
+                const statusDiv = document.getElementById('test-connection-status');
+                if (!statusDiv) return;
+                statusDiv.style.display = 'block';
+                if (msg.result.success) {
+                    statusDiv.style.background = 'rgba(16, 185, 129, 0.15)';
+                    statusDiv.style.border = '1px solid #10B981';
+                    statusDiv.style.color = '#34D399';
+                    statusDiv.innerText = '✅ Connected (' + msg.result.latencyMs + 'ms): ' + msg.result.message;
+                } else {
+                    statusDiv.style.background = 'rgba(239, 68, 68, 0.15)';
+                    statusDiv.style.border = '1px solid #EF4444';
+                    statusDiv.style.color = '#F87171';
+                    statusDiv.innerText = '❌ Connection Error (' + msg.result.provider + '): ' + msg.result.error;
+                }
             } else if (msg.type === 'syncConfig') {
                 const select = document.getElementById('copilot-provider-select');
                 if (select) select.value = msg.provider || 'embedded';
@@ -1937,6 +2155,23 @@ class KoraAssistantViewProvider {
                 if (msg.endpoint) {
                     const olEnd = document.getElementById('cfg-ollama-endpoint');
                     if (olEnd) olEnd.value = msg.endpoint;
+                }
+                if (msg.settings) {
+                    const s = msg.settings;
+                    const actProv = document.getElementById('cfg-active-provider');
+                    if (actProv && s.provider) actProv.value = s.provider;
+                    const inpGh = document.getElementById('cfg-input-github');
+                    if (inpGh && s.githubToken) inpGh.value = s.githubToken;
+                    const inpOa = document.getElementById('cfg-input-openai');
+                    if (inpOa && s.openaiKey) inpOa.value = s.openaiKey;
+                    const inpGe = document.getElementById('cfg-input-gemini');
+                    if (inpGe && s.geminiKey) inpGe.value = s.geminiKey;
+                    const inpAn = document.getElementById('cfg-input-anthropic');
+                    if (inpAn && s.anthropicKey) inpAn.value = s.anthropicKey;
+                    const inpMo = document.getElementById('cfg-input-model');
+                    if (inpMo && s.model) inpMo.value = s.model;
+                    const inpEnd = document.getElementById('cfg-input-endpoint');
+                    if (inpEnd && s.endpoint) inpEnd.value = s.endpoint;
                 }
             }
         });
