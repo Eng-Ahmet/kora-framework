@@ -1519,9 +1519,16 @@ class KoraAssistantViewProvider {
 <body>
     <div class="header">
         <div class="logo">
-            <svg class="logo-icon" viewBox="0 0 24 24" width="18" height="18">
-                <path d="M 4 3 C 4 2.45 4.45 2 5 2 L 7 2 C 7.55 2 8 2.45 8 3 L 8 21 C 8 21.55 7.55 22 7 22 L 5 22 C 4.45 22 4 21.55 4 21 Z" fill="#FFFFFF"/>
-                <path d="M 8 12.8 L 16.2 3.6 C 16.6 3.2 17.2 3 17.8 3 L 20 3 C 20.8 3 21.3 3.9 20.8 4.6 L 12.8 13.5 L 21.1 21.4 C 21.6 22.1 21.1 23 20.2 23 L 17.8 23 C 17.3 23 16.7 22.8 16.3 22.4 L 8 14.5 Z" fill="#38BDF8"/>
+            <svg class="logo-icon" viewBox="0 0 128 128" width="20" height="20" style="border-radius: 4px; overflow: hidden;">
+                <defs>
+                    <linearGradient id="koraGradHdr" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#00D2FF"/>
+                        <stop offset="100%" stop-color="#0047FF"/>
+                    </linearGradient>
+                </defs>
+                <rect x="0" y="0" width="128" height="128" rx="28" fill="url(#koraGradHdr)"/>
+                <path d="M 40 32 L 52 32 L 52 96 L 40 96 Z" fill="#FFFFFF"/>
+                <path d="M 52 64 L 80 32 L 95 32 L 64 67 L 96 96 L 80 96 L 52 70 Z" fill="#FFFFFF"/>
             </svg>
             <span>Kora Copilot</span>
         </div>
