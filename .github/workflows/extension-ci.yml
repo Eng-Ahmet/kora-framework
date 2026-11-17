@@ -78,7 +78,7 @@ jobs:
           echo "Ensuring namespace '${PUBLISHER}' exists on Open VSX Registry..."
           npx ovsx create-namespace "${PUBLISHER}" -p "$KORA_OVSX_TOKEN" || true
           echo "Publishing Kora Language Extension v${VERSION} to Open VSX Registry..."
-          npx ovsx publish "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_OVSX_TOKEN"
+          npx ovsx publish "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_OVSX_TOKEN" --skip-duplicate
 
       - name: Publish to Visual Studio Marketplace (Microsoft)
         if: github.event_name == 'workflow_dispatch' && inputs.publish_marketplace == true
