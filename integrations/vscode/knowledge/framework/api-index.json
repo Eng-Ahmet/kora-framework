@@ -1,0 +1,51 @@
+{
+  "frameworkVersion": "0.8.0",
+  "modules": [
+    {
+      "name": "std::http",
+      "description": "High-performance HTTP server, router, request, response, and middlewares",
+      "exports": [
+        { "name": "App", "kind": "class", "description": "HTTP Application entrypoint (`new App()`, `listen(port)`)" },
+        { "name": "Router", "kind": "class", "description": "HTTP Route group with path prefixes and middlewares" },
+        { "name": "Request", "kind": "class", "description": "Incoming HTTP request object (`params`, `query`, `body`, `headers`)" },
+        { "name": "Response", "kind": "class", "description": "Outgoing HTTP response builder (`status()`, `json()`, `send()`)" },
+        { "name": "HttpStatus", "kind": "enum", "description": "Standard HTTP status codes (`OK`, `CREATED`, `BAD_REQUEST`, `NOT_FOUND`, etc.)" }
+      ]
+    },
+    {
+      "name": "std::orm",
+      "description": "Compile-time type-safe database access and connection pools",
+      "exports": [
+        { "name": "Database", "kind": "class", "description": "Database connection manager and query executor" },
+        { "name": "Transaction", "kind": "class", "description": "ACID transaction block with commit and rollback" },
+        { "name": "@table", "kind": "decorator", "description": "Decorates persistent domain entity classes" },
+        { "name": "@primaryKey", "kind": "decorator", "description": "Marks the primary key field of an entity" }
+      ]
+    },
+    {
+      "name": "std::security",
+      "description": "Argon2 password hashing, JWT cryptographic signing, and RBAC guards",
+      "exports": [
+        { "name": "Argon2", "kind": "class", "description": "Argon2id password hashing (`hash()`, `verify()`)" },
+        { "name": "Jwt", "kind": "class", "description": "JWT creation and verification (`sign()`, `verify()`)" }
+      ]
+    },
+    {
+      "name": "std::realtime",
+      "description": "WebSocket hubs, presence management, and broadcast channels",
+      "exports": [
+        { "name": "WebSocketHub", "kind": "class", "description": "WebSocket connection manager and broadcaster" },
+        { "name": "Channel", "kind": "class", "description": "Topic-based pub/sub message channel" }
+      ]
+    },
+    {
+      "name": "std::actors",
+      "description": "Actor concurrency runtime with mailboxes and messages",
+      "exports": [
+        { "name": "Actor", "kind": "class", "description": "Base actor with isolated mutable state" },
+        { "name": "tell", "kind": "function", "description": "Fire-and-forget message dispatch to an actor" },
+        { "name": "ask", "kind": "function", "description": "Request-response async query to an actor" }
+      ]
+    }
+  ]
+}

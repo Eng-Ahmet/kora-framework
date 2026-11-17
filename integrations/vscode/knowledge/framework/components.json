@@ -1,0 +1,39 @@
+{
+  "components": [
+    {
+      "layer": "Presentation",
+      "type": "Controller",
+      "directory": "src/controllers/",
+      "namingConvention": "<Domain>Controller",
+      "description": "Translates HTTP requests into domain service calls and formats HTTP responses."
+    },
+    {
+      "layer": "Application / Domain",
+      "type": "Service",
+      "directory": "src/services/",
+      "namingConvention": "<Domain>Service",
+      "description": "Contains business logic, domain rules, and orchestrates repository calls."
+    },
+    {
+      "layer": "Data Access",
+      "type": "Repository",
+      "directory": "src/repositories/",
+      "namingConvention": "<Domain>Repository",
+      "description": "Abstracts data persistence behind interfaces implemented with SQL or in-memory stores."
+    },
+    {
+      "layer": "Core Domain",
+      "type": "Entity",
+      "directory": "src/entities/",
+      "namingConvention": "<Domain>Entity",
+      "description": "Persisted domain entities decorated with @table."
+    },
+    {
+      "layer": "Boundary",
+      "type": "DTO / Model",
+      "directory": "src/models/",
+      "namingConvention": "<Action><Domain>Request / <Domain>Response",
+      "description": "Immutable request/response models with validation decorators."
+    }
+  ]
+}

@@ -44,7 +44,14 @@
     "onCommand:kora.explainCode",
     "onCommand:kora.generateTests",
     "onCommand:kora.openExamplesExplorer",
-    "onCommand:kora.fixDiagnostic"
+    "onCommand:kora.fixDiagnostic",
+    "onCommand:kora.auditFile",
+    "onCommand:kora.analyzeWorkspace",
+    "onCommand:kora.walkthroughSelection",
+    "onCommand:kora.generateDocs",
+    "onCommand:kora.validateProject",
+    "onCommand:kora.openLearningCenter",
+    "onCommand:kora.openArchitectureExplorer"
   ],
   "categories": [
     "Programming Languages",
@@ -173,6 +180,42 @@
         "title": "Kora AI: Audit File Against .agent Rules",
         "category": "Kora",
         "icon": "$(shield)"
+      },
+      {
+        "command": "kora.analyzeWorkspace",
+        "title": "Kora: Analyze Workspace & Architecture",
+        "category": "Kora",
+        "icon": "$(search)"
+      },
+      {
+        "command": "kora.walkthroughSelection",
+        "title": "Kora AI: Interactive Code Walkthrough",
+        "category": "Kora",
+        "icon": "$(book)"
+      },
+      {
+        "command": "kora.generateDocs",
+        "title": "Kora AI: Generate Documentation",
+        "category": "Kora",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "kora.validateProject",
+        "title": "Kora: Validate Project (Compiler & Rules)",
+        "category": "Kora",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "kora.openLearningCenter",
+        "title": "Kora: Open Interactive Learning Center",
+        "category": "Kora",
+        "icon": "$(mortar-board)"
+      },
+      {
+        "command": "kora.openArchitectureExplorer",
+        "title": "Kora: Open Visual Architecture Explorer",
+        "category": "Kora",
+        "icon": "$(organization)"
       }
     ],
     "menus": {

@@ -1,0 +1,29 @@
+{
+  "total": 23,
+  "repository": "https://github.com/Hwai-technology/kora-framework.git",
+  "examples": [
+    { "slug": "01_hello_world", "name": "Hello World & Baseline", "category": "Core", "difficulty": "Beginner", "description": "Pure models, enums, pattern matching, OrderProcessor and Clean Architecture baseline" },
+    { "slug": "02_clean_architecture_users", "name": "Clean Architecture Users", "category": "Architecture", "difficulty": "Beginner", "description": "Class-based DI, User controller, service, repository interface, and validation" },
+    { "slug": "03_crud_products_api", "name": "CRUD Products API", "category": "Web & API", "difficulty": "Intermediate", "description": "RESTful HTTP endpoints, paginated lists, in-memory repository, and CRUD mutations" },
+    { "slug": "04_mysql_database_orm", "name": "MySQL Database ORM", "category": "Database", "difficulty": "Intermediate", "description": "Type-safe SQL queries, ACID transactions, connection pool, and NoSQL audit trail" },
+    { "slug": "05_jwt_auth_argon2", "name": "JWT Auth & Argon2", "category": "Security", "difficulty": "Intermediate", "description": "Argon2 password hashing, cryptographically signed JWT tokens, and RBAC guards" },
+    { "slug": "06_realtime_websockets", "name": "Realtime WebSockets", "category": "Realtime", "difficulty": "Intermediate", "description": "WebSocket connection hub, room presence, broadcast channels, and event subscriptions" },
+    { "slug": "07_async_actors_concurrency", "name": "Async Actors Concurrency", "category": "Concurrency", "difficulty": "Advanced", "description": "Tokio-backed stateful actors, mailboxes, fire-and-forget tell, and query ask" },
+    { "slug": "08_openapi_swagger", "name": "OpenAPI & Swagger UI", "category": "Documentation", "difficulty": "Beginner", "description": "Declarative OpenAPI 3.1 schema extraction and embedded dark-themed Swagger UI" },
+    { "slug": "09_enterprise_clean_architecture", "name": "Enterprise Clean Architecture", "category": "Enterprise", "difficulty": "Advanced", "description": "Enterprise layered architecture with events, repositories, domain errors, and DI" },
+    { "slug": "10_dto_validation_and_types", "name": "DTO Validation & Types", "category": "Validation", "difficulty": "Intermediate", "description": "Custom decorators (@email, @min, @max, @required), nested DTOs, and RFC errors" },
+    { "slug": "11_operators_control_flow_and_resilience", "name": "Operators & Resilience", "category": "Core", "difficulty": "Intermediate", "description": "Pipeline operators, loops, break/continue, and try/catch/finally resilience" },
+    { "slug": "12_microservice_event_driven", "name": "Microservice Event-Driven", "category": "Enterprise", "difficulty": "Advanced", "description": "Asynchronous event bus, domain event storage, message serialization, and consumers" },
+    { "slug": "13_modular_monolith_ecommerce", "name": "Modular Monolith E-Commerce", "category": "Architecture", "difficulty": "Advanced", "description": "Multi-bounded context (Catalog, Billing, Orders) within a single compile unit" },
+    { "slug": "14_realtime_iot_telemetry", "name": "Realtime IoT Telemetry", "category": "IoT", "difficulty": "Advanced", "description": "High-throughput sensor ingestion, ring buffer windows, and anomaly alerting" },
+    { "slug": "15_data_structures_sequential", "name": "Sequential Data Structures", "category": "Data Structures", "difficulty": "Intermediate", "description": "Native Vector, LinkedList, Stack (LIFO), Queue (FIFO), and CircularBuffer" },
+    { "slug": "16_data_structures_associative", "name": "Associative Data Structures", "category": "Data Structures", "difficulty": "Intermediate", "description": "HashMap, Map literals, BTreeMap sorted indexing, and fast key-value lookups" },
+    { "slug": "17_data_structures_sets", "name": "Set Data Structures", "category": "Data Structures", "difficulty": "Intermediate", "description": "HashSet, TreeSet, BitSet flag manipulation, and set algebra operations" },
+    { "slug": "18_data_structures_specialized", "name": "Specialized Data Structures", "category": "Data Structures", "difficulty": "Advanced", "description": "MinHeap/MaxHeap, LRU Cache with eviction, Prefix Trie, and Graph algorithms" },
+    { "slug": "19_type_inference_and_types", "name": "Type Inference & ADTs", "category": "Language", "difficulty": "Intermediate", "description": "Hindley-Milner type inference, Algebraic Data Types, and exhaustive matching" },
+    { "slug": "20_concurrency_and_streams", "name": "Concurrency & Streams", "category": "Concurrency", "difficulty": "Advanced", "description": "Async stream pipelines, batch buffering, backpressure, and concurrent workers" },
+    { "slug": "21_caching_and_kv_store", "name": "Caching & Key-Value Store", "category": "Database", "difficulty": "Intermediate", "description": "In-memory Key-Value store with TTL expiration, atomic counters, and rate limiting" },
+    { "slug": "22_nosql_document_store", "name": "NoSQL Document Store", "category": "Database", "difficulty": "Intermediate", "description": "Document collection storage, JSON querying, indexing, and projection filters" },
+    { "slug": "23_enterprise_reporting_media_email", "name": "Enterprise Reporting & Media", "category": "Enterprise", "difficulty": "Advanced", "description": "Streaming PDF generation, CSV tabular export, and TLS SMTP email dispatch" }
+  ]
+}

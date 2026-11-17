@@ -1,0 +1,34 @@
+{
+  "expressions": [
+    {
+      "kind": "BinaryExpr",
+      "description": "Binary arithmetic, logical, or comparison operation",
+      "syntax": "<left> <operator> <right>",
+      "rules": "Strict type matching; arithmetic between String and Int requires explicit formatting or parsing."
+    },
+    {
+      "kind": "PipelineExpr",
+      "description": "Functional pipeline operator passing LHS as the first argument of RHS",
+      "syntax": "data |> transform |> validate",
+      "rules": "RHS must resolve to a callable function."
+    },
+    {
+      "kind": "MatchExpr",
+      "description": "Pattern matching expression over enums, variants, or values",
+      "syntax": "match val { Variant(x) => expr, _ => defaultExpr }",
+      "rules": "Must be exhaustive across all enum variants or include a wildcard `_` arm."
+    },
+    {
+      "kind": "CallExpr",
+      "description": "Invokes a function or method with argument list",
+      "syntax": "func(arg1, arg2)",
+      "rules": "Argument count and types must strictly match function parameters."
+    },
+    {
+      "kind": "MemberExpr",
+      "description": "Accesses a field or method on an object instance",
+      "syntax": "instance.member",
+      "rules": "Null-safe navigation operator `?.` should be used on optional types."
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "patterns": [
+    {
+      "name": "Dependency Injection (DI)",
+      "description": "Constructors declare dependencies explicitly via `init(...)`, resolved at compile time.",
+      "code": "class OrderService {\n    repo: OrderRepository\n\n    init(repo: OrderRepository) {\n        this.repo = repo\n    }\n}"
+    },
+    {
+      "name": "Result-based Error Handling",
+      "description": "Return `Result<T, DomainError>` rather than throwing unchecked exceptions for recoverable errors.",
+      "code": "fn findUser(id: String) -> Result<User, NotFoundError> {\n    let user = this.repo.find(id)\n    if user == null {\n        return Result.err(NotFoundError(\"User not found\"))\n    }\n    return Result.ok(user)\n}"
+    },
+    {
+      "name": "Stateful Actor Pattern",
+      "description": "Encapsulates state inside an Actor with message processing loop.",
+      "code": "class CounterActor {\n    var count: Int\n    init() { this.count = 0 }\n    fn handle(msg: String) -> Int {\n        if msg == \"inc\" { this.count += 1 }\n        return this.count\n    }\n}"
+    }
+  ]
+}

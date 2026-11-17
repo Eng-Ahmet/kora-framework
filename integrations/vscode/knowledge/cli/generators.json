@@ -1,0 +1,32 @@
+{
+  "generators": [
+    {
+      "command": "kora g feature <name>",
+      "generates": [
+        "src/entities/<name>.entity.kora",
+        "src/models/<name>.model.kora",
+        "src/repositories/<name>.repository.kora",
+        "src/services/<name>.service.kora",
+        "src/controllers/<name>.controller.kora",
+        "tests/<name>_unit.test.kora",
+        "tests/<name>_load.test.kora"
+      ],
+      "description": "Generates a complete Clean Architecture vertical slice with full unit and load test suites."
+    },
+    {
+      "command": "kora new <name> / kora create <name>",
+      "generates": [
+        "kora.toml",
+        "src/main.kora",
+        "src/entities/",
+        "src/models/",
+        "src/repositories/",
+        "src/services/",
+        "src/controllers/",
+        "tests/users_unit.test.kora",
+        "tests/users_load.test.kora"
+      ],
+      "description": "Scaffolds a production-ready Kora backend project with standardized test and architecture suites."
+    }
+  ]
+}

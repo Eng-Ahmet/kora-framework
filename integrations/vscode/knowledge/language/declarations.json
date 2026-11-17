@@ -1,0 +1,28 @@
+{
+  "declarations": [
+    {
+      "name": "model",
+      "purpose": "Immutable pure Data Transfer Object (DTO) or boundary representation",
+      "example": "model CreateUserRequest {\n    name: String\n    email: String\n    age: Int\n}",
+      "rules": "Models cannot declare methods or internal mutable state. Used for API payloads and validation."
+    },
+    {
+      "name": "entity",
+      "purpose": "Persisted domain entity decorated with @table",
+      "example": "@table(\"users\")\nclass UserEntity {\n    id: String\n    name: String\n    createdAt: Int\n}",
+      "rules": "Must reside strictly in entities/ directory. Cannot be returned directly to HTTP callers (use DTO)."
+    },
+    {
+      "name": "class",
+      "purpose": "Stateful service, repository, or actor implementation",
+      "example": "class UserService {\n    repo: UserRepository\n\n    init(repo: UserRepository) {\n        this.repo = repo\n    }\n\n    fn findById(id: String) -> User? {\n        return this.repo.findById(id)\n    }\n}",
+      "rules": "Must implement constructor injection via `init(...)`. Direct database instantiation is banned."
+    },
+    {
+      "name": "interface",
+      "purpose": "Contract specification for repositories and external services",
+      "example": "interface UserRepository {\n    fn findById(id: String) -> User?\n    fn save(user: User) -> Bool\n}",
+      "rules": "Specifies method signatures without implementations."
+    }
+  ]
+}

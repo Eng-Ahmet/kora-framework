@@ -5,6 +5,7 @@ const https = require('https');
 
 /**
  * Built-in Core Knowledge Base derived from:
+ * - integrations/vscode/knowledge/ (language, compiler, framework, cli, examples, rules)
  * - .agent/rules/ (00-10, compiler-boundaries, language-evolution)
  * - .agent/standards/ (architecture, coding, performance, security, testing)
  * - docs/ (architecture, language, getting-started, ecosystem)
@@ -93,15 +94,23 @@ All Kora projects and generated features must provide automated test coverage:
 - \`kora g feature <name>\`: Generates a complete Clean Architecture slice (routes, controller, service, repo, validator, entity, dto, errors, events, unit test, load test).
 - \`kora example list\`: Displays the catalog of 23 official production examples.
 - \`kora example init <slug> [dir]\`: Clones/scaffolds an official GitHub example with offline caching.
-- \`kora fmt [path]\`: Canonical code formatter.
-- \`kora swagger [file]\`: Automatically generates OpenAPI 3.1 and embedded Swagger UI.`
+- \`kora example search <query>\`: Searches official examples catalog.
+- \`kora doctor\`: Verifies compiler, runtime, environment, and extension health.
+- \`kora fmt [path]\`: Canonical code formatter.`
     }
 ];
 
 class KoraCopilotEngine {
     constructor() {
         this.workspaceDocs = [];
+        this.knowledgeFiles = [];
         this.workspaceRoot = null;
+
+        // Auto-index extension's built-in knowledge directory
+        const builtInKnowledge = path.join(__dirname, '..', 'knowledge');
+        if (fs.existsSync(builtInKnowledge)) {
+            this._scanKnowledgeDir(builtInKnowledge);
+        }
     }
 
     /**
@@ -116,12 +125,35 @@ class KoraCopilotEngine {
             path.join(workspaceRoot, '.agent', 'rules'),
             path.join(workspaceRoot, '.agent', 'standards'),
             path.join(workspaceRoot, 'docs'),
-            path.join(workspaceRoot, 'documentation')
+            path.join(workspaceRoot, 'documentation'),
+            path.join(workspaceRoot, 'integrations', 'vscode', 'knowledge')
         ];
 
         for (const dir of targetDirs) {
             this._scanDirectory(dir);
         }
+    }
+
+    _scanKnowledgeDir(dir) {
+        if (!fs.existsSync(dir)) return;
+        try {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    this._scanKnowledgeDir(fullPath);
+                } else if (entry.isFile()) {
+                    try {
+                        const content = fs.readFileSync(fullPath, 'utf-8');
+                        this.knowledgeFiles.push({
+                            name: entry.name,
+                            path: fullPath,
+                            content: content
+                        });
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
     }
 
     _scanDirectory(dir) {
@@ -132,13 +164,11 @@ class KoraCopilotEngine {
                 const fullPath = path.join(dir, entry.name);
                 if (entry.isDirectory()) {
                     this._scanDirectory(fullPath);
-                } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html'))) {
+                } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html') || entry.name.endsWith('.json'))) {
                     this._indexFile(fullPath);
                 }
             }
-        } catch (e) {
-            // Ignore unreadable directories
-        }
+        } catch (e) {}
     }
 
     _indexFile(filePath) {
@@ -147,7 +177,6 @@ class KoraCopilotEngine {
             const relativePath = this.workspaceRoot ? path.relative(this.workspaceRoot, filePath) : filePath;
             const fileName = path.basename(filePath);
 
-            // Extract main title from markdown
             let title = fileName;
             const titleMatch = content.match(/^#\s+(.+)$/m);
             if (titleMatch) {
@@ -158,11 +187,9 @@ class KoraCopilotEngine {
                 title,
                 path: relativePath,
                 fullPath: filePath,
-                content: content.slice(0, 4000) // index first 4k chars
+                content: content.slice(0, 4000)
             });
-        } catch (e) {
-            // Ignore unreadable files
-        }
+        } catch (e) {}
     }
 
     /**
@@ -180,7 +207,7 @@ class KoraCopilotEngine {
                 rule: "Rule 01: Single-Null Design",
                 code: "E2005",
                 message: "Use of `undefined` detected. Kora strictly forbids `undefined` in favor of `null` and `Option<T>`.",
-                fix: "Replace `undefined` with `null` or `None`."
+                fix: "Replace `undefined` with `null`."
             });
         }
 
@@ -227,30 +254,110 @@ class KoraCopilotEngine {
     }
 
     /**
+     * Interactive Code Walkthrough: Breaks down line-by-line execution flow and dependencies.
+     */
+    walkthroughCode(code) {
+        if (!code || code.trim().length === 0) return "No code selected for walkthrough.";
+
+        let walkthrough = `### 🔍 Interactive Code Walkthrough\n\n`;
+        const lines = code.split('\n');
+
+        let hasAsync = code.includes('async');
+        let hasDb = code.includes('db.') || code.includes('Database');
+        let hasActor = code.includes('actor') || code.includes('tell') || code.includes('ask');
+        let hasPattern = code.includes('match');
+
+        walkthrough += `**Architectural Profile**:\n`;
+        walkthrough += `- **Concurrency Model**: ${hasActor ? 'Actor Mailbox' : hasAsync ? 'Non-Blocking Async Future (Tokio)' : 'Synchronous Block'}\n`;
+        walkthrough += `- **Persistence**: ${hasDb ? 'Direct DB or Injected Repository' : 'Pure In-Memory / Domain Logic'}\n`;
+        walkthrough += `- **Pattern Matching**: ${hasPattern ? 'Exhaustive ADT Matching' : 'Standard Control Flow'}\n\n`;
+
+        walkthrough += `**Execution Trace**:\n`;
+        let step = 1;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line || line.startsWith('//')) continue;
+
+            if (line.startsWith('fn ') || line.startsWith('async fn ')) {
+                walkthrough += `**Step ${step++} (Function Entry)**: \`${line}\`\n- Establishes stack frame and initializes parameter bindings.\n\n`;
+            } else if (line.startsWith('init(')) {
+                walkthrough += `**Step ${step++} (Dependency Injection)**: \`${line}\`\n- Receives interface dependencies injected by application container.\n\n`;
+            } else if (line.startsWith('let ') || line.startsWith('var ')) {
+                walkthrough += `**Step ${step++} (Binding Allocation)**: \`${line}\`\n- Allocates memory with compile-time ownership tracking.\n\n`;
+            } else if (line.startsWith('match ')) {
+                walkthrough += `**Step ${step++} (Pattern Match)**: \`${line}\`\n- Exhaustive algebraic branch evaluation.\n\n`;
+            } else if (line.startsWith('return ')) {
+                walkthrough += `**Step ${step++} (Exit & Teardown)**: \`${line}\`\n- Returns typed value, releasing scoped variables deterministically.\n\n`;
+            }
+        }
+
+        return walkthrough;
+    }
+
+    /**
+     * Generates structured docstrings for a Kora function or class.
+     */
+    generateDocumentation(code) {
+        if (!code || code.trim().length === 0) return "// Please select a function or class to document";
+
+        const fnMatch = code.match(/(async\s+)?fn\s+([A-Za-z0-9_]+)\s*\((.*?)\)(\s*->\s*([A-Za-z0-9_?<>\[\]]+))?/);
+        if (fnMatch) {
+            const isAsync = !!fnMatch[1];
+            const name = fnMatch[2];
+            const rawParams = fnMatch[3];
+            const returnType = fnMatch[5] || 'Unit';
+
+            let doc = `/**\n * Executes \`${name}\` operation.\n *\n`;
+            if (rawParams && rawParams.trim()) {
+                const params = rawParams.split(',');
+                for (const p of params) {
+                    const parts = p.trim().split(':');
+                    const pName = parts[0].trim();
+                    const pType = parts[1] ? parts[1].trim() : 'Any';
+                    doc += ` * @param ${pName} [${pType}] - Description for ${pName}\n`;
+                }
+            }
+            doc += ` * @returns [${returnType}] - Operation result\n`;
+            if (isAsync) doc += ` * @async - Non-blocking Tokio worker execution\n`;
+            doc += ` */\n`;
+            return doc;
+        }
+
+        const classMatch = code.match(/class\s+([A-Za-z0-9_]+)(\s+implements\s+([A-Za-z0-9_]+))?/);
+        if (classMatch) {
+            const name = classMatch[1];
+            const iface = classMatch[3];
+            let doc = `/**\n * \`${name}\` Service Layer Component\n *\n * Architectural Role: Application Domain Service\n`;
+            if (iface) doc += ` * Implements: \`${iface}\`\n`;
+            doc += ` * Invariant: All dependencies must be injected via \`init(...)\` (Rule 04)\n */\n`;
+            return doc;
+        }
+
+        return `/**\n * Kora Component\n * @module\n */\n`;
+    }
+
+    /**
      * Answers a user prompt with authoritative knowledge from .agent/rules/ and docs/.
      */
     async answerPrompt(prompt, activeDoc, config) {
         const provider = (config && config.provider) ? config.provider.toLowerCase() : 'embedded';
 
-        // 1. External LLM Provider (Ollama, OpenAI, Gemini) if configured and not 'embedded'
-        if (provider !== 'embedded' && config.endpoint) {
+        if (provider !== 'embedded' && config && config.endpoint) {
             try {
                 return await this._callExternalLlm(prompt, activeDoc, config);
             } catch (err) {
-                // Graceful fallback to embedded knowledge engine
                 const fallbackResponse = this._generateEmbeddedResponse(prompt, activeDoc);
                 return `> ⚠️ **Note**: External LLM (${provider}) was unreachable (${err.message}). Showing response from **Kora Embedded Knowledge Engine**:\n\n` + fallbackResponse;
             }
         }
 
-        // 2. Embedded Knowledge Engine
         return this._generateEmbeddedResponse(prompt, activeDoc);
     }
 
     _generateEmbeddedResponse(prompt, activeDoc) {
         const query = prompt.toLowerCase();
 
-        // 1. Check for specific command/query intent
+        // 1. Audit check
         if (query.includes('audit') || query.includes('check rules') || query.includes('verify')) {
             if (activeDoc) {
                 const audit = this.auditDocument(activeDoc);
@@ -287,7 +394,15 @@ class KoraCopilotEngine {
             }
         }
 
-        // 3. Search indexed workspace docs (.agent/rules, docs)
+        // 3. Search indexed knowledge files (JSON & Markdown in knowledge/)
+        for (const kf of this.knowledgeFiles) {
+            const nameLower = kf.name.toLowerCase();
+            if (query.split(' ').some(w => w.length > 3 && nameLower.includes(w))) {
+                return `### 📖 Kora Knowledge: \`${kf.name}\`\n\n\`\`\`${kf.name.endsWith('.json') ? 'json' : 'markdown'}\n${kf.content.slice(0, 2500)}\n\`\`\`\n\n📚 **Source Reference**: \`${kf.path}\``;
+            }
+        }
+
+        // 4. Search indexed workspace docs (.agent/rules, docs)
         let docCitation = "";
         for (const doc of this.workspaceDocs) {
             const titleLower = doc.title.toLowerCase();
@@ -324,7 +439,6 @@ I understand the complete Kora Language specification, Clean Architecture invari
             const provider = config.provider.toLowerCase();
             let endpointUrl = config.endpoint;
 
-            // Prepare system prompt with Kora context
             const systemPrompt = `You are the Official Kora Framework AI Copilot.
 You specialize in Kora programming language (clean, fast backend language inspired by Rust and TypeScript).
 Key Rules:

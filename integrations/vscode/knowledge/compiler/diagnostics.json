@@ -1,0 +1,81 @@
+{
+  "diagnostics": [
+    {
+      "code": "E1001",
+      "severity": "Error",
+      "title": "Unrecognized Token / Lexer Error",
+      "explanation": "The lexer encountered an unexpected character that does not form part of any valid Kora token.",
+      "suggestedFix": "Check for invalid unicode characters or misformatted literals."
+    },
+    {
+      "code": "E2001",
+      "severity": "Error",
+      "title": "Syntax Error / Unexpected Token",
+      "explanation": "The parser encountered a token where a different syntactic construct was expected.",
+      "suggestedFix": "Ensure braces, parentheses, and semicolons are balanced and correctly placed."
+    },
+    {
+      "code": "E2005",
+      "severity": "Error",
+      "title": "Use of Banned 'undefined' Keyword",
+      "explanation": "Kora adheres to the Single-Null Standard (Rule 01). Only 'null' is permitted.",
+      "suggestedFix": "Replace 'undefined' with 'null'."
+    },
+    {
+      "code": "E3001",
+      "severity": "Error",
+      "title": "Undefined Identifier",
+      "explanation": "A variable, function, or type name was referenced without prior declaration or import in scope.",
+      "suggestedFix": "Declare the variable with `let` or import the required module."
+    },
+    {
+      "code": "E4001",
+      "severity": "Error",
+      "title": "Type Mismatch",
+      "explanation": "An expression evaluated to a type that does not match the expected destination type.",
+      "suggestedFix": "Provide explicit conversion, or correct the variable/return type annotation."
+    },
+    {
+      "code": "E4004",
+      "severity": "Error",
+      "title": "Missing Required Struct/Model Field",
+      "explanation": "A model or struct initialization is missing one or more mandatory non-optional fields.",
+      "suggestedFix": "Provide values for all declared non-optional fields in the struct literal."
+    },
+    {
+      "code": "E4008",
+      "severity": "Error",
+      "title": "Class Missing Interface Method Implementation",
+      "explanation": "A class declared that it implements an interface, but failed to implement one or more methods.",
+      "suggestedFix": "Implement all required methods declared in the interface."
+    },
+    {
+      "code": "E5001",
+      "severity": "Error",
+      "title": "Controller Directly Accessing Database or Repository",
+      "explanation": "Clean Architecture Layer Violation (Rule 04). Controllers cannot directly access database handles.",
+      "suggestedFix": "Inject a domain Service into the Controller and delegate database operations through the service."
+    },
+    {
+      "code": "E5002",
+      "severity": "Error",
+      "title": "Service Instantiating Repository Directly",
+      "explanation": "Dependency Inversion Violation (Rule 04). Services must receive repository contracts via `init(...)`.",
+      "suggestedFix": "Declare the repository interface as a constructor parameter in `init(...)`."
+    },
+    {
+      "code": "E5003",
+      "severity": "Error",
+      "title": "Entity Leak to Transport Layer",
+      "explanation": "A database entity decorated with @table was returned directly in an API response or controller.",
+      "suggestedFix": "Map the entity to a pure DTO model before returning to the transport layer."
+    },
+    {
+      "code": "E5004",
+      "severity": "Error",
+      "title": "Missing Load Test Teardown / Resource Leak",
+      "explanation": "Load and stress tests must explicitly teardown and release allocated resources (Rule 10).",
+      "suggestedFix": "Implement explicit cleanup or shutdown of server instances, pools, and test fixtures."
+    }
+  ]
+}

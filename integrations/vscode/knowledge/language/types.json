@@ -1,0 +1,25 @@
+{
+  "primitiveTypes": [
+    { "name": "String", "description": "UTF-8 immutable text string", "example": "\"hello\"" },
+    { "name": "Int", "description": "64-bit signed integer", "example": "42" },
+    { "name": "Float", "description": "64-bit IEEE 754 floating-point number", "example": "3.14159" },
+    { "name": "Bool", "description": "Boolean truth value (true or false)", "example": "true" },
+    { "name": "Unit", "description": "Absence of a specific value (equivalent to void/())", "example": "()" }
+  ],
+  "genericTypes": [
+    { "name": "Array<T> or [T]", "description": "Growable sequential list of elements", "example": "[\"apple\", \"banana\"]" },
+    { "name": "Map<K, V>", "description": "Key-value hash map table", "example": "Map<String, Int>" },
+    { "name": "Option<T> or T?", "description": "Type-safe nullable wrapper containing Some(T) or null", "example": "String?" },
+    { "name": "Result<T, E>", "description": "Success or Failure container for error propagation", "example": "Result<User, DomainError>" }
+  ],
+  "dataStructures": [
+    { "name": "Vector<T>", "module": "std::collections", "description": "Contiguous dynamically-resizable array" },
+    { "name": "LinkedList<T>", "module": "std::collections", "description": "Doubly-linked list for fast insertions" },
+    { "name": "Stack<T>", "module": "std::collections", "description": "LIFO container" },
+    { "name": "Queue<T>", "module": "std::collections", "description": "FIFO container" },
+    { "name": "HashMap<K, V>", "module": "std::collections", "description": "Hash map with O(1) average lookup" },
+    { "name": "HashSet<T>", "module": "std::collections", "description": "Unique set of hashed elements" },
+    { "name": "BTreeMap<K, V>", "module": "std::collections", "description": "Ordered map sorted by key" },
+    { "name": "LRUCache<K, V>", "module": "std::collections", "description": "Fixed-capacity cache with least-recently-used eviction" }
+  ]
+}

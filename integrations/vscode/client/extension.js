@@ -257,12 +257,271 @@ function activate(context) {
                     completions.push(item);
                 }
 
+                // Context-aware member completions (e.g. user. -> fields of User)
+                const linePrefix = document.lineAt(position).text.substr(0, position.character);
+                if (linePrefix.endsWith('.')) {
+                    const match = linePrefix.match(/([A-Za-z0-9_]+)\.$/);
+                    if (match) {
+                        const varName = match[1];
+                        if (varName === 'app') {
+                            return ['listen(port)', 'get(path, handler)', 'post(path, handler)', 'put(path, handler)', 'delete(path, handler)', 'use(middleware)'].map(m => {
+                                const item = new vscode.CompletionItem(m.split('(')[0], vscode.CompletionItemKind.Method);
+                                item.detail = `App.${m}`;
+                                return item;
+                            });
+                        }
+                        if (varName === 'db') {
+                            return ['query(sql)', 'execute(sql)', 'begin()', 'commit()', 'rollback()', 'collection(name)', 'set(k, v)', 'get(k)'].map(m => {
+                                const item = new vscode.CompletionItem(m.split('(')[0], vscode.CompletionItemKind.Method);
+                                item.detail = `Database.${m}`;
+                                return item;
+                            });
+                        }
+                        if (varName === 'actor') {
+                            return ['tell(message)', 'ask(message)', 'state'].map(m => {
+                                const item = new vscode.CompletionItem(m.split('(')[0], vscode.CompletionItemKind.Method);
+                                item.detail = `Actor.${m}`;
+                                return item;
+                            });
+                        }
+                        if (varName === 'channel') {
+                            return ['send(item)', 'recv()', 'capacity'].map(m => {
+                                const item = new vscode.CompletionItem(m.split('(')[0], vscode.CompletionItemKind.Method);
+                                item.detail = `Channel.${m}`;
+                                return item;
+                            });
+                        }
+
+                        const text = document.getText();
+                        const typeRegex = new RegExp(`(?:let|var|param)\\s+${varName}\\s*(?::\\s*([A-Za-z0-9_]+)|=\\s*([A-Za-z0-9_]+)\\s*\\{)`);
+                        const typeMatch = text.match(typeRegex);
+                        const typeName = typeMatch ? (typeMatch[1] || typeMatch[2]) : varName;
+
+                        const modelRegex = new RegExp(`(?:model|class|interface)\\s+${typeName}\\s*(?:implements\\s+[^{]+)?\\{([^}]+)\\}`, 's');
+                        const modelMatch = text.match(modelRegex);
+                        if (modelMatch) {
+                            const body = modelMatch[1];
+                            const memberCompletions = [];
+                            for (const fl of body.split('\n')) {
+                                const fMatch = fl.trim().match(/^([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_?<>\[\]]+)/);
+                                if (fMatch) {
+                                    const item = new vscode.CompletionItem(fMatch[1], vscode.CompletionItemKind.Field);
+                                    item.detail = `${typeName}.${fMatch[1]}: ${fMatch[2]}`;
+                                    memberCompletions.push(item);
+                                }
+                                const mMatch = fl.trim().match(/^fn\s+([A-Za-z0-9_]+)\s*\((.*?)\)(\s*->\s*([A-Za-z0-9_?<>\[\]]+))?/);
+                                if (mMatch) {
+                                    const item = new vscode.CompletionItem(mMatch[1], vscode.CompletionItemKind.Method);
+                                    item.detail = `fn ${typeName}.${mMatch[1]}(${mMatch[2]}) -> ${mMatch[4] || 'Unit'}`;
+                                    memberCompletions.push(item);
+                                }
+                            }
+                            if (memberCompletions.length > 0) return memberCompletions;
+                        }
+                    }
+                }
+
                 return completions;
             }
         },
         '.', '@'
     );
     context.subscriptions.push(completionProvider);
+
+    // 4b. Rich Hover Documentation Provider
+    const hoverProvider = vscode.languages.registerHoverProvider('kora', {
+        provideHover(document, position, token) {
+            const range = document.getWordRangeAtPosition(position);
+            if (!range) return null;
+            const word = document.getText(range);
+
+            const decoratorDocs = {
+                'table': '### `@table("table_name")`\nMaps a class to a relational database table.\n- **Layer**: Core Entities (`src/entities/`)\n- **Rule**: Rule 04 & 07 (Clean Architecture & Database Invariants)',
+                'collection': '### `@collection("name")`\nMaps a class to a NoSQL document collection.\n- **Layer**: Core Entities (`src/entities/`)',
+                'primary': '### `@primary`\nDesignates the primary key identifier for database persistence.',
+                'autoIncrement': '### `@autoIncrement`\nSpecifies that the integer identifier auto-increments upon insert.',
+                'required': '### `@required`\nField-level validation constraint ensuring value is non-null and non-empty.',
+                'email': '### `@email`\nField-level validation constraint enforcing valid RFC 5322 email formatting.',
+                'min': '### `@min(val)`\nEnforces numerical minimum bound.',
+                'max': '### `@max(val)`\nEnforces numerical maximum bound.'
+            };
+            if (decoratorDocs[word]) {
+                return new vscode.Hover(new vscode.MarkdownString(decoratorDocs[word]));
+            }
+
+            const keywordDocs = {
+                'model': '### `model <Name>`\n**Pure Immutable Data Transfer Object (DTO)**\n- Used for API request/response payloads and domain models.\n- Cannot contain mutable methods or direct database mappings (Rule 04).',
+                'class': '### `class <Name>`\n**Service, Repository, or Actor Class**\n- Implements domain workflows or interfaces.\n- Must declare dependencies in `init(...)` for compile-time Dependency Injection (Rule 04).',
+                'interface': '### `interface <Name>`\n**Contract Specification**\n- Defines abstract method signatures without concrete implementation.\n- High-level services must depend on interfaces rather than drivers (Rule 04).',
+                'init': '### `init(...)`\n**Class Constructor**\n- Initializes instance state and receives injected dependency interfaces.',
+                'fn': '### `fn <name>(params) -> ReturnType`\n**Function or Method Declaration**\n- Compiles to verified, zero-cost native machine code.',
+                'actor': '### `actor` / `class <Name>Actor`\n**Stateful Concurrency Actor**\n- Isolated mutable state executing on Tokio worker threads with non-blocking mailboxes (Rule 08).',
+                'tell': '### `actor.tell(msg)`\n**Fire-and-forget message dispatch** to actor mailbox.',
+                'ask': '### `actor.ask(msg)`\n**Request-response async query** to actor with timeout resilience.',
+                'channel': '### `channel<T>(capacity)`\n**MPSC Bounded Channel** for non-blocking stream pipelines.',
+                'null': '### `null`\n**Single-Null Standard (Rule 01)**\n- Kora strictly forbids `undefined`. Null represents the intentional absence of a value.'
+            };
+            if (keywordDocs[word]) {
+                return new vscode.Hover(new vscode.MarkdownString(keywordDocs[word]));
+            }
+
+            const text = document.getText();
+            const modelMatch = text.match(new RegExp(`model\\s+${word}\\s*\\{([^}]+)\\}`));
+            if (modelMatch) {
+                return new vscode.Hover(new vscode.MarkdownString(`### Model \`${word}\` (Pure DTO)\n\`\`\`kora\nmodel ${word} {\n${modelMatch[1].trim()}\n}\n\`\`\`\n- **Layer**: Boundary DTO / Domain Model`));
+            }
+
+            const fnMatch = text.match(new RegExp(`(async\\s+)?fn\\s+${word}\\s*\\((.*?)\\)(\\s*->\\s*([A-Za-z0-9_?<>\[\]]+))?`));
+            if (fnMatch) {
+                return new vscode.Hover(new vscode.MarkdownString(`### Function \`${word}\`\n\`\`\`kora\n${fnMatch[0]}\n\`\`\`\n- **Return**: \`${fnMatch[4] || 'Unit'}\`\n- **Async**: ${fnMatch[1] ? 'Yes (Tokio)' : 'No'}`));
+            }
+
+            return null;
+        }
+    });
+    context.subscriptions.push(hoverProvider);
+
+    // 4c. Go to Definition Provider (F12)
+    const definitionProvider = vscode.languages.registerDefinitionProvider('kora', {
+        provideDefinition(document, position, token) {
+            const range = document.getWordRangeAtPosition(position);
+            if (!range) return null;
+            const word = document.getText(range);
+
+            const text = document.getText();
+            const lines = text.split('\n');
+
+            const defRegexes = [
+                new RegExp(`\\bmodel\\s+${word}\\b`),
+                new RegExp(`\\bclass\\s+${word}\\b`),
+                new RegExp(`\\binterface\\s+${word}\\b`),
+                new RegExp(`\\benum\\s+${word}\\b`),
+                new RegExp(`\\bfn\\s+${word}\\s*\\(`),
+                new RegExp(`\\b(?:let|var)\\s+${word}\\b`)
+            ];
+
+            for (let i = 0; i < lines.length; i++) {
+                for (const rx of defRegexes) {
+                    const m = lines[i].match(rx);
+                    if (m) {
+                        const col = lines[i].indexOf(word);
+                        return new vscode.Location(document.uri, new vscode.Position(i, col >= 0 ? col : 0));
+                    }
+                }
+            }
+            return null;
+        }
+    });
+    context.subscriptions.push(definitionProvider);
+
+    // 4d. Document Symbol Provider (Outline View & Breadcrumbs)
+    const documentSymbolProvider = vscode.languages.registerDocumentSymbolProvider('kora', {
+        provideDocumentSymbols(document, token) {
+            const symbols = [];
+            const lines = document.getText().split('\n');
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                const classMatch = line.match(/class\s+([A-Za-z0-9_]+)/);
+                if (classMatch) {
+                    const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, line.length));
+                    symbols.push(new vscode.DocumentSymbol(classMatch[1], 'Class / Service', vscode.SymbolKind.Class, range, range));
+                    continue;
+                }
+
+                const modelMatch = line.match(/model\s+([A-Za-z0-9_]+)/);
+                if (modelMatch) {
+                    const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, line.length));
+                    symbols.push(new vscode.DocumentSymbol(modelMatch[1], 'DTO Model', vscode.SymbolKind.Struct, range, range));
+                    continue;
+                }
+
+                const ifaceMatch = line.match(/interface\s+([A-Za-z0-9_]+)/);
+                if (ifaceMatch) {
+                    const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, line.length));
+                    symbols.push(new vscode.DocumentSymbol(ifaceMatch[1], 'Interface', vscode.SymbolKind.Interface, range, range));
+                    continue;
+                }
+
+                const enumMatch = line.match(/enum\s+([A-Za-z0-9_]+)/);
+                if (enumMatch) {
+                    const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, line.length));
+                    symbols.push(new vscode.DocumentSymbol(enumMatch[1], 'Enum', vscode.SymbolKind.Enum, range, range));
+                    continue;
+                }
+
+                const fnMatch = line.match(/fn\s+([A-Za-z0-9_]+)\s*\(/);
+                if (fnMatch) {
+                    const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, line.length));
+                    symbols.push(new vscode.DocumentSymbol(fnMatch[1], 'Function', vscode.SymbolKind.Function, range, range));
+                    continue;
+                }
+            }
+            return symbols;
+        }
+    });
+    context.subscriptions.push(documentSymbolProvider);
+
+    // 4e. Document Formatting Provider (Shift+Alt+F)
+    const formattingProvider = vscode.languages.registerDocumentFormattingEditProvider('kora', {
+        provideDocumentFormattingEdits(document, options, token) {
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+
+            const lines = document.getText().split('\n');
+            let indentLevel = 0;
+            const indentStr = '    ';
+            const formattedLines = [];
+
+            for (let rawLine of lines) {
+                let line = rawLine.trim();
+                if (!line) {
+                    formattedLines.push('');
+                    continue;
+                }
+
+                if (line.startsWith('}') || line.startsWith(']')) {
+                    indentLevel = Math.max(0, indentLevel - 1);
+                }
+
+                formattedLines.push(indentStr.repeat(indentLevel) + line);
+
+                if (line.endsWith('{') || line.endsWith('[')) {
+                    indentLevel++;
+                }
+            }
+
+            return [vscode.TextEdit.replace(fullRange, formattedLines.join('\n') + '\n')];
+        }
+    });
+    context.subscriptions.push(formattingProvider);
+
+    // 4f. Folding Range Provider
+    const foldingProvider = vscode.languages.registerFoldingRangeProvider('kora', {
+        provideFoldingRanges(document, context, token) {
+            const ranges = [];
+            const lines = document.getText().split('\n');
+            const stack = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes('{')) {
+                    stack.push(i);
+                }
+                if (line.includes('}') && stack.length > 0) {
+                    const start = stack.pop();
+                    if (i > start) {
+                        ranges.push(new vscode.FoldingRange(start, i));
+                    }
+                }
+            }
+            return ranges;
+        }
+    });
+    context.subscriptions.push(foldingProvider);
 
     // 5. Code Action Provider (Lightbulb Quick Fix)
     const codeActionProvider = vscode.languages.registerCodeActionsProvider('kora', {
@@ -477,6 +736,60 @@ function activate(context) {
 
         vscode.commands.registerCommand('kora.openExamplesExplorer', () => {
             if (assistantViewProvider) {
+                assistantViewProvider.switchTab('examples');
+                vscode.commands.executeCommand('kora.assistantView.focus');
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.walkthroughSelection', () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) return;
+            const selection = editor.document.getText(editor.selection) || editor.document.getText();
+            const walkthrough = copilotEngine.walkthroughCode(selection);
+            if (assistantViewProvider) {
+                assistantViewProvider.displayWalkthrough(walkthrough);
+                vscode.commands.executeCommand('kora.assistantView.focus');
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.generateDocs', () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) return;
+            const line = editor.document.lineAt(editor.selection.active.line).text;
+            const docs = copilotEngine.generateDocumentation(line);
+            editor.edit(builder => {
+                builder.insert(new vscode.Position(editor.selection.active.line, 0), docs);
+            });
+        }),
+
+        vscode.commands.registerCommand('kora.analyzeWorkspace', () => {
+            if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+                vscode.window.showInformationMessage('No active workspace folder to analyze.');
+                return;
+            }
+            const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            if (assistantViewProvider) {
+                assistantViewProvider.analyzeWorkspaceArchitecture(root);
+                vscode.commands.executeCommand('kora.assistantView.focus');
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.validateProject', () => {
+            let terminal = vscode.window.terminals.find(t => t.name === 'Kora Validate') || vscode.window.createTerminal('Kora Validate');
+            terminal.show();
+            terminal.sendText('kora doctor && kora test');
+        }),
+
+        vscode.commands.registerCommand('kora.openLearningCenter', () => {
+            if (assistantViewProvider) {
+                assistantViewProvider.switchTab('learning');
+                vscode.commands.executeCommand('kora.assistantView.focus');
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.openArchitectureExplorer', () => {
+            if (assistantViewProvider) {
+                assistantViewProvider.switchTab('architecture');
                 vscode.commands.executeCommand('kora.assistantView.focus');
             }
         })
@@ -592,6 +905,9 @@ class KoraAssistantViewProvider {
                 case 'auditFile':
                     vscode.commands.executeCommand('kora.auditFile');
                     break;
+                case 'analyzeWorkspace':
+                    vscode.commands.executeCommand('kora.analyzeWorkspace');
+                    break;
                 case 'cloneExample':
                     if (message.slug) {
                         let terminal = vscode.window.terminals.find(t => t.name === 'Kora Example') || vscode.window.createTerminal('Kora Example');
@@ -699,6 +1015,59 @@ class KoraAssistantViewProvider {
                 type: 'assistantAnswer',
                 answer: answer,
                 provider: config.get('provider', 'embedded')
+            });
+        }
+    }
+
+    switchTab(tabName) {
+        if (this.view) {
+            this.view.webview.postMessage({
+                type: 'switchTab',
+                tab: tabName
+            });
+        }
+    }
+
+    displayWalkthrough(walkthrough) {
+        if (this.view) {
+            this.view.webview.postMessage({
+                type: 'walkthroughResult',
+                walkthrough: walkthrough
+            });
+        }
+    }
+
+    analyzeWorkspaceArchitecture(workspaceRoot) {
+        if (!workspaceRoot || !fs.existsSync(workspaceRoot)) return;
+        const counts = { controllers: 0, services: 0, repositories: 0, entities: 0, models: 0, tests: 0 };
+        const filesFound = [];
+
+        function scan(dir) {
+            try {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                for (const e of entries) {
+                    const full = path.join(dir, e.name);
+                    if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'target' && e.name !== 'node_modules' && e.name !== 'dist') {
+                        scan(full);
+                    } else if (e.isFile() && (e.name.endsWith('.kora') || e.name.endsWith('.kr'))) {
+                        const rel = path.relative(workspaceRoot, full);
+                        filesFound.push(rel);
+                        if (rel.includes('controller') || e.name.includes('controller')) counts.controllers++;
+                        else if (rel.includes('service') || e.name.includes('service')) counts.services++;
+                        else if (rel.includes('repository') || e.name.includes('repository')) counts.repositories++;
+                        else if (rel.includes('entity') || e.name.includes('entity')) counts.entities++;
+                        else if (rel.includes('model') || e.name.includes('model')) counts.models++;
+                        else if (rel.includes('test') || e.name.includes('test')) counts.tests++;
+                    }
+                }
+            } catch (err) {}
+        }
+        scan(workspaceRoot);
+
+        if (this.view) {
+            this.view.webview.postMessage({
+                type: 'architectureResult',
+                architecture: { counts, filesCount: filesFound.length, files: filesFound.slice(0, 30) }
             });
         }
     }
@@ -996,6 +1365,8 @@ class KoraAssistantViewProvider {
 
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('copilot')">Inspector</button>
+        <button class="tab-btn" onclick="switchTab('arch')">Architecture</button>
+        <button class="tab-btn" onclick="switchTab('learn')">Learning</button>
         <button class="tab-btn" onclick="switchTab('ask')">Copilot Chat</button>
         <button class="tab-btn" onclick="switchTab('examples')">Examples (23)</button>
     </div>
@@ -1035,6 +1406,84 @@ class KoraAssistantViewProvider {
         </div>
     </div>
 
+    <!-- 1b. Architecture Explorer Tab -->
+    <div id="tab-arch" class="section">
+        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">🏛️ Workspace Architecture Explorer</div>
+        <div style="font-size: 11px; opacity: 0.8; margin-bottom: 10px;">Visual representation of Clean Architecture layers across your workspace:</div>
+        
+        <div id="arch-stats" class="action-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 12px;">
+            <div style="background: var(--vscode-editor-background); padding: 6px; border-radius: 4px; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #3B82F6;" id="count-ctrl">0</div>
+                <div style="font-size: 9px; opacity: 0.7;">Controllers</div>
+            </div>
+            <div style="background: var(--vscode-editor-background); padding: 6px; border-radius: 4px; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #10B981;" id="count-svc">0</div>
+                <div style="font-size: 9px; opacity: 0.7;">Services</div>
+            </div>
+            <div style="background: var(--vscode-editor-background); padding: 6px; border-radius: 4px; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #F59E0B;" id="count-repo">0</div>
+                <div style="font-size: 9px; opacity: 0.7;">Repositories</div>
+            </div>
+            <div style="background: var(--vscode-editor-background); padding: 6px; border-radius: 4px; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #EC4899;" id="count-entity">0</div>
+                <div style="font-size: 9px; opacity: 0.7;">Entities</div>
+            </div>
+            <div style="background: var(--vscode-editor-background); padding: 6px; border-radius: 4px; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #8B5CF6;" id="count-model">0</div>
+                <div style="font-size: 9px; opacity: 0.7;">DTO Models</div>
+            </div>
+            <div style="background: var(--vscode-editor-background); padding: 6px; border-radius: 4px; text-align: center;">
+                <div style="font-size: 16px; font-weight: 700; color: #06B6D4;" id="count-test">0</div>
+                <div style="font-size: 9px; opacity: 0.7;">Tests</div>
+            </div>
+        </div>
+
+        <button class="action-btn primary" style="width: 100%; margin-bottom: 12px;" onclick="analyzeWorkspace()">🔄 Refresh Workspace Map</button>
+
+        <div style="font-weight: 600; margin-bottom: 6px;">Layer Data Flow (Clean Architecture):</div>
+        <div style="background: var(--vscode-editor-background); padding: 8px; border-radius: 4px; font-size: 11px; line-height: 1.5; border-left: 3px solid #10B981;">
+            <b>1. HTTP Request</b> ➔ <code>Controllers (Presentation)</code><br>
+            <b>2. Validation</b> ➔ <code>DTO Models (Boundary)</code><br>
+            <b>3. Injected DI</b> ➔ <code>Services (Application Logic)</code><br>
+            <b>4. Interface Contract</b> ➔ <code>Repositories (Data Access)</code><br>
+            <b>5. Storage Mapping</b> ➔ <code>Entities (@table SQL / NoSQL)</code>
+        </div>
+    </div>
+
+    <!-- 1c. Learning Center Tab -->
+    <div id="tab-learn" class="section">
+        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">🎓 Kora Interactive Learning Center</div>
+        <div style="font-size: 11px; opacity: 0.8; margin-bottom: 10px;">Master Kora through hands-on lessons with runnable code:</div>
+
+        <div class="lesson-card" style="background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
+            <div style="font-weight: 600; color: var(--vscode-textLink-foreground);">Lesson 1: Pure Models & DTOs</div>
+            <div style="font-size: 11px; margin: 4px 0;">Models define immutable payloads without runtime overhead:</div>
+            <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px;">model User {\n    name: String\n    age: Int\n}</pre>
+            <button class="action-btn" onclick="insertSnippet('model User {\n    name: String\n    age: Int\n}\n')">Insert into Editor 📝</button>
+        </div>
+
+        <div class="lesson-card" style="background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
+            <div style="font-weight: 600; color: var(--vscode-textLink-foreground);">Lesson 2: Clean Architecture & DI</div>
+            <div style="font-size: 11px; margin: 4px 0;">Services receive dependencies via <code>init(...)</code> constructor injection:</div>
+            <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px;">class UserService {\n    repo: UserRepository\n    init(repo: UserRepository) {\n        this.repo = repo\n    }\n}</pre>
+            <button class="action-btn" onclick="insertSnippet('class UserService {\n    repo: UserRepository\n    init(repo: UserRepository) {\n        this.repo = repo\n    }\n}\n')">Insert into Editor 📝</button>
+        </div>
+
+        <div class="lesson-card" style="background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
+            <div style="font-weight: 600; color: var(--vscode-textLink-foreground);">Lesson 3: Concurrency Actors & Mailboxes</div>
+            <div style="font-size: 11px; margin: 4px 0;">Stateful actors run on Tokio threads with <code>tell</code> and <code>ask</code>:</div>
+            <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px;">class WorkerActor {\n    var count: Int\n    init() { this.count = 0 }\n    fn handle(msg: String) -> Int {\n        this.count += 1\n        return this.count\n    }\n}</pre>
+            <button class="action-btn" onclick="insertSnippet('class WorkerActor {\n    var count: Int\n    init() { this.count = 0 }\n    fn handle(msg: String) -> Int {\n        this.count += 1\n        return this.count\n    }\n}\n')">Insert into Editor 📝</button>
+        </div>
+
+        <div class="lesson-card" style="background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
+            <div style="font-weight: 600; color: var(--vscode-textLink-foreground);">Lesson 4: Load Test with Teardown</div>
+            <div style="font-size: 11px; margin: 4px 0;">High throughput stress testing with guaranteed resource teardown (Rule 10):</div>
+            <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px;">class LoadTestSuite {\n    fn run(n: Int) -> Int {\n        var total = 0\n        for i in 0..n { total += 1 }\n        return total\n    }\n    fn teardown() -> Unit {\n        print(\"Teardown complete\")\n    }\n}</pre>
+            <button class="action-btn" onclick="insertSnippet('class LoadTestSuite {\n    init() {}\n    fn run(n: Int) -> Int {\n        var total = 0\n        for i in 0..n { total += 1 }\n        return total\n    }\n    fn teardown() -> Unit {\n        print(\"  ✓ Teardown: synthetic allocations purged\")\n    }\n}\n')">Insert into Editor 📝</button>
+        </div>
+    </div>
+
     <!-- 2. Copilot Chat -->
     <div id="tab-ask" class="section">
         <div class="suggestion-chips">
@@ -1067,8 +1516,10 @@ class KoraAssistantViewProvider {
         function switchTab(name) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById('tab-' + name).classList.add('active');
+            const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes(name));
+            if (targetBtn) targetBtn.classList.add('active');
+            const targetSec = document.getElementById('tab-' + name);
+            if (targetSec) targetSec.classList.add('active');
         }
 
         function smartRun() { vscode.postMessage({ type: 'smartRun' }); }
@@ -1078,6 +1529,8 @@ class KoraAssistantViewProvider {
         function auditFile() { vscode.postMessage({ type: 'auditFile' }); }
         function generateTests() { vscode.postMessage({ type: 'generateTests' }); }
         function cloneExample(slug) { vscode.postMessage({ type: 'cloneExample', slug: slug }); }
+        function insertSnippet(code) { vscode.postMessage({ type: 'insertCode', code: code }); }
+        function analyzeWorkspace() { vscode.postMessage({ type: 'analyzeWorkspace' }); }
 
         function askChip(text) {
             document.getElementById('chat-input').value = text;
@@ -1157,6 +1610,24 @@ class KoraAssistantViewProvider {
                 const text = document.getElementById('explanation-text');
                 container.style.display = 'block';
                 text.innerText = msg.explanation;
+            } else if (msg.type === 'switchTab') {
+                switchTab(msg.tab);
+            } else if (msg.type === 'architectureResult') {
+                const arch = msg.architecture;
+                if (arch && arch.counts) {
+                    document.getElementById('count-ctrl').innerText = arch.counts.controllers;
+                    document.getElementById('count-svc').innerText = arch.counts.services;
+                    document.getElementById('count-repo').innerText = arch.counts.repositories;
+                    document.getElementById('count-entity').innerText = arch.counts.entities;
+                    document.getElementById('count-model').innerText = arch.counts.models;
+                    document.getElementById('count-test').innerText = arch.counts.tests;
+                }
+            } else if (msg.type === 'walkthroughResult') {
+                switchTab('copilot');
+                const container = document.getElementById('explanation-container');
+                const text = document.getElementById('explanation-text');
+                container.style.display = 'block';
+                text.innerText = msg.walkthrough;
             } else if (msg.type === 'assistantAnswer') {
                 appendMessage('assistant', msg.answer);
                 if (msg.provider && msg.provider !== 'embedded') {

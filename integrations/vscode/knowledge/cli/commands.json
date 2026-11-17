@@ -1,0 +1,18 @@
+{
+  "cli": "kora",
+  "version": "0.4.1",
+  "commands": [
+    { "name": "check", "args": "<file>", "description": "Run syntax, type, and ownership analysis with zero codegen" },
+    { "name": "run", "args": "<file>", "description": "Compile and execute the native binary" },
+    { "name": "build", "args": "<file>", "description": "Compile to a native release binary inside .kora-build/" },
+    { "name": "test", "args": "[path]", "description": "Run automated test runner across test files or directory" },
+    { "name": "fmt", "args": "[path] [--check]", "description": "Canonicalize source code formatting and style" },
+    { "name": "lsp", "args": "", "description": "Start the JSON-RPC Language Server Protocol daemon on stdio" },
+    { "name": "doctor", "args": "", "description": "Verify toolchain health, dependencies, and environment" },
+    { "name": "example", "args": "[list|init|info|search|update]", "description": "Explore, download, and scaffold official examples from GitHub" },
+    { "name": "create", "args": "<dir> [--template <tpl>]", "description": "Scaffold production project (rest-api, microservice, websocket, worker, event-driven, graphql)" },
+    { "name": "g", "args": "<feature|entity|model|service|middleware> <name>", "description": "Generate architectural building blocks with Clean Architecture, unit tests, and load tests" },
+    { "name": "clean", "args": "", "description": "Clean build artifacts, temporary cache, and compiled binaries" },
+    { "name": "swagger", "args": "[file]", "description": "Auto-generate OpenAPI 3.1 & Swagger UI docs from models & routes" }
+  ]
+}

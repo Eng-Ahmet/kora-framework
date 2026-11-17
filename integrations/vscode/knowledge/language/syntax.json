@@ -1,0 +1,36 @@
+{
+  "$schema": "https://kora-lang.dev/schemas/knowledge/syntax.json",
+  "version": "0.8.0",
+  "language": "kora",
+  "fileExtensions": [".kora", ".kr"],
+  "comments": {
+    "line": "//",
+    "block": ["/*", "*/"]
+  },
+  "delimiters": {
+    "statementEnd": ["newline", ";"],
+    "blockOpen": "{",
+    "blockClose": "}",
+    "parenOpen": "(",
+    "parenClose": ")",
+    "bracketOpen": "[",
+    "bracketClose": "]"
+  },
+  "operators": {
+    "arithmetic": ["+", "-", "*", "/", "%"],
+    "comparison": ["==", "!=", "<", "<=", ">", ">="],
+    "logical": ["&&", "||", "!"],
+    "pipeline": ["|>", ">>"],
+    "assignment": ["=", "+=", "-=", "*=", "/="],
+    "memberAccess": [".", "?."],
+    "typeAnnotation": ":",
+    "returnType": "->"
+  },
+  "nullSafety": {
+    "nullLiteral": "null",
+    "undefinedSupported": false,
+    "optionalMarker": "?",
+    "nonNullAssertion": "!",
+    "coalescing": "??"
+  }
+}

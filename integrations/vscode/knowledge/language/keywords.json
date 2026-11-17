@@ -1,0 +1,37 @@
+{
+  "keywords": [
+    { "word": "fn", "category": "declaration", "description": "Declares a function or method" },
+    { "word": "model", "category": "declaration", "description": "Declares an immutable pure Data Transfer Object (DTO)" },
+    { "word": "class", "category": "declaration", "description": "Declares a service, repository, or actor class" },
+    { "word": "interface", "category": "declaration", "description": "Declares an abstraction contract" },
+    { "word": "enum", "category": "declaration", "description": "Declares an algebraic enumeration" },
+    { "word": "init", "category": "declaration", "description": "Declares a class constructor for Dependency Injection" },
+    { "word": "let", "category": "binding", "description": "Binds an immutable local variable" },
+    { "word": "var", "category": "binding", "description": "Binds a mutable local variable" },
+    { "word": "if", "category": "control_flow", "description": "Conditional branch statement" },
+    { "word": "else", "category": "control_flow", "description": "Fallback branch statement" },
+    { "word": "match", "category": "control_flow", "description": "Exhaustive pattern matching construct" },
+    { "word": "for", "category": "control_flow", "description": "Loop iterator over collections or ranges" },
+    { "word": "while", "category": "control_flow", "description": "Conditional repetition loop" },
+    { "word": "return", "category": "control_flow", "description": "Returns a value from a function" },
+    { "word": "break", "category": "control_flow", "description": "Terminates the nearest enclosing loop" },
+    { "word": "continue", "category": "control_flow", "description": "Advances to the next iteration of the loop" },
+    { "word": "async", "category": "concurrency", "description": "Marks an asynchronous non-blocking function" },
+    { "word": "await", "category": "concurrency", "description": "Awaits the completion of a non-blocking Future" },
+    { "word": "spawn", "category": "concurrency", "description": "Spawns a concurrent green task" },
+    { "word": "try", "category": "resilience", "description": "Guards a block for runtime exception handling" },
+    { "word": "catch", "category": "resilience", "description": "Handles exceptions caught from a guarded block" },
+    { "word": "finally", "category": "resilience", "description": "Guarantees resource teardown execution" },
+    { "word": "import", "category": "module", "description": "Imports types or symbols from a module" },
+    { "word": "export", "category": "module", "description": "Exports symbols for external visibility" },
+    { "word": "this", "category": "oop", "description": "References the current class instance" },
+    { "word": "implements", "category": "oop", "description": "Specifies that a class fulfills an interface contract" },
+    { "word": "null", "category": "literal", "description": "Represents the intentional absence of any object value" },
+    { "word": "true", "category": "literal", "description": "Boolean truth literal" },
+    { "word": "false", "category": "literal", "description": "Boolean false literal" }
+  ],
+  "disallowedKeywords": [
+    { "word": "undefined", "reason": "Kora enforces the single-null standard. Only `null` is supported (Rule 01)." },
+    { "word": "any", "reason": "Kora requires strict static typing without unsafe dynamic type escape hatches." }
+  ]
+}

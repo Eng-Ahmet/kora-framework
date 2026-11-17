@@ -1,0 +1,25 @@
+{
+  "$schema": "https://kora-lang.dev/schemas/knowledge/grammar.json",
+  "version": "0.8.0",
+  "entrypoint": "module",
+  "rules": {
+    "module": "item*",
+    "item": "importDecl | modelDecl | classDecl | interfaceDecl | enumDecl | fnDecl | constDecl",
+    "importDecl": "'import' identifier ( 'from' stringLiteral | '{' identifierList '}' 'from' stringLiteral )",
+    "modelDecl": "decorator* 'model' identifier '{' modelField* '}'",
+    "modelField": "identifier ':' type ('=' expression)?",
+    "classDecl": "decorator* 'class' identifier ('implements' identifierList)? '{' classMember* '}'",
+    "classMember": "fieldDecl | constructorDecl | methodDecl",
+    "constructorDecl": "'init' '(' paramList? ')' block",
+    "methodDecl": "decorator* ('async')? 'fn' identifier '(' paramList? ')' ('->' type)? block",
+    "interfaceDecl": "'interface' identifier '{' methodSignature* '}'",
+    "methodSignature": "('async')? 'fn' identifier '(' paramList? ')' ('->' type)?",
+    "enumDecl": "'enum' identifier '{' enumVariantList '}'",
+    "fnDecl": "decorator* ('async')? 'fn' identifier '(' paramList? ')' ('->' type)? block",
+    "type": "primitiveType | identifier | optionalType | arrayType | mapType | resultType",
+    "optionalType": "type '?'",
+    "arrayType": "'[' type ']'",
+    "mapType": "'Map<' type ',' type '>'",
+    "resultType": "'Result<' type ',' type '>'"
+  }
+}
