@@ -55,13 +55,13 @@ impl CircuitBreaker {
 
     pub fn state(&self) -> CircuitState {
         let mut inner = self.state.lock().unwrap();
-        if inner.state == CircuitState::Open {
-            if let Some(opened_at) = inner.opened_at {
-                if opened_at.elapsed() >= self.config.recovery_duration {
-                    inner.state = CircuitState::HalfOpen;
-                    inner.consecutive_successes = 0;
-                }
-            }
+        if inner.state == CircuitState::Open
+            && inner
+                .opened_at
+                .is_some_and(|opened_at| opened_at.elapsed() >= self.config.recovery_duration)
+        {
+            inner.state = CircuitState::HalfOpen;
+            inner.consecutive_successes = 0;
         }
         inner.state
     }

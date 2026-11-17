@@ -6,20 +6,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Predefined Cell Formatting Options.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum NumberFormat {
+    #[default]
     General,
     Integer,        // #,##0
     Decimal(u8),    // #,##0.00
     Currency(char), // $#,##0.00
     Percentage,     // 0.0%
     DateIso,        // YYYY-MM-DD
-}
-
-impl Default for NumberFormat {
-    fn default() -> Self {
-        Self::General
-    }
 }
 
 /// Rich Cell Style.

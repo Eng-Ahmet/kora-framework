@@ -62,9 +62,11 @@ pub trait StorageDriver: Send + Sync {
     fn delete_many(&self, keys: &[&str]) -> Result<(usize, usize), String>;
 }
 
+pub type StoredFileEntry = (Vec<u8>, StoredFileMetadata);
+
 /// In-Memory / Local Disk File Storage Driver with Thread-Safe Locks.
 pub struct MemoryStorageDriver {
-    files: Arc<RwLock<HashMap<String, (Vec<u8>, StoredFileMetadata)>>>,
+    files: Arc<RwLock<HashMap<String, StoredFileEntry>>>,
     base_url: String,
     max_quota_bytes: usize,
 }
@@ -149,12 +151,13 @@ impl StorageDriver for MemoryStorageDriver {
     }
 
     fn exists(&self, key: &str) -> bool {
-        if let Ok(safe_key) = sanitize_storage_key(key) {
-            if let Ok(lock) = self.files.read() {
-                return lock.contains_key(&safe_key);
-            }
-        }
-        false
+        let Ok(safe_key) = sanitize_storage_key(key) else {
+            return false;
+        };
+        let Ok(lock) = self.files.read() else {
+            return false;
+        };
+        lock.contains_key(&safe_key)
     }
 
     fn generate_presigned_url(&self, key: &str, expire_secs: u64) -> Result<String, String> {

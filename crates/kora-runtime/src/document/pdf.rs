@@ -5,9 +5,10 @@
 use serde::{Deserialize, Serialize};
 
 /// Standard Document Page Dimensions in Points (1/72 inch).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub enum PageSize {
-    A4,     // 595.28 x 841.89 pt
+    #[default]
+    A4, // 595.28 x 841.89 pt
     Letter, // 612.00 x 792.00 pt
     Legal,  // 612.00 x 1008.00 pt
     A3,     // 841.89 x 1190.55 pt
@@ -26,22 +27,11 @@ impl PageSize {
     }
 }
 
-impl Default for PageSize {
-    fn default() -> Self {
-        Self::A4
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum PageOrientation {
+    #[default]
     Portrait,
     Landscape,
-}
-
-impl Default for PageOrientation {
-    fn default() -> Self {
-        Self::Portrait
-    }
 }
 
 /// Page Margins in Points.
@@ -101,18 +91,13 @@ pub struct Rect {
 }
 
 /// Text & Cell Alignment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Alignment {
+    #[default]
     Left,
     Center,
     Right,
     Justify,
-}
-
-impl Default for Alignment {
-    fn default() -> Self {
-        Self::Left
-    }
 }
 
 /// RGB Color Model with Predefined Palettes.
@@ -159,8 +144,9 @@ impl Default for PdfColor {
 }
 
 /// Standard Fonts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum PdfFont {
+    #[default]
     Helvetica,
     HelveticaBold,
     HelveticaOblique,
@@ -171,25 +157,14 @@ pub enum PdfFont {
     CourierBold,
 }
 
-impl Default for PdfFont {
-    fn default() -> Self {
-        Self::Helvetica
-    }
-}
-
 /// Border Line Style.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum BorderStyle {
+    #[default]
     Solid,
     Dashed,
     Dotted,
     None,
-}
-
-impl Default for BorderStyle {
-    fn default() -> Self {
-        Self::Solid
-    }
 }
 
 /// Column Width Specification for Tables.
