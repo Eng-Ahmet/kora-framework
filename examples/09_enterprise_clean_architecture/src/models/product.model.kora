@@ -2,18 +2,7 @@
 // Product Domain Model & Inventory Data
 // ============================================================================
 
-@entity
-@table("products")
-model Product {
-    @primary
-    @autoIncrement
-    id: Int
-    sku: String
-    title: String
-    priceCents: Int
-    stockQuantity: Int
-    isPublished: Bool
-}
+import { Product } from "entities/product.entity";
 
 model ProductDto {
     id: Int

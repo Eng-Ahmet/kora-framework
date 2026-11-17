@@ -1,0 +1,17 @@
+// ============================================================================
+// Product Database Entity (@table("products"))
+// Placed in entities/ - Strictly segregated from DTOs
+// ============================================================================
+
+@entity
+@table("products")
+model Product {
+    @primary
+    @autoIncrement
+    id: Int
+    sku: String
+    title: String
+    priceCents: Int
+    stockQuantity: Int
+    isPublished: Bool
+}

@@ -1,4 +1,5 @@
 import { TelemetryController } from "../controllers/telemetry.controller"
+import { IotMetricEntity } from "../models/iot_metric.entity"
 
 class TelemetryRoutes {
     controller: TelemetryController
@@ -7,9 +8,11 @@ class TelemetryRoutes {
         this.controller = controller
     }
 
-    fn register(app: App) -> App {
-        app.post("/api/telemetry/ingest", this.controller.postMetric)
-        app.get("/api/telemetry/metrics", this.controller.listMetrics)
-        return app
+    fn postMetric() -> Result<IotMetricEntity, String> {
+        return this.controller.postMetric()
+    }
+
+    fn listMetrics() -> Result<Int, String> {
+        return this.controller.listMetrics()
     }
 }

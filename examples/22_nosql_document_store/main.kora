@@ -1,0 +1,19 @@
+// ============================================================================
+// Example 22: NoSQL Document Store (MongoDB-compatible) Clean Architecture
+// Encapsulated within Application Class Container
+// ============================================================================
+
+import { AuditRouter } from "./routes/document.routes"
+
+class Application {
+    init() {}
+
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(AuditRouter)
+        app.listen(8082)
+    }
+}
+
+let app = Application()
+app.bootstrap()

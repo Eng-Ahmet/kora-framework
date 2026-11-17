@@ -1,0 +1,17 @@
+// ============================================================================
+// NoSQL Document Entity: AuditEvent (@collection("audit_events"))
+// Placed in entities/ - Strictly segregated from DTOs
+// ============================================================================
+
+@collection("audit_events")
+model AuditEvent {
+    @id
+    id: String
+    @index
+    eventType: String
+    @index
+    actorId: Int
+    ipAddress: String
+    timestamp: Int
+    payload: String
+}

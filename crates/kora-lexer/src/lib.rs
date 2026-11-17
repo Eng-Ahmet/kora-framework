@@ -13,6 +13,7 @@ pub enum TokenKind {
     IntLit(i64),
     FloatLit(f64),
     StringLit(String),
+    CharLit(char),
 
     // Keywords (Phase 1 + Phase 5)
     Module,
@@ -112,6 +113,7 @@ impl TokenKind {
             Self::IntLit(_) => "integer literal",
             Self::FloatLit(_) => "float literal",
             Self::StringLit(_) => "string literal",
+            Self::CharLit(_) => "character literal",
             Self::Module => "`module`",
             Self::Import => "`import`",
             Self::From => "`from`",
@@ -326,6 +328,10 @@ impl<'a> Lexer<'a> {
 
         if ch == '"' {
             return Some(self.lex_string(start));
+        }
+
+        if ch == '\'' {
+            return Some(self.lex_char(start));
         }
 
         self.advance_char();
@@ -632,6 +638,52 @@ impl<'a> Lexer<'a> {
         }
 
         TokenKind::StringLit(buf)
+    }
+
+    fn lex_char(&mut self, start: usize) -> TokenKind {
+        self.pos += 1;
+        let mut ch_val = None;
+        let mut closed = false;
+
+        while let Some(ch) = self.current_char() {
+            if ch == '\'' {
+                self.pos += 1;
+                closed = true;
+                break;
+            }
+            if ch == '\n' {
+                break;
+            }
+            if ch == '\\' {
+                self.pos += 1;
+                let Some(esc) = self.current_char() else {
+                    break;
+                };
+                self.pos += 1;
+                let unescaped = match esc {
+                    '\'' => '\'',
+                    '\\' => '\\',
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    '0' => '\0',
+                    other => other,
+                };
+                ch_val = Some(unescaped);
+            } else {
+                ch_val = Some(ch);
+                self.pos += ch.len_utf8();
+            }
+        }
+
+        if !closed {
+            self.diagnostics.emit(
+                Diagnostic::error("E1005", "unterminated character literal")
+                    .with_primary_label(self.make_span(start, self.pos), "missing closing `'`"),
+            );
+        }
+
+        TokenKind::CharLit(ch_val.unwrap_or('\0'))
     }
 
     fn current_char(&self) -> Option<char> {

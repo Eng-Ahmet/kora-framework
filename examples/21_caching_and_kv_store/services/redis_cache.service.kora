@@ -1,0 +1,41 @@
+import { CacheStats, RateLimitResult, SessionData } from "../models/cache.models"
+import { CacheRepository } from "../interfaces/cache.repository.interface"
+
+class RedisCacheService implements CacheRepository {
+    db: Database
+
+    init(db: Database) {
+        this.db = db
+    }
+
+    fn get(key: String) -> Option<String> {
+        return this.db.get(key)
+    }
+
+    fn set(key: String, value: String, ttl: Int) -> Bool {
+        return this.db.setEx(key, value, ttl)
+    }
+
+    fn checkRateLimit(clientIp: String, limit: Int) -> RateLimitResult {
+        let current = this.db.incr(clientIp)
+        if current > limit {
+            return RateLimitResult {
+                allowed: false,
+                remainingRequests: 0,
+                retryAfterSeconds: 60,
+            }
+        }
+        let remaining = limit - current
+        return RateLimitResult {
+            allowed: true,
+            remainingRequests: remaining,
+            retryAfterSeconds: 0,
+        }
+    }
+
+    fn storeSession(session: SessionData) -> Bool {
+        let key = session.sessionId
+        let val = session.role
+        return this.db.setEx(key, val, 3600)
+    }
+}

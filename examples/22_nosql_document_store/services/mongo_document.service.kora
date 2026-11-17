@@ -1,0 +1,29 @@
+import { AuditEvent, DocumentFilter, InsertionResult } from "../models/document.models"
+import { AuditDocumentRepository } from "../interfaces/document.repository.interface"
+
+class MongoAuditRepository implements AuditDocumentRepository {
+    db: Database
+
+    init(db: Database) {
+        this.db = db
+    }
+
+    fn recordEvent(event: AuditEvent) -> InsertionResult {
+        let coll = this.db.collection("audit_events")
+        let docId = coll.insertOne(event)
+        return InsertionResult {
+            acknowledged: true,
+            insertedId: docId,
+        }
+    }
+
+    fn findByEvent(eventType: String) -> Option<AuditEvent> {
+        let coll = this.db.collection("audit_events")
+        return coll.findOne(eventType)
+    }
+
+    fn purgeOlderThan(timestamp: Int) -> Int {
+        let coll = this.db.collection("audit_events")
+        return coll.deleteMany(timestamp)
+    }
+}

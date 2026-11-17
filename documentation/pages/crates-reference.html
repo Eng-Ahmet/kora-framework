@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>23 Crates Workspace Reference — Kora Documentation</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/syntax.css">
+  <script defer src="../js/app.js"></script>
+  <script defer src="../js/search.js"></script>
+  <script defer src="../js/code.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-header">
+    <a href="../index.html" class="brand">
+      <img src="../assets/logo.svg" alt="Kora Logo">
+      <span>Kora Docs</span>
+      <span class="badge badge-blue">v0.4.1 Beta</span>
+    </a>
+
+    <div class="header-center">
+      <button class="search-bar-trigger" id="search-trigger">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Search documentation, guides, APIs...
+        </span>
+        <span class="search-shortcut">Ctrl+K</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme"></button>
+      <a href="https://github.com/Hwai-technology/kora-framework" target="_blank" class="github-link" title="GitHub Repository">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Shell Container -->
+  <div class="docs-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">Getting Started</div>
+        <ul class="nav-list">
+          <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="language-tour.html" class="nav-link">Language Tour</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Architecture & OOP</div>
+        <ul class="nav-list">
+          <li><a href="oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
+          <li><a href="database-orm.html" class="nav-link">Multi-Engine DB & ORM</a></li>
+          <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Developer Experience</div>
+        <ul class="nav-list">
+          <li><a href="cli-tooling.html" class="nav-link">CLI & Tooling Reference</a></li>
+          <li><a href="crates-reference.html" class="nav-link active">23 Crates Deep Dive</a></li>
+          <li><a href="vscode-extension.html" class="nav-link">VS Code IDE Extension</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+        <span class="badge badge-blue">Crates Workspace</span>
+        <span class="badge badge-emerald">23 Crates</span>
+      </div>
+
+      <h1>The 23 Modular Crates of Kora</h1>
+      <p style="font-size: 1.15rem; color: var(--text-primary);">
+        The Kora framework is decomposed into 23 strictly isolated, unidirectional Rust crates ensuring modularity, blazingly fast incremental builds, and zero circular dependencies.
+      </p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Crate Name</th>
+              <th>Layer</th>
+              <th>Primary Responsibility</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>kora-span</code></td><td>Core</td><td>Source byte spans, file identifiers, and line/column calculation</td></tr>
+            <tr><td><code>kora-diagnostics</code></td><td>Core</td><td>Colorized error reports with primary/secondary labels</td></tr>
+            <tr><td><code>kora-ast</code></td><td>Syntax</td><td>Immutable Abstract Syntax Tree node definitions</td></tr>
+            <tr><td><code>kora-lexer</code></td><td>Syntax</td><td>Zero-copy lexical analyzer streaming tokens</td></tr>
+            <tr><td><code>kora-parser</code></td><td>Syntax</td><td>Recursive descent parser with panic recovery</td></tr>
+            <tr><td><code>kora-hir</code></td><td>Semantics</td><td>High-Level Intermediate Representation desugaring</td></tr>
+            <tr><td><code>kora-ty</code></td><td>Semantics</td><td>Hindley-Milner type checker & Clean Architecture guards</td></tr>
+            <tr><td><code>kora-ownership</code></td><td>Semantics</td><td>Affine ownership, borrow checking, and lifecycle analysis</td></tr>
+            <tr><td><code>kora-codegen</code></td><td>Backend</td><td>Emits verified, safe native Rust source code</td></tr>
+            <tr><td><code>kora-runtime</code></td><td>Runtime</td><td>Actors, mailboxes, channels, memory pools, task nurseries</td></tr>
+            <tr><td><code>kora-orm</code></td><td>Data</td><td>SQL dialects, parameterized queries, NoSQL, and Redis caching</td></tr>
+            <tr><td><code>kora-http</code></td><td>Web</td><td>High-performance HTTP server wrapper & routing engine</td></tr>
+            <tr><td><code>kora-realtime</code></td><td>Web</td><td>WebSocket pub/sub topics and presence engine</td></tr>
+            <tr><td><code>kora-queue</code></td><td>Queue</td><td>Persistent job queues with exponential backoff retries</td></tr>
+            <tr><td><code>kora-auth</code></td><td>Security</td><td>Argon2id password hashing and HMAC-SHA256 JWT tokens</td></tr>
+            <tr><td><code>kora-observability</code></td><td>Ops</td><td>OpenTelemetry structured tracing and Prometheus metrics</td></tr>
+            <tr><td><code>kora-testing</code></td><td>Testing</td><td>Built-in test assertions, mocking, and fixtures</td></tr>
+            <tr><td><code>kora-bench</code></td><td>Testing</td><td>Microbenchmark harness for runtime latency & throughput</td></tr>
+            <tr><td><code>kora-profiler</code></td><td>Ops</td><td>CPU and memory allocation profiler</td></tr>
+            <tr><td><code>kora-fmt</code></td><td>Tooling</td><td>Opinionated code formatter</td></tr>
+            <tr><td><code>kora-pkg</code></td><td>Tooling</td><td>Package and dependency manager</td></tr>
+            <tr><td><code>kora-lsp</code></td><td>Tooling</td><td>Language Server Protocol for VS Code and IDEs</td></tr>
+            <tr><td><code>kora-cli</code></td><td>Driver</td><td>Unified CLI compiler driver and developer binary</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </main>
+
+    <!-- Table of Contents Sidebar -->
+    <aside class="toc-sidebar">
+      <div class="toc-title">On This Page</div>
+      <ul class="toc-list">
+        <li><a href="#" class="toc-link">Crates Table</a></li>
+      </ul>
+    </aside>
+
+  </div>
+
+  <!-- Search Modal -->
+  <div class="search-modal" id="search-modal">
+    <div class="search-box">
+      <div class="search-input-wrapper">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.75rem; color: var(--text-muted);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" class="search-input" id="search-input" placeholder="Search documentation, guides, and APIs...">
+      </div>
+      <div class="search-results" id="search-results"></div>
+    </div>
+  </div>
+
+</body>
+</html>

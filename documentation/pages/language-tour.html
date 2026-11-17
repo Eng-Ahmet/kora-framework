@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Language Tour & Fundamentals — Kora Documentation</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/syntax.css">
+  <script defer src="../js/app.js"></script>
+  <script defer src="../js/search.js"></script>
+  <script defer src="../js/code.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-header">
+    <a href="../index.html" class="brand">
+      <img src="../assets/logo.svg" alt="Kora Logo">
+      <span>Kora Docs</span>
+      <span class="badge badge-blue">v0.4.1 Beta</span>
+    </a>
+
+    <div class="header-center">
+      <button class="search-bar-trigger" id="search-trigger">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Search documentation, guides, APIs...
+        </span>
+        <span class="search-shortcut">Ctrl+K</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme"></button>
+      <a href="https://github.com/Hwai-technology/kora-framework" target="_blank" class="github-link" title="GitHub Repository">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Shell Container -->
+  <div class="docs-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">Getting Started</div>
+        <ul class="nav-list">
+          <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="language-tour.html" class="nav-link active">Language Tour</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Architecture & OOP</div>
+        <ul class="nav-list">
+          <li><a href="oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
+          <li><a href="database-orm.html" class="nav-link">Multi-Engine DB & ORM</a></li>
+          <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Developer Experience</div>
+        <ul class="nav-list">
+          <li><a href="cli-tooling.html" class="nav-link">CLI & Tooling Reference</a></li>
+          <li><a href="crates-reference.html" class="nav-link">23 Crates Deep Dive</a></li>
+          <li><a href="vscode-extension.html" class="nav-link">VS Code IDE Extension</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+        <span class="badge badge-purple">Language Tour</span>
+        <span class="badge badge-blue">Static Typing</span>
+      </div>
+
+      <h1>Language Tour & Fundamentals</h1>
+      <p style="font-size: 1.15rem; color: var(--text-primary);">
+        Kora provides a modern, expressive syntax designed for developer ergonomics with optional semicolons, complete type inference, and native memory safety.
+      </p>
+
+      <h2 id="variables-inference">Variables & Type Inference</h2>
+      <p>Variables are declared using <code>let</code>. Kora's compiler utilizes Hindley-Milner bidirectional type inference:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-comment">// Inferred types</span>
+<span class="syn-kw">let</span> count = <span class="syn-num">42</span>             <span class="syn-comment">// Inferred as Int</span>
+<span class="syn-kw">let</span> rate = <span class="syn-num">0.15</span>            <span class="syn-comment">// Inferred as Float</span>
+<span class="syn-kw">let</span> label = <span class="syn-str">"production"</span>   <span class="syn-comment">// Inferred as String</span>
+<span class="syn-kw">let</span> isActive = <span class="syn-kw">true</span>        <span class="syn-comment">// Inferred as Bool</span>
+
+<span class="syn-comment">// Explicit type annotation (optional)</span>
+<span class="syn-kw">let</span> threshold: <span class="syn-type">Int</span> = <span class="syn-num">100</span>
+<span class="syn-kw">let</span> price: <span class="syn-type">Decimal</span> = <span class="syn-num">49.99</span></code></pre>
+      </div>
+
+      <h2 id="primitive-types">Primitive Type System</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Example Literal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Int</code> / <code>Int64</code></td>
+              <td>64-bit signed integer (default)</td>
+              <td><code>42</code>, <code>-100</code></td>
+            </tr>
+            <tr>
+              <td><code>Int32</code>, <code>Int16</code>, <code>Int8</code></td>
+              <td>Sized signed integers</td>
+              <td><code>120: Int32</code></td>
+            </tr>
+            <tr>
+              <td><code>UInt</code> / <code>UInt64</code></td>
+              <td>64-bit unsigned integer</td>
+              <td><code>100: UInt</code></td>
+            </tr>
+            <tr>
+              <td><code>Float</code> / <code>Float64</code></td>
+              <td>64-bit IEEE 754 floating point</td>
+              <td><code>3.14159</code></td>
+            </tr>
+            <tr>
+              <td><code>Decimal</code></td>
+              <td>Arbitrary precision financial decimal</td>
+              <td><code>199.95: Decimal</code></td>
+            </tr>
+            <tr>
+              <td><code>String</code></td>
+              <td>UTF-8 encoded heap-allocated string</td>
+              <td><code>"Welcome to Kora"</code></td>
+            </tr>
+            <tr>
+              <td><code>Bool</code></td>
+              <td>Boolean true or false</td>
+              <td><code>true</code>, <code>false</code></td>
+            </tr>
+            <tr>
+              <td><code>Unit</code> / <code>void</code></td>
+              <td>Empty return type (analogous to ())</td>
+              <td><code>()</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="functions-lambdas">Functions & Lambda Closures</h2>
+      <p>Functions are declared with <code>fn</code>, while closures use concise arrow notation <code>(args) => expr</code>:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-comment">// Standard named function</span>
+<span class="syn-kw">fn</span> calculateTax(subtotal: <span class="syn-type">Int</span>, ratePercent: <span class="syn-type">Int</span>) -> <span class="syn-type">Int</span> {
+    <span class="syn-kw">return</span> (subtotal * ratePercent) / <span class="syn-num">100</span>
+}
+
+<span class="syn-comment">// Arrow closure passed to higher-order function</span>
+<span class="syn-kw">let</span> numbers = [<span class="syn-num">1</span>, <span class="syn-num">2</span>, <span class="syn-num">3</span>, <span class="syn-num">4</span>, <span class="syn-num">5</span>]
+<span class="syn-kw">let</span> doubled = numbers.map((n: <span class="syn-type">Int</span>) => n * <span class="syn-num">2</span>)</code></pre>
+      </div>
+
+      <h2 id="control-flow">Control Flow & Pattern Matching</h2>
+      <p>Kora supports <code>if/else</code>, <code>for..in</code>, <code>while</code>, <code>break</code>, <code>continue</code>, and exhaustive <code>match</code> statements:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-kw">enum</span> OrderStatus {
+    Pending
+    Processing
+    Completed
+    Cancelled(String)
+}
+
+<span class="syn-kw">let</span> status = OrderStatus.Cancelled(<span class="syn-str">"Customer requested cancellation"</span>)
+
+<span class="syn-kw">match</span> status {
+    OrderStatus.Pending => println(<span class="syn-str">"Order awaiting fulfillment"</span>)
+    OrderStatus.Processing => println(<span class="syn-str">"Order packing underway"</span>)
+    OrderStatus.Completed => println(<span class="syn-str">"Order delivered"</span>)
+    OrderStatus.Cancelled(reason) => println(<span class="syn-str">"Order aborted: "</span> + reason)
+}</code></pre>
+      </div>
+
+      <h2 id="null-coalescing">Null-Coalescing & Operators</h2>
+      <p>Kora provides the null-coalescing operator <code>??</code>, compound assignments, and structured error handling with <code>try/catch/finally</code>:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-kw">let</span> fallbackHost = request.header(<span class="syn-str">"X-Forwarded-Host"</span>) ?? <span class="syn-str">"127.0.0.1"</span>
+
+<span class="syn-kw">try</span> {
+    <span class="syn-kw">let</span> data = readFile(<span class="syn-str">"/etc/config.json"</span>)
+    processConfig(data)
+} <span class="syn-kw">catch</span> (err) {
+    println(<span class="syn-str">"Error reading configuration: "</span> + err)
+} <span class="syn-kw">finally</span> {
+    cleanupBuffer()
+}</code></pre>
+      </div>
+
+    </main>
+
+    <!-- Table of Contents Sidebar -->
+    <aside class="toc-sidebar">
+      <div class="toc-title">On This Page</div>
+      <ul class="toc-list">
+        <li><a href="#variables-inference" class="toc-link">Variables & Inference</a></li>
+        <li><a href="#primitive-types" class="toc-link">Primitive Type System</a></li>
+        <li><a href="#functions-lambdas" class="toc-link">Functions & Closures</a></li>
+        <li><a href="#control-flow" class="toc-link">Control Flow & Match</a></li>
+        <li><a href="#null-coalescing" class="toc-link">Operators & Try/Catch</a></li>
+      </ul>
+    </aside>
+
+  </div>
+
+  <!-- Search Modal -->
+  <div class="search-modal" id="search-modal">
+    <div class="search-box">
+      <div class="search-input-wrapper">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.75rem; color: var(--text-muted);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" class="search-input" id="search-input" placeholder="Search documentation, guides, and APIs...">
+      </div>
+      <div class="search-results" id="search-results"></div>
+    </div>
+  </div>
+
+</body>
+</html>

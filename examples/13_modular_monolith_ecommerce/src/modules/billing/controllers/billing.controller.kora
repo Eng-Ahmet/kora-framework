@@ -1,5 +1,5 @@
 import { BillingService } from "../services/billing.service"
-import { InvoiceEntity } from "../models/invoice.entity"
+import { InvoiceEntity } from "../entities/invoice.entity"
 
 class BillingController {
     service: BillingService

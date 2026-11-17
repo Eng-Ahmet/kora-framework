@@ -1,16 +1,22 @@
 // ============================================================================
-// Example 13: Modular Monolith E-Commerce Platform
-// Clean Domain Separation: Catalog Module + Billing Module + Database ORM
+// Example 13: Modular Monolith E-Commerce — Main Entrypoint
+// Pure Modular Clean Architecture: Independent feature modules with loose coupling
+// Encapsulated within Application Class Container
 // ============================================================================
 
-import { App } from "kora/http"
 import { CatalogRoutes } from "./modules/catalog/routes/catalog.routes"
 import { BillingRoutes } from "./modules/billing/routes/billing.routes"
 
-let app = App()
+class Application {
+    init() {}
 
-// Register bounded-context modular routes
-app.use(CatalogRoutes)
-app.use(BillingRoutes)
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(CatalogRoutes)
+        app.use(BillingRoutes)
+        app.listen(8082)
+    }
+}
 
-app.listen(8082)
+let app = Application()
+app.bootstrap()

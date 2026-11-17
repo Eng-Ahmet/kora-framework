@@ -7,6 +7,9 @@ Write Less. Build Faster. Run Smarter.
 ⚡ Sub-millisecond execution · 🏛️ Clean Architecture · 🛡️ Memory & Type Safety
 ```
 
+> [!TIP]
+> **🌐 Interactive Web Documentation Portal**: For the full interactive web documentation with search, dark/light theme, and categorized chapters, open [`documentation/index.html`](../documentation/index.html).
+
 ---
 
 ## 🧭 Documentation Navigation

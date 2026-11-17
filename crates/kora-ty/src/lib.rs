@@ -18,19 +18,89 @@ use kora_span::Span;
 /// Canonical static type representation in Kora.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Ty {
+    // Numeric Primitives
     Int,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    UInt,
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
     Float,
+    Float32,
+    Float64,
+    Decimal,
+    // Primitives
     Bool,
+    Char,
+    Byte,
     String,
     Unit,
+    Never,
+
+    // Backend / Builtin Objects
     Database,
     App,
     Request,
     Response,
     Headers,
+
+    // Sequential Collections
+    Array(Box<Ty>),
+    Vector(Box<Ty>),
+    VecDeque(Box<Ty>),
+    LinkedList(Box<Ty>),
+    Stack(Box<Ty>),
+    Queue(Box<Ty>),
+    CircularBuffer(Box<Ty>),
+    Matrix(Box<Ty>),
+    Tensor(Box<Ty>),
     List(Box<Ty>),
+
+    // Associative Collections
+    Map(Box<Ty>, Box<Ty>),
+    HashMap(Box<Ty>, Box<Ty>),
+    BTreeMap(Box<Ty>, Box<Ty>),
+    OrderedMap(Box<Ty>, Box<Ty>),
+    MultiMap(Box<Ty>, Box<Ty>),
+    BiMap(Box<Ty>, Box<Ty>),
+
+    // Sets
+    Set(Box<Ty>),
+    HashSet(Box<Ty>),
+    BTreeSet(Box<Ty>),
+    OrderedSet(Box<Ty>),
+    BitSet,
+    MultiSet(Box<Ty>),
+
+    // Specialized Collections
+    PriorityQueue(Box<Ty>),
+    BinaryHeap(Box<Ty>),
+    Trie(Box<Ty>),
+    Graph(Box<Ty>),
+    DirectedGraph(Box<Ty>),
+    UndirectedGraph(Box<Ty>),
+    WeightedGraph(Box<Ty>),
+    DisjointSet(Box<Ty>),
+    BloomFilter(Box<Ty>),
+    LRUCache(Box<Ty>, Box<Ty>),
+    LFUCache(Box<Ty>, Box<Ty>),
+    RingBuffer(Box<Ty>),
+
+    // Algebraic / Composite / Concurrency
+    Tuple(Vec<Ty>),
     Option(Box<Ty>),
     Result(Box<Ty>, Box<Ty>),
+    Either(Box<Ty>, Box<Ty>),
+    Range(Box<Ty>),
+    Channel(Box<Ty>),
+    Mutex(Box<Ty>),
+    RwLock(Box<Ty>),
+
+    // Nominal Types
     Struct(String),
     Model(String),
     Class(String),
@@ -41,15 +111,14 @@ pub enum Ty {
         ret: Box<Ty>,
         is_async: bool,
     },
-    /// Type-level receiver for static ORM methods (e.g. `User.all()`, `User.find(1)`).
+
+    // Type-level receivers & Generic constructors
     MetaModel(String),
-    /// Type-level receiver for enum variant access (e.g. `Status.Pending`).
     MetaEnum(String),
-    /// Type-level receiver for class reference / static methods (e.g. `ChatController.sendMessage`, `app.use(LoggerMiddleware)`).
     MetaClass(String),
-    /// Static HTTP Response factory (e.g. `Response.json(data)`, `Response.ok(msg)`).
     MetaResponse,
-    /// Poison/unconstrained placeholder preventing cascading errors.
+    MetaType(String, Vec<Ty>),
+
     Unknown,
 }
 
@@ -57,18 +126,75 @@ impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int => write!(f, "Int"),
+            Self::Int8 => write!(f, "Int8"),
+            Self::Int16 => write!(f, "Int16"),
+            Self::Int32 => write!(f, "Int32"),
+            Self::Int64 => write!(f, "Int64"),
+            Self::UInt => write!(f, "UInt"),
+            Self::UInt8 => write!(f, "UInt8"),
+            Self::UInt16 => write!(f, "UInt16"),
+            Self::UInt32 => write!(f, "UInt32"),
+            Self::UInt64 => write!(f, "UInt64"),
             Self::Float => write!(f, "Float"),
+            Self::Float32 => write!(f, "Float32"),
+            Self::Float64 => write!(f, "Float64"),
+            Self::Decimal => write!(f, "Decimal"),
             Self::Bool => write!(f, "Bool"),
+            Self::Char => write!(f, "Char"),
+            Self::Byte => write!(f, "Byte"),
             Self::String => write!(f, "String"),
             Self::Unit => write!(f, "Unit"),
+            Self::Never => write!(f, "Never"),
             Self::Database => write!(f, "Database"),
             Self::App => write!(f, "App"),
             Self::Request => write!(f, "Request"),
             Self::Response => write!(f, "Response"),
             Self::Headers => write!(f, "Headers"),
+            Self::Array(inner) => write!(f, "Array<{inner}>"),
+            Self::Vector(inner) => write!(f, "Vector<{inner}>"),
+            Self::VecDeque(inner) => write!(f, "VecDeque<{inner}>"),
+            Self::LinkedList(inner) => write!(f, "LinkedList<{inner}>"),
+            Self::Stack(inner) => write!(f, "Stack<{inner}>"),
+            Self::Queue(inner) => write!(f, "Queue<{inner}>"),
+            Self::CircularBuffer(inner) => write!(f, "CircularBuffer<{inner}>"),
+            Self::Matrix(inner) => write!(f, "Matrix<{inner}>"),
+            Self::Tensor(inner) => write!(f, "Tensor<{inner}>"),
             Self::List(inner) => write!(f, "List<{inner}>"),
+            Self::Map(k, v) => write!(f, "Map<{k}, {v}>"),
+            Self::HashMap(k, v) => write!(f, "HashMap<{k}, {v}>"),
+            Self::BTreeMap(k, v) => write!(f, "BTreeMap<{k}, {v}>"),
+            Self::OrderedMap(k, v) => write!(f, "OrderedMap<{k}, {v}>"),
+            Self::MultiMap(k, v) => write!(f, "MultiMap<{k}, {v}>"),
+            Self::BiMap(k, v) => write!(f, "BiMap<{k}, {v}>"),
+            Self::Set(inner) => write!(f, "Set<{inner}>"),
+            Self::HashSet(inner) => write!(f, "HashSet<{inner}>"),
+            Self::BTreeSet(inner) => write!(f, "BTreeSet<{inner}>"),
+            Self::OrderedSet(inner) => write!(f, "OrderedSet<{inner}>"),
+            Self::BitSet => write!(f, "BitSet"),
+            Self::MultiSet(inner) => write!(f, "MultiSet<{inner}>"),
+            Self::PriorityQueue(inner) => write!(f, "PriorityQueue<{inner}>"),
+            Self::BinaryHeap(inner) => write!(f, "BinaryHeap<{inner}>"),
+            Self::Trie(inner) => write!(f, "Trie<{inner}>"),
+            Self::Graph(inner) => write!(f, "Graph<{inner}>"),
+            Self::DirectedGraph(inner) => write!(f, "DirectedGraph<{inner}>"),
+            Self::UndirectedGraph(inner) => write!(f, "UndirectedGraph<{inner}>"),
+            Self::WeightedGraph(inner) => write!(f, "WeightedGraph<{inner}>"),
+            Self::DisjointSet(inner) => write!(f, "DisjointSet<{inner}>"),
+            Self::BloomFilter(inner) => write!(f, "BloomFilter<{inner}>"),
+            Self::LRUCache(k, v) => write!(f, "LRUCache<{k}, {v}>"),
+            Self::LFUCache(k, v) => write!(f, "LFUCache<{k}, {v}>"),
+            Self::RingBuffer(inner) => write!(f, "RingBuffer<{inner}>"),
             Self::Option(inner) => write!(f, "Option<{inner}>"),
             Self::Result(ok, err) => write!(f, "Result<{ok}, {err}>"),
+            Self::Either(l, r) => write!(f, "Either<{l}, {r}>"),
+            Self::Range(inner) => write!(f, "Range<{inner}>"),
+            Self::Channel(inner) => write!(f, "Channel<{inner}>"),
+            Self::Mutex(inner) => write!(f, "Mutex<{inner}>"),
+            Self::RwLock(inner) => write!(f, "RwLock<{inner}>"),
+            Self::Tuple(types) => {
+                let parts: Vec<String> = types.iter().map(|t| t.to_string()).collect();
+                write!(f, "({})", parts.join(", "))
+            }
             Self::Struct(n)
             | Self::Model(n)
             | Self::Class(n)
@@ -78,6 +204,7 @@ impl fmt::Display for Ty {
             Self::MetaEnum(n) => write!(f, "enum {n}"),
             Self::MetaClass(n) => write!(f, "class {n}"),
             Self::MetaResponse => write!(f, "Response"),
+            Self::MetaType(n, _) => write!(f, "type {n}"),
             Self::Fn {
                 params,
                 ret,
@@ -104,8 +231,47 @@ impl Ty {
     pub fn contains_unknown(&self) -> bool {
         match self {
             Self::Unknown => true,
-            Self::List(t) | Self::Option(t) => t.contains_unknown(),
-            Self::Result(a, b) => a.contains_unknown() || b.contains_unknown(),
+            Self::Array(t)
+            | Self::Vector(t)
+            | Self::VecDeque(t)
+            | Self::LinkedList(t)
+            | Self::Stack(t)
+            | Self::Queue(t)
+            | Self::CircularBuffer(t)
+            | Self::Matrix(t)
+            | Self::Tensor(t)
+            | Self::List(t)
+            | Self::Set(t)
+            | Self::HashSet(t)
+            | Self::BTreeSet(t)
+            | Self::OrderedSet(t)
+            | Self::MultiSet(t)
+            | Self::PriorityQueue(t)
+            | Self::BinaryHeap(t)
+            | Self::Trie(t)
+            | Self::Graph(t)
+            | Self::DirectedGraph(t)
+            | Self::UndirectedGraph(t)
+            | Self::WeightedGraph(t)
+            | Self::DisjointSet(t)
+            | Self::BloomFilter(t)
+            | Self::RingBuffer(t)
+            | Self::Option(t)
+            | Self::Range(t)
+            | Self::Channel(t)
+            | Self::Mutex(t)
+            | Self::RwLock(t) => t.contains_unknown(),
+            Self::Map(k, v)
+            | Self::HashMap(k, v)
+            | Self::BTreeMap(k, v)
+            | Self::OrderedMap(k, v)
+            | Self::MultiMap(k, v)
+            | Self::BiMap(k, v)
+            | Self::LRUCache(k, v)
+            | Self::LFUCache(k, v)
+            | Self::Result(k, v)
+            | Self::Either(k, v) => k.contains_unknown() || v.contains_unknown(),
+            Self::Tuple(ts) => ts.iter().any(Self::contains_unknown),
             Self::Fn { params, ret, .. } => {
                 params.iter().any(Self::contains_unknown) || ret.contains_unknown()
             }
@@ -116,7 +282,11 @@ impl Ty {
     pub fn is_meta(&self) -> bool {
         matches!(
             self,
-            Self::MetaModel(_) | Self::MetaEnum(_) | Self::MetaClass(_) | Self::MetaResponse
+            Self::MetaModel(_)
+                | Self::MetaEnum(_)
+                | Self::MetaClass(_)
+                | Self::MetaResponse
+                | Self::MetaType(_, _)
         )
     }
 }
@@ -379,73 +549,367 @@ impl<'a> TypeChecker<'a> {
 
     fn lower_type_expr(&mut self, texpr: &TypeExpr) -> Ty {
         match texpr {
-            TypeExpr::Named { name, args, span } => match name.name.as_str() {
-                "Int" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::Int
+            TypeExpr::Named {
+                name,
+                args,
+                span: _,
+            } => match name.name.as_str() {
+                "Int" => Ty::Int,
+                "Int8" | "i8" => Ty::Int8,
+                "Int16" | "i16" => Ty::Int16,
+                "Int32" | "i32" => Ty::Int32,
+                "Int64" | "i64" => Ty::Int64,
+                "UInt" | "uint" => Ty::UInt,
+                "UInt8" | "u8" | "Byte" | "byte" => Ty::UInt8,
+                "UInt16" | "u16" => Ty::UInt16,
+                "UInt32" | "u32" => Ty::UInt32,
+                "UInt64" | "u64" => Ty::UInt64,
+                "Float" => Ty::Float,
+                "Float32" | "f32" => Ty::Float32,
+                "Float64" | "f64" => Ty::Float64,
+                "Decimal" => Ty::Decimal,
+                "Bool" => Ty::Bool,
+                "Char" => Ty::Char,
+                "String" => Ty::String,
+                "Unit" | "void" => Ty::Unit,
+                "Never" => Ty::Never,
+                "Database" => Ty::Database,
+                "App" | "Router" => Ty::App,
+                "Request" => Ty::Request,
+                "Response" => Ty::Response,
+                "Headers" => Ty::Headers,
+
+                "Vector" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Vector(Box::new(elem))
                 }
-                "Float" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::Float
-                }
-                "Bool" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::Bool
-                }
-                "String" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::String
-                }
-                "Unit" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::Unit
-                }
-                "Database" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::Database
-                }
-                "App" | "Router" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::App
-                }
-                "Request" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::Request
-                }
-                "Response" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::Response
-                }
-                "Headers" => {
-                    self.expect_arity(&name.name, args, 0, *span);
-                    Ty::Headers
+                "Array" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Array(Box::new(elem))
                 }
                 "List" => {
-                    if self.expect_arity("List", args, 1, *span) {
-                        Ty::List(Box::new(self.lower_type_expr(&args[0])))
-                    } else {
-                        Ty::List(Box::new(Ty::Unknown))
-                    }
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::List(Box::new(elem))
                 }
+                "VecDeque" | "Deque" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::VecDeque(Box::new(elem))
+                }
+                "LinkedList" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::LinkedList(Box::new(elem))
+                }
+                "Stack" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Stack(Box::new(elem))
+                }
+                "Queue" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Queue(Box::new(elem))
+                }
+                "CircularBuffer" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::CircularBuffer(Box::new(elem))
+                }
+                "Matrix" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Matrix(Box::new(elem))
+                }
+                "Tensor" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Tensor(Box::new(elem))
+                }
+
+                "Map" => {
+                    let k = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let v = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Map(Box::new(k), Box::new(v))
+                }
+                "HashMap" => {
+                    let k = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let v = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::HashMap(Box::new(k), Box::new(v))
+                }
+                "BTreeMap" => {
+                    let k = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let v = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::BTreeMap(Box::new(k), Box::new(v))
+                }
+                "OrderedMap" => {
+                    let k = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let v = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::OrderedMap(Box::new(k), Box::new(v))
+                }
+                "MultiMap" => {
+                    let k = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let v = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::MultiMap(Box::new(k), Box::new(v))
+                }
+                "BiMap" => {
+                    let k = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let v = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::BiMap(Box::new(k), Box::new(v))
+                }
+
+                "Set" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Set(Box::new(elem))
+                }
+                "HashSet" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::HashSet(Box::new(elem))
+                }
+                "BTreeSet" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::BTreeSet(Box::new(elem))
+                }
+                "OrderedSet" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::OrderedSet(Box::new(elem))
+                }
+                "BitSet" => Ty::BitSet,
+                "MultiSet" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::MultiSet(Box::new(elem))
+                }
+
+                "PriorityQueue" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::PriorityQueue(Box::new(elem))
+                }
+                "BinaryHeap" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::BinaryHeap(Box::new(elem))
+                }
+                "Trie" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Trie(Box::new(elem))
+                }
+                "Graph" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Graph(Box::new(elem))
+                }
+                "DirectedGraph" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::DirectedGraph(Box::new(elem))
+                }
+                "UndirectedGraph" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::UndirectedGraph(Box::new(elem))
+                }
+                "WeightedGraph" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::WeightedGraph(Box::new(elem))
+                }
+                "DisjointSet" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::DisjointSet(Box::new(elem))
+                }
+                "BloomFilter" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::BloomFilter(Box::new(elem))
+                }
+                "LRUCache" | "LruCache" => {
+                    let k = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let v = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::LRUCache(Box::new(k), Box::new(v))
+                }
+                "LFUCache" | "LfuCache" => {
+                    let k = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let v = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::LFUCache(Box::new(k), Box::new(v))
+                }
+                "RingBuffer" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::RingBuffer(Box::new(elem))
+                }
+
                 "Option" => {
-                    if self.expect_arity("Option", args, 1, *span) {
-                        Ty::Option(Box::new(self.lower_type_expr(&args[0])))
-                    } else {
-                        Ty::Option(Box::new(Ty::Unknown))
-                    }
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Option(Box::new(elem))
                 }
                 "Result" => {
-                    if self.expect_arity("Result", args, 2, *span) {
-                        Ty::Result(
-                            Box::new(self.lower_type_expr(&args[0])),
-                            Box::new(self.lower_type_expr(&args[1])),
-                        )
-                    } else {
-                        Ty::Result(Box::new(Ty::Unknown), Box::new(Ty::Unknown))
-                    }
+                    let ok = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let err = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Result(Box::new(ok), Box::new(err))
                 }
+                "Either" => {
+                    let l = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    let r = args
+                        .get(1)
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Either(Box::new(l), Box::new(r))
+                }
+                "Range" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Range(Box::new(elem))
+                }
+                "Tuple" => {
+                    let parts = args.iter().map(|a| self.lower_type_expr(a)).collect();
+                    Ty::Tuple(parts)
+                }
+                "Channel" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Channel(Box::new(elem))
+                }
+                "Mutex" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::Mutex(Box::new(elem))
+                }
+                "RwLock" => {
+                    let elem = args
+                        .first()
+                        .map(|a| self.lower_type_expr(a))
+                        .unwrap_or(Ty::Unknown);
+                    Ty::RwLock(Box::new(elem))
+                }
+
                 custom => {
-                    self.expect_arity(custom, args, 0, *span);
                     if self.structs.contains_key(custom) {
                         Ty::Struct(custom.to_string())
                     } else if self.models.contains_key(custom) {
@@ -469,6 +933,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
+    #[allow(dead_code)]
     fn expect_arity(&mut self, name: &str, args: &[TypeExpr], expected: usize, span: Span) -> bool {
         if args.len() == expected {
             true
@@ -788,7 +1253,21 @@ impl<'a> TypeChecker<'a> {
             } => {
                 let iter_ty = self.check_expr(iter, None);
                 let elem_ty = match iter_ty {
-                    Ty::List(inner) => *inner,
+                    Ty::Vector(inner)
+                    | Ty::Array(inner)
+                    | Ty::List(inner)
+                    | Ty::VecDeque(inner)
+                    | Ty::LinkedList(inner)
+                    | Ty::Set(inner)
+                    | Ty::HashSet(inner)
+                    | Ty::BTreeSet(inner)
+                    | Ty::OrderedSet(inner)
+                    | Ty::MultiSet(inner)
+                    | Ty::Range(inner) => *inner,
+                    Ty::Map(k, _)
+                    | Ty::HashMap(k, _)
+                    | Ty::BTreeMap(k, _)
+                    | Ty::OrderedMap(k, _) => *k,
                     _ => Ty::Int,
                 };
                 self.push_scope();
@@ -836,9 +1315,27 @@ impl<'a> TypeChecker<'a> {
 
     fn check_expr(&mut self, expr: &Expr, expected: Option<&Ty>) -> Ty {
         match expr {
-            Expr::IntLit { .. } => Ty::Int,
-            Expr::FloatLit { .. } => Ty::Float,
+            Expr::IntLit { .. } => match expected {
+                Some(
+                    t @ (Ty::Int
+                    | Ty::Int8
+                    | Ty::Int16
+                    | Ty::Int32
+                    | Ty::Int64
+                    | Ty::UInt
+                    | Ty::UInt8
+                    | Ty::UInt16
+                    | Ty::UInt32
+                    | Ty::UInt64),
+                ) => (*t).clone(),
+                _ => Ty::Int,
+            },
+            Expr::FloatLit { .. } => match expected {
+                Some(t @ (Ty::Float | Ty::Float32 | Ty::Float64 | Ty::Decimal)) => (*t).clone(),
+                _ => Ty::Float,
+            },
             Expr::StringLit { .. } => Ty::String,
+            Expr::CharLit { .. } => Ty::Char,
             Expr::BoolLit { .. } => Ty::Bool,
             Expr::Null { .. } => {
                 if let Some(Ty::Option(inner)) = expected {
@@ -1005,11 +1502,18 @@ impl<'a> TypeChecker<'a> {
             }
             Expr::ListLit { elements, span } => {
                 let expected_elem = match expected {
-                    Some(Ty::List(inner)) => Some(inner.as_ref()),
+                    Some(Ty::Array(inner) | Ty::Vector(inner) | Ty::List(inner)) => {
+                        Some(inner.as_ref())
+                    }
                     _ => None,
                 };
                 if elements.is_empty() {
-                    return Ty::List(Box::new(expected_elem.cloned().unwrap_or(Ty::Unknown)));
+                    let elem = expected_elem.cloned().unwrap_or(Ty::Unknown);
+                    return match expected {
+                        Some(Ty::Vector(_)) => Ty::Vector(Box::new(elem)),
+                        Some(Ty::List(_)) => Ty::List(Box::new(elem)),
+                        _ => Ty::Array(Box::new(elem)),
+                    };
                 }
                 let first_ty = self.check_expr(&elements[0], expected_elem);
                 for el in &elements[1..] {
@@ -1026,7 +1530,124 @@ impl<'a> TypeChecker<'a> {
                         );
                     }
                 }
-                Ty::List(Box::new(first_ty))
+                match expected {
+                    Some(Ty::Vector(_)) => Ty::Vector(Box::new(first_ty)),
+                    Some(Ty::List(_)) => Ty::List(Box::new(first_ty)),
+                    _ => Ty::Array(Box::new(first_ty)),
+                }
+            }
+            Expr::TypeConstructor {
+                name, type_args, ..
+            } => {
+                let lowered: Vec<Ty> = type_args.iter().map(|t| self.lower_type_expr(t)).collect();
+                Ty::MetaType(name.name.clone(), lowered)
+            }
+            Expr::CollectionLit {
+                constructor,
+                elements,
+                span,
+            } => {
+                let target_ty = if let Some(c) = constructor {
+                    self.check_expr(c, None)
+                } else {
+                    Ty::Unknown
+                };
+
+                let elem_exp = match &target_ty {
+                    Ty::Vector(inner)
+                    | Ty::Array(inner)
+                    | Ty::List(inner)
+                    | Ty::Set(inner)
+                    | Ty::HashSet(inner)
+                    | Ty::Stack(inner)
+                    | Ty::Queue(inner)
+                    | Ty::PriorityQueue(inner) => Some(inner.as_ref()),
+                    Ty::MetaType(_, args) => args.first(),
+                    _ => match expected {
+                        Some(
+                            Ty::Vector(inner)
+                            | Ty::Array(inner)
+                            | Ty::List(inner)
+                            | Ty::Set(inner)
+                            | Ty::HashSet(inner),
+                        ) => Some(inner.as_ref()),
+                        _ => None,
+                    },
+                };
+
+                let elem_ty = if elements.is_empty() {
+                    elem_exp.cloned().unwrap_or(Ty::Unknown)
+                } else {
+                    let first = self.check_expr(&elements[0], elem_exp);
+                    for el in &elements[1..] {
+                        let ety = self.check_expr(el, Some(&first));
+                        if !self.is_assignable(&first, &ety) {
+                            self.diagnostics.emit(
+                                Diagnostic::error(
+                                    "E4001",
+                                    format!("heterogeneous element in collection: expected `{first}`, found `{ety}`"),
+                                )
+                                .with_primary_label(*span, "all collection elements must share the same type"),
+                            );
+                        }
+                    }
+                    first
+                };
+
+                match &target_ty {
+                    Ty::MetaType(name, _) => match name.as_str() {
+                        "Vector" => Ty::Vector(Box::new(elem_ty)),
+                        "Array" => Ty::Array(Box::new(elem_ty)),
+                        "Set" | "HashSet" => Ty::Set(Box::new(elem_ty)),
+                        "BTreeSet" => Ty::BTreeSet(Box::new(elem_ty)),
+                        "Stack" => Ty::Stack(Box::new(elem_ty)),
+                        "Queue" => Ty::Queue(Box::new(elem_ty)),
+                        "PriorityQueue" => Ty::PriorityQueue(Box::new(elem_ty)),
+                        _ => Ty::Vector(Box::new(elem_ty)),
+                    },
+                    Ty::Vector(_) => Ty::Vector(Box::new(elem_ty)),
+                    Ty::Array(_) => Ty::Array(Box::new(elem_ty)),
+                    Ty::Set(_) => Ty::Set(Box::new(elem_ty)),
+                    Ty::HashSet(_) => Ty::HashSet(Box::new(elem_ty)),
+                    _ => match expected {
+                        Some(Ty::Vector(_)) => Ty::Vector(Box::new(elem_ty)),
+                        Some(Ty::Set(_)) => Ty::Set(Box::new(elem_ty)),
+                        _ => Ty::Array(Box::new(elem_ty)),
+                    },
+                }
+            }
+            Expr::MapLit { entries, span: _ } => {
+                if entries.is_empty() {
+                    return Ty::HashMap(Box::new(Ty::Unknown), Box::new(Ty::Unknown));
+                }
+                let k0 = self.check_expr(&entries[0].0, None);
+                let v0 = self.check_expr(&entries[0].1, None);
+                for (k, v) in &entries[1..] {
+                    let k_ty = self.check_expr(k, Some(&k0));
+                    let v_ty = self.check_expr(v, Some(&v0));
+                    if !self.is_assignable(&k0, &k_ty) {
+                        self.diagnostics.emit(
+                            Diagnostic::error(
+                                "E4001",
+                                format!("heterogeneous map key: expected `{k0}`, found `{k_ty}`"),
+                            )
+                            .with_primary_label(k.span(), "all map keys must share the same type"),
+                        );
+                    }
+                    if !self.is_assignable(&v0, &v_ty) {
+                        self.diagnostics.emit(
+                            Diagnostic::error(
+                                "E4001",
+                                format!("heterogeneous map value: expected `{v0}`, found `{v_ty}`"),
+                            )
+                            .with_primary_label(
+                                v.span(),
+                                "all map values must share the same type",
+                            ),
+                        );
+                    }
+                }
+                Ty::HashMap(Box::new(k0), Box::new(v0))
             }
             Expr::FieldAccess {
                 receiver, field, ..
@@ -1039,41 +1660,37 @@ impl<'a> TypeChecker<'a> {
             } => {
                 let recv_ty = self.check_expr(receiver, None);
                 let idx_ty = self.check_expr(index, None);
-                if self.is_assignable(&Ty::Int, &idx_ty) {
-                    match recv_ty {
-                        Ty::List(inner) => *inner,
-                        Ty::Unknown => Ty::Unknown,
-                        other => {
-                            self.diagnostics.emit(
-                                Diagnostic::error(
-                                    "E4001",
-                                    format!("cannot index into value of type `{other}`"),
-                                )
-                                .with_primary_label(receiver.span(), "expected `List<T>`"),
-                            );
-                            Ty::Unknown
+                match recv_ty {
+                    Ty::Vector(inner)
+                    | Ty::Array(inner)
+                    | Ty::List(inner)
+                    | Ty::VecDeque(inner)
+                    | Ty::Matrix(inner) => {
+                        if !self.is_assignable(&Ty::Int, &idx_ty) {
+                            self.emit_type_mismatch(&Ty::Int, &idx_ty, index.span());
                         }
+                        *inner
                     }
-                } else if self.is_assignable(&Ty::String, &idx_ty) {
-                    match recv_ty {
-                        Ty::Request | Ty::Headers | Ty::Database | Ty::Unknown => Ty::String,
-                        other => {
-                            self.diagnostics.emit(
-                                Diagnostic::error(
-                                    "E4001",
-                                    format!("cannot string-index into value of type `{other}`"),
-                                )
-                                .with_primary_label(
-                                    receiver.span(),
-                                    "expected string-indexed map or dictionary",
-                                ),
-                            );
-                            Ty::Unknown
+                    Ty::Map(k, v)
+                    | Ty::HashMap(k, v)
+                    | Ty::BTreeMap(k, v)
+                    | Ty::OrderedMap(k, v) => {
+                        if !self.is_assignable(&k, &idx_ty) {
+                            self.emit_type_mismatch(&k, &idx_ty, index.span());
                         }
+                        *v
                     }
-                } else {
-                    self.emit_type_mismatch(&Ty::Int, &idx_ty, index.span());
-                    Ty::Unknown
+                    Ty::Request | Ty::Headers | Ty::Database | Ty::Unknown => Ty::String,
+                    other => {
+                        self.diagnostics.emit(
+                            Diagnostic::error(
+                                "E4001",
+                                format!("cannot index into value of type `{other}`"),
+                            )
+                            .with_primary_label(receiver.span(), "cannot index this type"),
+                        );
+                        Ty::Unknown
+                    }
                 }
             }
             Expr::Call { callee, args, span } => self.check_call(callee, args, expected, *span),
@@ -1359,6 +1976,11 @@ impl<'a> TypeChecker<'a> {
                     ret: Box::new(Ty::Result(Box::new(Ty::Int), Box::new(Ty::String))),
                     is_async: false,
                 },
+                "collection" => Ty::Fn {
+                    params: vec![Ty::String],
+                    ret: Box::new(Ty::Database),
+                    is_async: false,
+                },
                 "findUnique" | "findFirst" => Ty::Fn {
                     params: vec![Ty::String, Ty::String],
                     ret: Box::new(Ty::Option(Box::new(Ty::Unknown))),
@@ -1384,7 +2006,89 @@ impl<'a> TypeChecker<'a> {
                     ret: Box::new(Ty::Unknown),
                     is_async: false,
                 },
-                // Dynamic collection / repository table access (e.g. database.users, database.quizzes)
+                // NoSQL Document Store Methods
+                "insertOne" | "insertMany" => Ty::Fn {
+                    params: vec![Ty::Unknown],
+                    ret: Box::new(Ty::String),
+                    is_async: false,
+                },
+                "findOne" => Ty::Fn {
+                    params: vec![Ty::Unknown],
+                    ret: Box::new(Ty::Option(Box::new(Ty::Unknown))),
+                    is_async: false,
+                },
+                "find" => Ty::Fn {
+                    params: vec![Ty::Unknown],
+                    ret: Box::new(Ty::List(Box::new(Ty::Unknown))),
+                    is_async: false,
+                },
+                "updateOne" | "updateMany" => Ty::Fn {
+                    params: vec![Ty::Unknown, Ty::Unknown],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "deleteOne" | "deleteMany" => Ty::Fn {
+                    params: vec![Ty::Unknown],
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "countDocuments" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "createIndex" => Ty::Fn {
+                    params: vec![Ty::String],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                // KeyValue & In-Memory Redis Cache Methods
+                "get" => Ty::Fn {
+                    params: vec![Ty::String],
+                    ret: Box::new(Ty::Option(Box::new(Ty::String))),
+                    is_async: false,
+                },
+                "set" => Ty::Fn {
+                    params: vec![Ty::String, Ty::Unknown],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "setEx" => Ty::Fn {
+                    params: vec![Ty::String, Ty::Unknown, Ty::Int],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "del" | "exists" | "expire" => Ty::Fn {
+                    params: vec![Ty::String],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "incr" | "decr" | "llen" => Ty::Fn {
+                    params: vec![Ty::String],
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "hget" => Ty::Fn {
+                    params: vec![Ty::String, Ty::String],
+                    ret: Box::new(Ty::Option(Box::new(Ty::String))),
+                    is_async: false,
+                },
+                "hset" => Ty::Fn {
+                    params: vec![Ty::String, Ty::String, Ty::Unknown],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "lpush" | "rpush" => Ty::Fn {
+                    params: vec![Ty::String, Ty::Unknown],
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "lpop" | "rpop" => Ty::Fn {
+                    params: vec![Ty::String],
+                    ret: Box::new(Ty::Option(Box::new(Ty::String))),
+                    is_async: false,
+                },
+                // Dynamic collection / repository table access (e.g. database.users, database.quizzes, database.cache)
                 _ => Ty::Database,
             },
             Ty::String => match field {
@@ -1421,13 +2125,17 @@ impl<'a> TypeChecker<'a> {
                 },
                 _ => self.emit_unknown_member(recv_ty, field, span),
             },
-            Ty::List(elem) => match field {
-                "len" | "length" | "count" => Ty::Fn {
+            Ty::Vector(elem)
+            | Ty::Array(elem)
+            | Ty::List(elem)
+            | Ty::VecDeque(elem)
+            | Ty::LinkedList(elem) => match field {
+                "len" | "length" | "count" | "size" => Ty::Fn {
                     params: Vec::new(),
                     ret: Box::new(Ty::Int),
                     is_async: false,
                 },
-                "isEmpty" => Ty::Fn {
+                "isEmpty" | "is_empty" => Ty::Fn {
                     params: Vec::new(),
                     ret: Box::new(Ty::Bool),
                     is_async: false,
@@ -1437,9 +2145,488 @@ impl<'a> TypeChecker<'a> {
                     ret: Box::new(Ty::Bool),
                     is_async: false,
                 },
+                "push" | "push_back" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "push_front" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "pop" | "pop_back" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "pop_front" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "get" => Ty::Fn {
+                    params: vec![Ty::Int],
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "set" | "insert" => Ty::Fn {
+                    params: vec![Ty::Int, *elem.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "remove" => Ty::Fn {
+                    params: vec![Ty::Int],
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "first" | "last" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "capacity" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "clear" | "reverse" | "sort" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "filter" => Ty::Fn {
+                    params: vec![Ty::Unknown],
+                    ret: Box::new(recv_ty.clone()),
+                    is_async: false,
+                },
+                "map" => Ty::Fn {
+                    params: vec![Ty::Unknown],
+                    ret: Box::new(Ty::Vector(Box::new(Ty::Unknown))),
+                    is_async: false,
+                },
+                "reduce" => Ty::Fn {
+                    params: vec![Ty::Unknown, Ty::Unknown],
+                    ret: Box::new(Ty::Unknown),
+                    is_async: false,
+                },
+                "to_vector" | "to_array" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Vector(elem.clone())),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Stack(elem) => match field {
                 "push" => Ty::Fn {
                     params: vec![*elem.clone()],
                     ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "pop" | "peek" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "len" | "length" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "isEmpty" | "is_empty" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "clear" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Queue(elem) | Ty::CircularBuffer(elem) | Ty::RingBuffer(elem) => match field {
+                "enqueue" | "push" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "dequeue" | "pop" | "peek" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "len" | "length" | "capacity" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "isEmpty" | "is_empty" | "is_full" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "clear" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Map(k, v)
+            | Ty::HashMap(k, v)
+            | Ty::BTreeMap(k, v)
+            | Ty::OrderedMap(k, v)
+            | Ty::MultiMap(k, v)
+            | Ty::BiMap(k, v) => match field {
+                "insert" => Ty::Fn {
+                    params: vec![*k.clone(), *v.clone()],
+                    ret: Box::new(Ty::Option(v.clone())),
+                    is_async: false,
+                },
+                "get" | "remove" => Ty::Fn {
+                    params: vec![*k.clone()],
+                    ret: Box::new(Ty::Option(v.clone())),
+                    is_async: false,
+                },
+                "contains_key" | "containsKey" => Ty::Fn {
+                    params: vec![*k.clone()],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "contains_value" | "containsValue" => Ty::Fn {
+                    params: vec![*v.clone()],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "keys" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Vector(k.clone())),
+                    is_async: false,
+                },
+                "values" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Vector(v.clone())),
+                    is_async: false,
+                },
+                "len" | "length" | "size" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "isEmpty" | "is_empty" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "clear" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::BitSet => match field {
+                "insert" | "set" | "remove" | "contains" | "test" => Ty::Fn {
+                    params: vec![Ty::Int],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "len" | "size" | "capacity" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "clear" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Set(elem)
+            | Ty::HashSet(elem)
+            | Ty::BTreeSet(elem)
+            | Ty::OrderedSet(elem)
+            | Ty::MultiSet(elem) => match field {
+                "insert" | "add" | "remove" | "contains" | "has" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "union" | "intersection" | "difference" | "symmetric_difference" => Ty::Fn {
+                    params: vec![recv_ty.clone()],
+                    ret: Box::new(recv_ty.clone()),
+                    is_async: false,
+                },
+                "is_subset" | "is_superset" => Ty::Fn {
+                    params: vec![recv_ty.clone()],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "isEmpty" | "is_empty" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "count" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "len" | "length" | "size" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "clear" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "to_vector" | "to_vec" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Vector(elem.clone())),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::PriorityQueue(elem) | Ty::BinaryHeap(elem) => match field {
+                "push" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "pop" | "peek" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "len" | "length" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "isEmpty" | "is_empty" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "clear" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Trie(elem) => match field {
+                "insert" => Ty::Fn {
+                    params: vec![Ty::String, *elem.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "get" => Ty::Fn {
+                    params: vec![Ty::String],
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "contains" | "starts_with" => Ty::Fn {
+                    params: vec![Ty::String],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "len" | "length" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Graph(elem)
+            | Ty::DirectedGraph(elem)
+            | Ty::UndirectedGraph(elem)
+            | Ty::WeightedGraph(elem) => match field {
+                "add_node" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "add_edge" => Ty::Fn {
+                    params: vec![Ty::Int, Ty::Int],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "add_weighted_edge" => Ty::Fn {
+                    params: vec![Ty::Int, Ty::Int, Ty::Float],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "neighbors" | "bfs" | "dfs" => Ty::Fn {
+                    params: vec![Ty::Int],
+                    ret: Box::new(Ty::Vector(Box::new(Ty::Int))),
+                    is_async: false,
+                },
+                "node_count" | "edge_count" | "len" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::DisjointSet(elem) => match field {
+                "make_set" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "find" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Option(elem.clone())),
+                    is_async: false,
+                },
+                "union" | "connected" => Ty::Fn {
+                    params: vec![*elem.clone(), *elem.clone()],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::BloomFilter(elem) => match field {
+                "insert" | "add" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "contains" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "clear" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::LRUCache(k, v) | Ty::LFUCache(k, v) => match field {
+                "put" | "insert" => Ty::Fn {
+                    params: vec![*k.clone(), *v.clone()],
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                "get" => Ty::Fn {
+                    params: vec![*k.clone()],
+                    ret: Box::new(Ty::Option(v.clone())),
+                    is_async: false,
+                },
+                "contains_key" => Ty::Fn {
+                    params: vec![*k.clone()],
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "len" | "length" | "capacity" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Int),
+                    is_async: false,
+                },
+                "clear" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Unit),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Option(elem) => match field {
+                "is_some" | "isSome" | "is_none" | "isNone" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "unwrap" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: elem.clone(),
+                    is_async: false,
+                },
+                "unwrap_or" => Ty::Fn {
+                    params: vec![*elem.clone()],
+                    ret: elem.clone(),
+                    is_async: false,
+                },
+                "map" => Ty::Fn {
+                    params: vec![Ty::Unknown],
+                    ret: Box::new(Ty::Option(Box::new(Ty::Unknown))),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Result(ok, err) => match field {
+                "is_ok" | "isOk" | "is_err" | "isErr" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "unwrap" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: ok.clone(),
+                    is_async: false,
+                },
+                "unwrap_or" => Ty::Fn {
+                    params: vec![*ok.clone()],
+                    ret: ok.clone(),
+                    is_async: false,
+                },
+                "unwrap_err" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: err.clone(),
+                    is_async: false,
+                },
+                "map" => Ty::Fn {
+                    params: vec![Ty::Unknown],
+                    ret: Box::new(Ty::Result(Box::new(Ty::Unknown), err.clone())),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::Either(l, r) => match field {
+                "is_left" | "is_right" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Bool),
+                    is_async: false,
+                },
+                "left" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Option(l.clone())),
+                    is_async: false,
+                },
+                "right" => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Option(r.clone())),
+                    is_async: false,
+                },
+                _ => self.emit_unknown_member(recv_ty, field, span),
+            },
+            Ty::MetaType(name, args) => match (name.as_str(), field) {
+                ("Vector" | "Array" | "List", "empty" | "new") => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Vector(Box::new(
+                        args.first().cloned().unwrap_or(Ty::Unknown),
+                    ))),
+                    is_async: false,
+                },
+                ("HashMap" | "Map", "empty" | "new") => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::HashMap(
+                        Box::new(args.first().cloned().unwrap_or(Ty::Unknown)),
+                        Box::new(args.get(1).cloned().unwrap_or(Ty::Unknown)),
+                    )),
+                    is_async: false,
+                },
+                ("Set" | "HashSet", "empty" | "new") => Ty::Fn {
+                    params: Vec::new(),
+                    ret: Box::new(Ty::Set(Box::new(
+                        args.first().cloned().unwrap_or(Ty::Unknown),
+                    ))),
                     is_async: false,
                 },
                 _ => self.emit_unknown_member(recv_ty, field, span),
@@ -1485,8 +2672,183 @@ impl<'a> TypeChecker<'a> {
         expected: Option<&Ty>,
         span: Span,
     ) -> Ty {
+        if let Expr::TypeConstructor {
+            name, type_args, ..
+        } = callee
+        {
+            let lowered: Vec<Ty> = type_args.iter().map(|t| self.lower_type_expr(t)).collect();
+            match name.name.as_str() {
+                "Vector" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Vector(Box::new(elem));
+                }
+                "Array" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Array(Box::new(elem));
+                }
+                "List" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::List(Box::new(elem));
+                }
+                "VecDeque" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::VecDeque(Box::new(elem));
+                }
+                "LinkedList" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::LinkedList(Box::new(elem));
+                }
+                "Stack" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Stack(Box::new(elem));
+                }
+                "Queue" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Queue(Box::new(elem));
+                }
+                "CircularBuffer" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::CircularBuffer(Box::new(elem));
+                }
+                "Matrix" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Matrix(Box::new(elem));
+                }
+                "Tensor" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Tensor(Box::new(elem));
+                }
+                "Map" => {
+                    let k = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    let v = lowered.get(1).cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Map(Box::new(k), Box::new(v));
+                }
+                "HashMap" => {
+                    let k = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    let v = lowered.get(1).cloned().unwrap_or(Ty::Unknown);
+                    return Ty::HashMap(Box::new(k), Box::new(v));
+                }
+                "BTreeMap" => {
+                    let k = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    let v = lowered.get(1).cloned().unwrap_or(Ty::Unknown);
+                    return Ty::BTreeMap(Box::new(k), Box::new(v));
+                }
+                "OrderedMap" => {
+                    let k = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    let v = lowered.get(1).cloned().unwrap_or(Ty::Unknown);
+                    return Ty::OrderedMap(Box::new(k), Box::new(v));
+                }
+                "MultiMap" => {
+                    let k = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    let v = lowered.get(1).cloned().unwrap_or(Ty::Unknown);
+                    return Ty::MultiMap(Box::new(k), Box::new(v));
+                }
+                "BiMap" => {
+                    let k = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    let v = lowered.get(1).cloned().unwrap_or(Ty::Unknown);
+                    return Ty::BiMap(Box::new(k), Box::new(v));
+                }
+                "Set" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Set(Box::new(elem));
+                }
+                "HashSet" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::HashSet(Box::new(elem));
+                }
+                "BTreeSet" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::BTreeSet(Box::new(elem));
+                }
+                "OrderedSet" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::OrderedSet(Box::new(elem));
+                }
+                "BitSet" => return Ty::BitSet,
+                "MultiSet" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::MultiSet(Box::new(elem));
+                }
+                "PriorityQueue" | "BinaryHeap" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::PriorityQueue(Box::new(elem));
+                }
+                "Trie" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Trie(Box::new(elem));
+                }
+                "Graph" | "DirectedGraph" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::Graph(Box::new(elem));
+                }
+                "BloomFilter" => {
+                    let elem = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    return Ty::BloomFilter(Box::new(elem));
+                }
+                "LRUCache" | "LruCache" => {
+                    let k = lowered.first().cloned().unwrap_or(Ty::Unknown);
+                    let v = lowered.get(1).cloned().unwrap_or(Ty::Unknown);
+                    return Ty::LRUCache(Box::new(k), Box::new(v));
+                }
+                _ => return Ty::Unknown,
+            }
+        }
+
         if let Expr::Ident(id) = callee {
             match id.name.as_str() {
+                "Vector" => {
+                    return match expected {
+                        Some(Ty::Vector(e)) => Ty::Vector(e.clone()),
+                        _ => Ty::Vector(Box::new(Ty::Unknown)),
+                    };
+                }
+                "Array" => {
+                    return match expected {
+                        Some(Ty::Array(e)) => Ty::Array(e.clone()),
+                        _ => Ty::Array(Box::new(Ty::Unknown)),
+                    };
+                }
+                "HashMap" | "Map" => {
+                    return match expected {
+                        Some(Ty::HashMap(k, v)) => Ty::HashMap(k.clone(), v.clone()),
+                        _ => Ty::HashMap(Box::new(Ty::Unknown), Box::new(Ty::Unknown)),
+                    };
+                }
+                "Set" | "HashSet" => {
+                    return match expected {
+                        Some(Ty::Set(e) | Ty::HashSet(e)) => Ty::Set(e.clone()),
+                        _ => Ty::Set(Box::new(Ty::Unknown)),
+                    };
+                }
+                "BitSet" => return Ty::BitSet,
+                "OrderedSet" => {
+                    return match expected {
+                        Some(Ty::OrderedSet(e)) => Ty::OrderedSet(e.clone()),
+                        _ => Ty::OrderedSet(Box::new(Ty::Unknown)),
+                    };
+                }
+                "BTreeSet" => {
+                    return match expected {
+                        Some(Ty::BTreeSet(e)) => Ty::BTreeSet(e.clone()),
+                        _ => Ty::BTreeSet(Box::new(Ty::Unknown)),
+                    };
+                }
+                "MultiSet" => {
+                    return match expected {
+                        Some(Ty::MultiSet(e)) => Ty::MultiSet(e.clone()),
+                        _ => Ty::MultiSet(Box::new(Ty::Unknown)),
+                    };
+                }
+                "DisjointSet" => return Ty::DisjointSet(Box::new(Ty::Unknown)),
+                "LRUCache" | "LruCache" => {
+                    return Ty::LRUCache(Box::new(Ty::Unknown), Box::new(Ty::Unknown));
+                }
+                "Stack" => return Ty::Stack(Box::new(Ty::Unknown)),
+                "Queue" => return Ty::Queue(Box::new(Ty::Unknown)),
+                "PriorityQueue" => return Ty::PriorityQueue(Box::new(Ty::Unknown)),
+                "Graph" => return Ty::Graph(Box::new(Ty::Unknown)),
+                "Trie" => return Ty::Trie(Box::new(Ty::Unknown)),
+                "BloomFilter" => return Ty::BloomFilter(Box::new(Ty::Unknown)),
                 "Some" => {
                     if args.len() != 1 {
                         self.emit_arg_count("Some", 1, args.len(), span);
@@ -1523,25 +2885,9 @@ impl<'a> TypeChecker<'a> {
                     let err_ty = self.check_expr(&args[0], err_exp);
                     return Ty::Result(Box::new(ok_ty), Box::new(err_ty));
                 }
-                "print" => {
-                    if args.len() != 1 {
-                        self.emit_arg_count("print", 1, args.len(), span);
-                        return Ty::Unit;
-                    }
-                    let aty = self.check_expr(&args[0], None);
-                    if !matches!(
-                        aty,
-                        Ty::String | Ty::Int | Ty::Float | Ty::Bool | Ty::Unknown
-                    ) {
-                        self.diagnostics.emit(
-                            Diagnostic::error(
-                                "E4001",
-                                format!(
-                                    "`print` expects `String`, `Int`, `Float`, or `Bool`, found `{aty}`"
-                                ),
-                            )
-                            .with_primary_label(args[0].span(), "not printable directly"),
-                        );
+                "print" | "println" => {
+                    for a in args {
+                        let _ = self.check_expr(a, None);
                     }
                     return Ty::Unit;
                 }
@@ -1934,9 +3280,19 @@ impl<'a> TypeChecker<'a> {
                     self.emit_type_mismatch(scrut_ty, &Ty::Int, *sp);
                 }
             }
+            Pattern::FloatLit(_, sp) => {
+                if !self.is_assignable(&Ty::Float, scrut_ty) {
+                    self.emit_type_mismatch(scrut_ty, &Ty::Float, *sp);
+                }
+            }
             Pattern::StringLit(_, sp) => {
                 if !self.is_assignable(&Ty::String, scrut_ty) {
                     self.emit_type_mismatch(scrut_ty, &Ty::String, *sp);
+                }
+            }
+            Pattern::CharLit(_, sp) => {
+                if !self.is_assignable(&Ty::Char, scrut_ty) {
+                    self.emit_type_mismatch(scrut_ty, &Ty::Char, *sp);
                 }
             }
             Pattern::BoolLit(b, sp) => {
@@ -2090,10 +3446,90 @@ impl<'a> TypeChecker<'a> {
             return true;
         }
         match (expected, actual) {
-            (Ty::List(e), Ty::List(a)) | (Ty::Option(e), Ty::Option(a)) => self.is_assignable(e, a),
+            // Numeric subtyping
+            (
+                Ty::Int,
+                Ty::Int8
+                | Ty::Int16
+                | Ty::Int32
+                | Ty::Int64
+                | Ty::UInt
+                | Ty::UInt8
+                | Ty::UInt16
+                | Ty::UInt32
+                | Ty::UInt64,
+            ) => true,
+            (Ty::Float, Ty::Float32 | Ty::Float64 | Ty::Decimal) => true,
+
+            // Sequential collections
+            (Ty::Array(e), Ty::Array(a))
+            | (Ty::Vector(e), Ty::Vector(a))
+            | (Ty::List(e), Ty::List(a))
+            | (Ty::Array(e), Ty::Vector(a))
+            | (Ty::Vector(e), Ty::Array(a))
+            | (Ty::Array(e), Ty::List(a))
+            | (Ty::List(e), Ty::Array(a))
+            | (Ty::Vector(e), Ty::List(a))
+            | (Ty::List(e), Ty::Vector(a))
+            | (Ty::VecDeque(e), Ty::VecDeque(a))
+            | (Ty::LinkedList(e), Ty::LinkedList(a))
+            | (Ty::Stack(e), Ty::Stack(a))
+            | (Ty::Queue(e), Ty::Queue(a))
+            | (Ty::CircularBuffer(e), Ty::CircularBuffer(a))
+            | (Ty::Matrix(e), Ty::Matrix(a))
+            | (Ty::Tensor(e), Ty::Tensor(a)) => self.is_assignable(e, a),
+
+            // Associative collections
+            (Ty::Map(ek, ev), Ty::Map(ak, av))
+            | (Ty::HashMap(ek, ev), Ty::HashMap(ak, av))
+            | (Ty::Map(ek, ev), Ty::HashMap(ak, av))
+            | (Ty::HashMap(ek, ev), Ty::Map(ak, av))
+            | (Ty::BTreeMap(ek, ev), Ty::BTreeMap(ak, av))
+            | (Ty::OrderedMap(ek, ev), Ty::OrderedMap(ak, av))
+            | (Ty::MultiMap(ek, ev), Ty::MultiMap(ak, av))
+            | (Ty::BiMap(ek, ev), Ty::BiMap(ak, av))
+            | (Ty::LRUCache(ek, ev), Ty::LRUCache(ak, av))
+            | (Ty::LFUCache(ek, ev), Ty::LFUCache(ak, av)) => {
+                self.is_assignable(ek, ak) && self.is_assignable(ev, av)
+            }
+
+            // Sets
+            (Ty::Set(e), Ty::Set(a))
+            | (Ty::HashSet(e), Ty::HashSet(a))
+            | (Ty::Set(e), Ty::HashSet(a))
+            | (Ty::HashSet(e), Ty::Set(a))
+            | (Ty::BTreeSet(e), Ty::BTreeSet(a))
+            | (Ty::OrderedSet(e), Ty::OrderedSet(a))
+            | (Ty::MultiSet(e), Ty::MultiSet(a)) => self.is_assignable(e, a),
+
+            // Specialized
+            (Ty::PriorityQueue(e), Ty::PriorityQueue(a))
+            | (Ty::BinaryHeap(e), Ty::BinaryHeap(a))
+            | (Ty::Trie(e), Ty::Trie(a))
+            | (Ty::Graph(e), Ty::Graph(a))
+            | (Ty::DirectedGraph(e), Ty::DirectedGraph(a))
+            | (Ty::UndirectedGraph(e), Ty::UndirectedGraph(a))
+            | (Ty::WeightedGraph(e), Ty::WeightedGraph(a))
+            | (Ty::DisjointSet(e), Ty::DisjointSet(a))
+            | (Ty::BloomFilter(e), Ty::BloomFilter(a))
+            | (Ty::RingBuffer(e), Ty::RingBuffer(a)) => self.is_assignable(e, a),
+
+            // Option, Result, Either, Tuple
+            (Ty::Option(e), Ty::Option(a)) => self.is_assignable(e, a),
             (Ty::Result(eo, ee), Ty::Result(ao, ae)) => {
                 self.is_assignable(eo, ao) && self.is_assignable(ee, ae)
             }
+            (Ty::Either(el, er), Ty::Either(al, ar)) => {
+                self.is_assignable(el, al) && self.is_assignable(er, ar)
+            }
+            (Ty::Tuple(et), Ty::Tuple(at)) => {
+                et.len() == at.len()
+                    && et
+                        .iter()
+                        .zip(at.iter())
+                        .all(|(e, a)| self.is_assignable(e, a))
+            }
+
             (Ty::Interface(iface), Ty::Class(cls)) => self
                 .classes
                 .get(cls)

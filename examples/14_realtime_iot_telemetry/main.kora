@@ -1,14 +1,19 @@
 // ============================================================================
-// Example 14: Realtime IoT Telemetry & Metrics Processing Engine
-// Clean Architecture: Ingest Pipeline + ORM Storage + Stream Aggregation
+// Example 14: Realtime IoT Telemetry Ingestion — Main Entrypoint
+// Pure Clean Architecture: Encapsulated within Application Class Container
 // ============================================================================
 
-import { App } from "kora/http"
 import { TelemetryRoutes } from "./routes/telemetry.routes"
 
-let app = App()
+class Application {
+    init() {}
 
-// Register High-Throughput Ingestion Routes
-app.use(TelemetryRoutes)
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(TelemetryRoutes)
+        app.listen(8083)
+    }
+}
 
-app.listen(8083)
+let app = Application()
+app.bootstrap()

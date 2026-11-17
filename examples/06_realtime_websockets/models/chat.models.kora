@@ -2,13 +2,7 @@
 // Realtime Chat & WebSocket Models
 // ============================================================================
 
-model ChatMessage {
-    id: Int
-    sender: String
-    room: String
-    content: String
-    timestamp: Int
-}
+import { ChatMessage } from "../entities/chat_message.entity"
 
 model SendMessageRequest {
     sender: String

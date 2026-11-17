@@ -1,4 +1,4 @@
-import { DomainEventEntity } from "../models/domain_event.entity"
+import { DomainEventEntity } from "../entities/domain_event.entity"
 import { EventStoreRepositoryInterface } from "../interfaces/event_store.repository.interface"
 
 class EventStoreRepository implements EventStoreRepositoryInterface {

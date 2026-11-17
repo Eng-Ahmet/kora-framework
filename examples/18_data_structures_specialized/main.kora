@@ -1,0 +1,30 @@
+// ============================================================================
+// Example 18: Specialized Algorithmic Collections Clean Architecture — Main Entrypoint
+// Encapsulated within Application Class Container
+// ============================================================================
+
+import { SpecializedService } from "./services/specialized.service"
+
+class Application {
+    service: SpecializedService
+
+    init(service: SpecializedService) {
+        this.service = service
+    }
+
+    fn runDemo() -> Unit {
+        let pqCount = this.service.testPriorityQueue()
+        let trieValid = this.service.testTrie()
+        let graphNodes = this.service.testGraph()
+        let cacheCount = this.service.testLruCache()
+
+        print("=== Specialized Collections Clean Architecture ===")
+        print(pqCount)
+        print(trieValid)
+        print(graphNodes)
+        print(cacheCount)
+    }
+}
+
+let app = Application(SpecializedService())
+app.runDemo()

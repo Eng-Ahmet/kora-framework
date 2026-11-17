@@ -138,7 +138,62 @@ class UserService implements UserRepository {
 }
 ```
 
-### 2. First-Class `null` & Strict Exclusion of `undefined`
+### 2. Rich Native Data Structures Ecosystem
+Kora includes an extensive suite of native, memory-safe data structures compiled to optimal native Rust implementations with safe bounds checking:
+
+- **Sequential**: `Vector<T>` / `Array<T>`, `VecDeque<T>`, `LinkedList<T>`, `Stack<T>`, `Queue<T>`, `CircularBuffer<T>`, `FixedArray<T, N>`, `Matrix<T>`, `Tensor<T>`.
+- **Associative**: `Map<K, V>` / `HashMap<K, V>`, `BTreeMap<K, V>`, `OrderedMap<K, V>`, `MultiMap<K, V>`, `BiMap<K, V>`.
+- **Sets & Set Algebra**: `Set<T>` / `HashSet<T>`, `BTreeSet<T>`, `OrderedSet<T>`, `BitSet`, `MultiSet<T>`. Supports `union`, `intersection`, `difference`, `symmetric_difference`, `is_subset`.
+- **Specialized Algorithmic**: `PriorityQueue<T>`, `BinaryHeap<T>`, `Trie<T>`, `RadixTree<T>`, `Graph<T>` (`DirectedGraph`, `WeightedGraph`), `DisjointSet<T>` (Union-Find), `BloomFilter<T>`, `LRUCache<K, V>`, `LFUCache<K, V>`.
+
+```kora
+// Generic Collection Literals
+let numbers = Vector<Int>[10, 20, 30, 40]
+let set_a = Set<Int>[1, 2, 3]
+let set_b = Set<Int>[3, 4, 5]
+let common = set_a.intersection(set_b)
+
+// Map Literals with Inferred Types
+let scores = {
+    "team_alpha": 95,
+    "team_beta": 88
+}
+
+// Algorithmic Routing Trie & Priority Queue
+let routes = Trie<String>()
+routes.insert("/api/v1/orders", "OrderHandler")
+let has_prefix = routes.starts_with("/api/v1")
+
+let cache = LRUCache<String, User>()
+cache.put("user_101", User { id: 101, email: "user@kora.dev", role: "admin", balance: 500 })
+```
+
+### 3. Automatic & Safe Type Inference
+Kora features an expressive Hindley-Milner-inspired static type inference engine without sacrificing static type guarantees:
+- **Primitives**: `let name = "Ahmet"` infers `String`, `let age = 25` infers `Int`, `let active = true` infers `Bool`, `let grade = 'A'` infers `Char`.
+- **Exact Numeric Widths**: Support for `Int8`..`Int64`, `UInt`..`UInt64`, `Float32`, `Float64`, `Decimal`, `Byte`, `Unit`, `Never`.
+- **Type Safety**: Incompatible assignments (e.g. assigning a `String` to an inferred `Int`) are rejected strictly at compile time.
+- **Algebraic Enums & Pattern Matching**: Exhaustive compile-time `match` over enum variants and payloads.
+
+```kora
+enum PaymentStatus {
+    Pending
+    Completed
+    Failed(String)
+    Refunded(Float)
+}
+
+fn handle_payment(status: PaymentStatus) -> String {
+    return match status {
+        PaymentStatus.Pending => "Awaiting payment processing",
+        PaymentStatus.Completed => "Payment confirmed",
+        PaymentStatus.Failed(reason) => "Payment failed: " + reason,
+        PaymentStatus.Refunded(amount) => "Refund issued",
+    }
+}
+```
+
+### 4. First-Class `null` & Strict Exclusion of `undefined`
 Kora introduces **`null`** as the universal representation of value absence (`Option<T>`).
 - Writing `undefined` generates a compile error (`E2005`), eliminating dual-null ambiguity.
 - Works seamlessly with direct comparisons and pattern matching:
@@ -156,20 +211,20 @@ return match authHeader {
 }
 ```
 
-### 3. Automatic Constructor & Visibility Modifiers
+### 5. Automatic Constructor & Visibility Modifiers
 Classes support `public`, `private`, `protected`, and `readonly` field modifiers, as well as automatic parameter promotion inside `init(...)`.
 
-### 4. Enforced `kebab-case` API Serialization
+### 6. Enforced `kebab-case` API Serialization
 All API payloads, route responses, and DTOs automatically serialize with `kebab-case` keys (`user-id`, `status-code`, `total-amount`), guaranteeing API consistency across client integrations.
 
-### 5. Architectural Purity Enforcement (Compiler Diagnostics)
+### 7. Architectural Purity Enforcement (Compiler Diagnostics)
 The Kora compiler (`kora check`) guards directory boundaries at build time:
 - **`E5001`**: Files in `enums/` cannot contain functions or routes.
 - **`E5002`**: Files in `models/` or `interfaces/` cannot contain executable server logic or routes.
 - **`E5003`**: Controllers and services cannot define inline enums or models; they must be imported.
 - **`E5004`**: `main.kora` cannot define inline models or enums in structured projects.
 
-### 6. Python-Style Direct Execution & Smart Entrypoint Discovery
+### 8. Python-Style Direct Execution & Smart Entrypoint Discovery
 Execute any single script with zero ceremony:
 ```bash
 # Run standalone files directly
@@ -180,7 +235,7 @@ kora app.kr
 kora run
 ```
 
-### 7. Instant Live Watch Mode & Hot Reloading
+### 9. Instant Live Watch Mode & Hot Reloading
 Rapid feedback loop during development:
 ```bash
 kora watch
@@ -188,7 +243,7 @@ kora watch
 kora watch src/main.kora
 ```
 
-### 8. Canonical Code Formatter & Linter
+### 10. Canonical Code Formatter & Linter
 Unified code layout across teams:
 ```bash
 kora fmt                # Format all project files
@@ -233,13 +288,14 @@ flowchart TD
 
 | Pillar | Feature | Status | Notes |
 |:---|:---|:---:|:---|
-| **Language Frontend** | Lexer, Parser, AST, Diagnostics | ✅ **Ready** | Full tokenization and error reporting with source spans. |
-| **Type System** | Static Typing, Generic Inference, `Option<T>` | ✅ **Ready** | Strict `null` (`undefined` forbidden, `E2005`). |
+| **Language Frontend** | Lexer, Parser, AST, Diagnostics | ✅ **Ready** | Full tokenization, character literals `'c'`, and source spans. |
+| **Type System & Inference** | Hindley-Milner Inference, Bit-Widths, `null` | ✅ **Ready** | Safe automatic inference, `Int8`..`Int64`, `UInt`..`UInt64`, `Float32`/`64`, `Decimal`. |
+| **Data Structures** | Sequential, Associative, Sets, Algorithmic | ✅ **Ready** | `Vector`, `Stack`, `Queue`, `HashMap`, `Set`, `Trie`, `Graph`, `LRUCache`, `BloomFilter`. |
 | **Object Model** | `model` (Entities & DTOs) & `class` (DI) | ✅ **Ready** | Auto-constructors, visibility modifiers, zero `struct` confusion. |
 | **Clean Architecture** | Boundary enforcement (`E5001`–`E5004`) | ✅ **Ready** | Enforced purity for `enums/`, `models/`, services, and `main.kora`. |
 | **Database Engine** | Schema Auto-Sync, Migrations, Seeders | ✅ **Ready** | CLI commands (`kora db <migrate\|sync\|seed\|truncate\|drop\|refresh>`). |
 | **Code Generation** | Verified Native Rust Generation | ✅ **Ready** | Compiles to zero-GC native binary via `.kora-build/`. |
-| **Async Concurrency** | Non-blocking I/O & Actor/Channels | ✅ **Ready** | MPSC typed channels, broadcast pub/sub, actors (`ask`/`tell`) & `TaskGroup`. |
+| **Async Concurrency** | Channels, Streams & Thread Sync | ✅ **Ready** | MPSC typed channels, `Mutex`, `RwLock`, `AtomicInt`, `Stream`, `Arena`. |
 | **Tooling & Ecosystem**| VS Code / Antigravity IDE Extension | ✅ **Ready** | CodeLens (`▶ Run`), formatOnSave, Go-To-Definition (`F12`), Outline view. |
 | **Language Server (LSP)**| JSON-RPC 2.0 Language Server Daemon | ✅ **Ready** | Powers Neovim, Helix, Emacs, and VS Code with completion and hover. |
 | **Code Formatter** | Canonical Source Formatter (`kora-fmt`)| ✅ **Ready** | Automatic 4-space indentation, spacing, and CI `--check` verification. |
@@ -257,14 +313,14 @@ All components live in a modular Cargo workspace under `crates/`:
 
 | Crate | Role |
 |:---|:---|
-| `kora-lexer` | High-speed tokenizer with keyword and attribute scanning. |
-| `kora-ast` | Abstract Syntax Tree node definitions. |
-| `kora-parser` | Recursive-descent parser with rich diagnostics. |
-| `kora-hir` | High-level Intermediate Representation and symbol resolution. |
-| `kora-ty` | Static type system, interface verification, and purity checker. |
+| `kora-lexer` | High-speed tokenizer with keyword, character literal, and attribute scanning. |
+| `kora-ast` | Abstract Syntax Tree node definitions for models, enums, literals, and collections. |
+| `kora-parser` | Recursive-descent parser with lookahead generic disambiguation and rich diagnostics. |
+| `kora-hir` | High-level Intermediate Representation, prelude symbols, and lexical scoping. |
+| `kora-ty` | Hindley-Milner static type inference, collection method resolution, and purity checker. |
 | `kora-ownership` | Lifetime & concurrency planner: Arc promotion and cycle detection. |
-| `kora-codegen` | Transpilation from Kora AST to safe native Rust code. |
-| `kora-runtime` | Async concurrency runtime: MPSC channels, broadcast pub/sub, actors & task groups. |
+| `kora-codegen` | Transpilation from Kora AST to safe `#![forbid(unsafe_code)]` native Rust. |
+| `kora-runtime` | Async concurrency runtime, native collections (`Vector`, `HashMap`, `Set`, `Trie`, `Graph`, `LRU`), sync primitives, streams, and memory arenas. |
 | `kora-http` | Async HTTP engine powered by Axum and Tokio. |
 | `kora-orm` | Compile-time query and schema integration with SQL injection immunity. |
 | `kora-auth` | Enterprise security: Argon2id password hashing and HMAC-SHA256 JWT tokens. |
@@ -356,6 +412,17 @@ Kora provides an organized catalog of numbered, self-contained examples in [`exa
 | **09** | [`09_enterprise_clean_architecture`](examples/09_enterprise_clean_architecture/) | **Enterprise Showcase** | 40+ files, domain modules, middleware, database | `cd examples/09_enterprise_clean_architecture && kora run` |
 | **10** | [`10_dto_validation_and_types`](examples/10_dto_validation_and_types/) | **DTO Defense & Type Safety** | Robust validation, files/images, JSON, arrays, enums | `kora run examples/10_dto_validation_and_types/main.kora` |
 | **11** | [`11_operators_control_flow_and_resilience`](examples/11_operators_control_flow_and_resilience/) | **Operators & Try/Catch** | `??`, `+=`, `for..in`, `break`, `continue`, `try/catch/finally` | `kora run examples/11_operators_control_flow_and_resilience/main.kora` |
+| **12** | [`12_microservice_event_driven`](examples/12_microservice_event_driven/) | **Event-Driven Microservices** | Outbox pattern, domain event publisher, event sourcing | `kora run examples/12_microservice_event_driven/main.kora` |
+| **13** | [`13_modular_monolith_ecommerce`](examples/13_modular_monolith_ecommerce/) | **Modular Monolith** | Bounded contexts, catalog and billing domain modules | `kora run examples/13_modular_monolith_ecommerce/src/main.kora` |
+| **14** | [`14_realtime_iot_telemetry`](examples/14_realtime_iot_telemetry/) | **IoT Telemetry Ingestion** | High-throughput metric ingestion, device presence | `kora run examples/14_realtime_iot_telemetry/main.kora` |
+| **15** | [`15_data_structures_sequential`](examples/15_data_structures_sequential/) | **Sequential Collections** | `Vector`, `Array`, `VecDeque`, `LinkedList`, `Stack`, `Queue`, `CircularBuffer` | `kora run examples/15_data_structures_sequential/main.kora` |
+| **16** | [`16_data_structures_associative`](examples/16_data_structures_associative/) | **Associative Collections** | `Map`, `HashMap`, `BTreeMap`, `OrderedMap`, `MultiMap`, `BiMap`, Map Literals | `kora run examples/16_data_structures_associative/main.kora` |
+| **17** | [`17_data_structures_sets`](examples/17_data_structures_sets/) | **Set Collections & Set Algebra** | `Set`, `HashSet`, `BTreeSet`, `OrderedSet`, `BitSet`, `MultiSet`, union/intersection | `kora run examples/17_data_structures_sets/main.kora` |
+| **18** | [`18_data_structures_specialized`](examples/18_data_structures_specialized/) | **Specialized Algorithmic Structures** | `PriorityQueue`, `BinaryHeap`, `Trie`, `Graph`, `DisjointSet`, `BloomFilter`, `LRUCache` | `kora run examples/18_data_structures_specialized/main.kora` |
+| **19** | [`19_type_inference_and_types`](examples/19_type_inference_and_types/) | **Automatic & Safe Type Inference** | Hindley-Milner inference, algebraic enums, pattern matching, typed models | `kora run examples/19_type_inference_and_types/main.kora` |
+| **20** | [`20_concurrency_and_streams`](examples/20_concurrency_and_streams/) | **Concurrency, Channels & Streams** | Async channels, task actors, stream data pipelines, memory arenas | `kora run examples/20_concurrency_and_streams/main.kora` |
+| **21** | [`21_caching_and_kv_store`](examples/21_caching_and_kv_store/) | **Redis In-Memory Key-Value Caching** | Fast TTL key expiration, atomic rate-limiting counters, session cache | `kora run examples/21_caching_and_kv_store/main.kora` |
+| **22** | [`22_nosql_document_store`](examples/22_nosql_document_store/) | **MongoDB NoSQL Document Store** | Schema-free audit trails, dynamic collections, compound indexing, bulk pruning | `kora run examples/22_nosql_document_store/main.kora` |
 
 Read the full catalog documentation in the [`examples/README.md`](examples/README.md).
 
@@ -363,9 +430,10 @@ Read the full catalog documentation in the [`examples/README.md`](examples/READM
 ```bash
 # Type check all numbered examples
 for dir in examples/[0-9]*; do
-  if [ -f "$dir/main.kora" ]; then
-    kora check "$dir/main.kora"
-  fi
+  file="$dir/main.kora"
+  [ ! -f "$file" ] && file="$dir/src/main.kora"
+  echo "Checking $file..."
+  kora check "$file" || exit 1
 done
 
 # Verify all 40 architectural files in the enterprise showcase
@@ -373,6 +441,16 @@ for f in $(find examples/09_enterprise_clean_architecture/src -name "*.kora"); d
   kora check "$f"
 done
 ```
+
+---
+
+## 📖 Comprehensive Documentation & Engineering Architecture
+
+For deep-dive guides, architectural specifications, and contributor workflows:
+- **Interactive Documentation Portal**: Open [`documentation/index.html`](documentation/index.html) in your browser for a complete guide from variables, type inference, and collections to multi-engine database ORMs, HTTP routing, and the compiler pipeline.
+- **Compiler Architecture Specification**: Read [`ARCHITECTURE.md`](ARCHITECTURE.md) for the 8-stage pipeline from Lexer and Parser to Hindley-Milner Type Inference, Affine Ownership, and Rust Codegen across all 23 crates.
+- **Contributor Guide**: Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for local setup, pre-commit standards, and branch conventions.
+- **AI Agent Governance & Standards**: Explore [`.agent/`](.agent/) for rules, subagent definitions, workflows, and quality standards.
 
 ---
 

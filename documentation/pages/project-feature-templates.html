@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project & Feature Templates — Kora Documentation</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/syntax.css">
+  <script defer src="../js/app.js"></script>
+  <script defer src="../js/search.js"></script>
+  <script defer src="../js/code.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-header">
+    <a href="../index.html" class="brand">
+      <img src="../assets/logo.svg" alt="Kora Logo">
+      <span>Kora Docs</span>
+      <span class="badge badge-blue">v0.4.1 Beta</span>
+    </a>
+
+    <div class="header-center">
+      <button class="search-bar-trigger" id="search-trigger">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Search documentation, guides, APIs...
+        </span>
+        <span class="search-shortcut">Ctrl+K</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme"></button>
+      <a href="https://github.com/Hwai-technology/kora-framework" target="_blank" class="github-link" title="GitHub Repository">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Shell Container -->
+  <div class="docs-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">Getting Started</div>
+        <ul class="nav-list">
+          <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="language-tour.html" class="nav-link">Language Tour</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Architecture & OOP</div>
+        <ul class="nav-list">
+          <li><a href="oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
+          <li><a href="project-feature-templates.html" class="nav-link active">Project & Feature Templates</a></li>
+          <li><a href="microservices-events.html" class="nav-link">Microservices & Events</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Core Systems</div>
+        <ul class="nav-list">
+          <li><a href="database-orm.html" class="nav-link">Multi-Engine Database ORM</a></li>
+          <li><a href="middleware-ecosystem.html" class="nav-link">Middleware Ecosystem</a></li>
+          <li><a href="libraries-integrations.html" class="nav-link">Essential Backend Libraries</a></li>
+          <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Security & Hardening</div>
+        <ul class="nav-list">
+          <li><a href="security-hardened-architecture.html" class="nav-link">Hardened Architecture & Audits</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Language Engineering</div>
+        <ul class="nav-list">
+          <li><a href="language-gap-analysis.html" class="nav-link">Language Gap Analysis & Roadmap</a></li>
+          <li><a href="crates-reference.html" class="nav-link">Crates Reference (23 Crates)</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Tooling & Ecosystem</div>
+        <ul class="nav-list">
+          <li><a href="cli-tooling.html" class="nav-link">CLI Toolchain (`kora`)</a></li>
+          <li><a href="vscode-extension.html" class="nav-link">VS Code Extension & LSP</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content-area">
+      <div class="content-header">
+        <h1>Standardized Project & Feature Templates</h1>
+        <p class="lead">
+          Kora enforces rigorous architectural boundaries. This guide covers official project templates, feature directory segregation, strict separation of Database Entities from Data Transfer Objects, and instant code generation via the Kora CLI.
+        </p>
+      </div>
+
+      <!-- Golden Rule Banner -->
+      <div class="callout callout-warning" style="margin-bottom: 2rem;">
+        <strong>Architectural Golden Rule:</strong> Database table models representing persistent database schemas must ALWAYS reside in an <code>entities/</code> directory (named <code>*.entity.kora</code>) decorated with <code>@table("name")</code>. The <code>models/</code> directory is strictly reserved for transport models and DTOs (Data Transfer Objects). Never place database entities in <code>models/</code>.
+      </div>
+
+      <!-- Feature Template Section -->
+      <section id="feature-template" class="doc-section">
+        <h2>1. The Official Clean Architecture Feature Template</h2>
+        <p>
+          Every domain feature in a Kora backend follows an identical, predictable anatomy. Generating a feature via <code>kora g feature &lt;name&gt;</code> creates this complete directory tree:
+        </p>
+
+        <pre><code class="language-text">features/users/
+├── entities/                   # 💾 Database ORM Table Models (@table, @id)
+│   └── user_entity.kora        #    UserEntity with primary key and table schema
+├── models/                     # 📦 DTOs & Transport Envelopes
+│   └── user_dto.kora           #    CreateUserDto, UpdateUserDto, UserResponseDto
+├── validators/                 # 🔍 Input Validation & Rule Verification
+│   └── user_validator.kora     #    UserValidator with RFC-compliant checks
+├── interfaces/                 # 📜 Abstract Contracts & Abstractions
+│   ├── user_service_interface.kora
+│   └── user_repository_interface.kora
+├── repositories/               # 🗄️ Database Query Implementation
+│   └── user_repository.kora    #    SQL queries, transactions, caching
+├── services/                   # 🧠 Domain Business Logic & Transactions
+│   └── user_service.kora       #    Orchestrates repository and validation
+├── controllers/                # 🌐 HTTP Endpoints & Dependency Injection
+│   └── user_controller.kora    #    Unpacks requests, delegates to service
+├── routes/                     # 🛣️ Route Module Registration
+│   └── user_routes.kora        #    Registers /api/users endpoints into App
+├── errors/                     # ⚠️ Type-Safe Domain Errors
+│   └── user_errors.kora        #    UserError enum (NotFound, ValidationFailed)
+├── events/                     # 📡 Domain Events & Pub/Sub Payloads
+│   └── user_events.kora        #    UserCreatedEvent, UserDeletedEvent
+├── tests/                      # 🧪 Automated Feature Unit & Integration Tests
+│   └── user_test.kora          #    Deterministic runnable tests
+└── index.kora                  # 📦 Feature Barrel Export</code></pre>
+      </section>
+
+      <!-- Layer Responsibilities -->
+      <section id="layer-responsibilities" class="doc-section">
+        <h2>2. Layer Responsibilities & Constraints</h2>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Layer Directory</th>
+              <th>Allowed Dependencies</th>
+              <th>Forbidden Dependencies</th>
+              <th>Primary Responsibility</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>entities/</code></td>
+              <td>Language primitives only</td>
+              <td>Controllers, Services, HTTP, DTOs</td>
+              <td>Defines database table structure, column mappings, and primary keys.</td>
+            </tr>
+            <tr>
+              <td><code>models/</code></td>
+              <td>Language primitives only</td>
+              <td>Database entities, Repositories, Controllers</td>
+              <td>Defines input/output payloads across API boundaries.</td>
+            </tr>
+            <tr>
+              <td><code>interfaces/</code></td>
+              <td><code>entities/</code>, <code>models/</code>, <code>errors/</code></td>
+              <td>Repositories, Controllers</td>
+              <td>Defines contracts for inversion of control and test mockability.</td>
+            </tr>
+            <tr>
+              <td><code>repositories/</code></td>
+              <td><code>interfaces/</code>, <code>entities/</code>, Database driver</td>
+              <td>Controllers, Routes, HTTP</td>
+              <td>Encapsulates SQL, transactions, and persistence operations.</td>
+            </tr>
+            <tr>
+              <td><code>services/</code></td>
+              <td><code>interfaces/</code>, <code>models/</code>, <code>entities/</code>, <code>validators/</code></td>
+              <td>HTTP Request/Response, Routes</td>
+              <td>Executes business workflows, domain logic, and transactional boundaries.</td>
+            </tr>
+            <tr>
+              <td><code>controllers/</code></td>
+              <td><code>interfaces/</code>, <code>models/</code></td>
+              <td>Direct SQL, Database connections</td>
+              <td>Translates HTTP requests into service calls and formats responses.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Standard Project Templates -->
+      <section id="project-templates" class="doc-section">
+        <h2>3. Official Project Templates</h2>
+        <p>
+          Initialize a project tailored to your exact application architecture using <code>kora create &lt;name&gt; --template &lt;type&gt;</code>:
+        </p>
+
+        <div class="grid grid-2" style="margin: 1.5rem 0;">
+          <div class="card">
+            <h4><code>rest-api</code> (Default)</h4>
+            <p>Production-ready RESTful service with OpenAPI 3.1, Swagger UI, JWT authentication, PostgreSQL/SQLite ORM, and Clean Architecture.</p>
+          </div>
+          <div class="card">
+            <h4><code>microservice</code></h4>
+            <p>Ultra-compact microservice with Docker multi-stage builds, <code>/health/live</code> and <code>/health/ready</code> probes, and distributed tracing headers.</p>
+          </div>
+          <div class="card">
+            <h4><code>websocket</code></h4>
+            <p>Real-time bidirectional server with channel rooms, actor-based pub/sub broadcast engine, and heartbeat management.</p>
+          </div>
+          <div class="card">
+            <h4><code>worker</code></h4>
+            <p>Headless background task queue worker with exponential retry backoff, Dead Letter Queues (DLQ), and bounded backpressure.</p>
+          </div>
+          <div class="card">
+            <h4><code>event-driven</code></h4>
+            <p>Event-driven architecture with domain event publishers, asynchronous message consumers, and Kafka/RabbitMQ adapters.</p>
+          </div>
+          <div class="card">
+            <h4><code>graphql</code></h4>
+            <p>Schema-first GraphQL API with Query/Mutation resolvers, DataLoader batching, and GraphiQL playground.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CLI Generator Commands -->
+      <section id="cli-generators" class="doc-section">
+        <h2>4. CLI Code Generation Commands</h2>
+        <p>
+          Accelerate your workflow with Kora's unified generator commands:
+        </p>
+
+        <div class="code-block-header">
+          <span>Kora Generator Commands</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-bash"># Scaffold a new project from a template
+kora create billing-service --template microservice
+
+# Generate a complete Clean Architecture feature slice
+kora g feature products
+# (creates entities, models, validators, interfaces, repositories, services, controllers, routes, tests)
+
+# Generate a standalone database entity in src/entities/
+kora g entity customer
+# Output: ✓ Generated database entity: src/entities/customer.entity.kora
+
+# Generate a standalone DTO model in src/models/
+kora g model order_payload
+# Output: ✓ Generated DTO model: src/models/order_payload.dto.kora
+
+# Generate a business service in src/services/
+kora g service payment_processor
+# Output: ✓ Generated service: src/services/payment_processor.service.kora
+
+# Generate an HTTP middleware in src/middleware/
+kora g middleware rate_guard
+# Output: ✓ Generated middleware: src/middleware/rate_guard.middleware.kora</code></pre>
+      </section>
+
+    </main>
+  </div>
+
+</body>
+</html>

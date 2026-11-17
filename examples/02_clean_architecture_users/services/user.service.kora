@@ -2,7 +2,7 @@
 // Service: UserService
 // ============================================================================
 
-import { User } from "../models/user.models"
+import { User } from "../entities/user.entity"
 import { UserRepository } from "../interfaces/user.repository.interface"
 
 class UserService implements UserRepository {

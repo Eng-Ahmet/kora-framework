@@ -2,7 +2,7 @@
 // Interface: UserRepository
 // ============================================================================
 
-import { User } from "../models/user.models"
+import { User } from "../entities/user.entity"
 
 interface UserRepository {
     fn findById(id: Int) -> Option<User>

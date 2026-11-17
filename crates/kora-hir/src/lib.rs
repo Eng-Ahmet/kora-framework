@@ -49,12 +49,126 @@ pub struct HirModule {
 }
 
 const PRELUDE_TYPES: &[&str] = &[
-    "Int", "Float", "Bool", "String", "Unit", "List", "Option", "Result", "Channel", "Database",
-    "App", "Request", "Response",
+    "Int",
+    "Int8",
+    "Int16",
+    "Int32",
+    "Int64",
+    "UInt",
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+    "Float",
+    "Float32",
+    "Float64",
+    "Decimal",
+    "Bool",
+    "Char",
+    "String",
+    "Byte",
+    "Unit",
+    "Never",
+    "Array",
+    "Vector",
+    "VecDeque",
+    "LinkedList",
+    "Stack",
+    "Queue",
+    "CircularBuffer",
+    "FixedArray",
+    "Matrix",
+    "Tensor",
+    "Map",
+    "HashMap",
+    "BTreeMap",
+    "OrderedMap",
+    "MultiMap",
+    "BiMap",
+    "WeakMap",
+    "Set",
+    "HashSet",
+    "BTreeSet",
+    "OrderedSet",
+    "BitSet",
+    "MultiSet",
+    "PriorityQueue",
+    "BinaryHeap",
+    "Trie",
+    "RadixTree",
+    "Graph",
+    "DirectedGraph",
+    "UndirectedGraph",
+    "WeightedGraph",
+    "DisjointSet",
+    "BloomFilter",
+    "LRUCache",
+    "LFUCache",
+    "RingBuffer",
+    "List",
+    "Tuple",
+    "Option",
+    "Result",
+    "Either",
+    "Range",
+    "Channel",
+    "Database",
+    "App",
+    "Request",
+    "Response",
 ];
 
 const PRELUDE_VALUES: &[&str] = &[
-    "Some", "None", "Ok", "Err", "channel", "print", "run", "send", "get", "post", "put", "delete",
+    "Some",
+    "None",
+    "Ok",
+    "Err",
+    "Left",
+    "Right",
+    "Array",
+    "Vector",
+    "VecDeque",
+    "LinkedList",
+    "Stack",
+    "Queue",
+    "CircularBuffer",
+    "FixedArray",
+    "Matrix",
+    "Tensor",
+    "Map",
+    "HashMap",
+    "BTreeMap",
+    "OrderedMap",
+    "MultiMap",
+    "BiMap",
+    "Set",
+    "HashSet",
+    "BTreeSet",
+    "OrderedSet",
+    "BitSet",
+    "MultiSet",
+    "PriorityQueue",
+    "BinaryHeap",
+    "Trie",
+    "RadixTree",
+    "Graph",
+    "DirectedGraph",
+    "UndirectedGraph",
+    "WeightedGraph",
+    "DisjointSet",
+    "BloomFilter",
+    "LRUCache",
+    "LFUCache",
+    "RingBuffer",
+    "channel",
+    "print",
+    "println",
+    "run",
+    "send",
+    "get",
+    "post",
+    "put",
+    "delete",
 ];
 
 /// Lowers and name-resolves a parsed [`Module`] into [`HirModule`].
@@ -516,6 +630,7 @@ impl<'a> Resolver<'a> {
             Expr::IntLit { .. }
             | Expr::FloatLit { .. }
             | Expr::StringLit { .. }
+            | Expr::CharLit { .. }
             | Expr::BoolLit { .. }
             | Expr::Null { .. } => {}
             Expr::This { span } => {
@@ -640,6 +755,29 @@ impl<'a> Resolver<'a> {
                     self.pop_scope();
                 }
             }
+            Expr::TypeConstructor { type_args, .. } => {
+                for t in type_args {
+                    self.resolve_type_expr(t);
+                }
+            }
+            Expr::CollectionLit {
+                constructor,
+                elements,
+                ..
+            } => {
+                if let Some(c) = constructor {
+                    self.resolve_expr(c);
+                }
+                for el in elements {
+                    self.resolve_expr(el);
+                }
+            }
+            Expr::MapLit { entries, .. } => {
+                for (k, v) in entries {
+                    self.resolve_expr(k);
+                    self.resolve_expr(v);
+                }
+            }
         }
     }
 
@@ -658,7 +796,9 @@ impl<'a> Resolver<'a> {
         match pattern {
             Pattern::Wildcard(_)
             | Pattern::IntLit(_, _)
+            | Pattern::FloatLit(_, _)
             | Pattern::StringLit(_, _)
+            | Pattern::CharLit(_, _)
             | Pattern::BoolLit(_, _)
             | Pattern::Null(_) => {}
             Pattern::Binding(id) => {
@@ -725,6 +865,324 @@ impl<'a> Resolver<'a> {
     }
 }
 
+/// Enforces strict Clean Architecture rules across all Kora source files.
+/// - E5001: Files inside `enums/` (or `*.enum.kora`) can only declare enums.
+/// - E5002: Files inside `models/` (or `*.model.kora`) or `interfaces/` (or `*.interface.kora`)
+///   cannot declare classes, statements, routes, or foreign items.
+/// - E5003: Files containing a `class`, or located in `services/`, `controllers/`,
+///   cannot define inline `model`, `enum`, or `interface`.
+/// - E5004: Entrypoint files (`main.kora` / `main.kr`) cannot define inline `model`, `enum`, or `interface`.
+pub fn verify_architectural_purity(path_str: &str, ast: &Module, bag: &mut DiagnosticBag) {
+    let p = path_str.replace('\\', "/");
+
+    let is_enum_file = p.contains("/enums/")
+        || p.starts_with("enums/")
+        || p.ends_with(".enum.kora")
+        || p.ends_with(".enum.kr")
+        || p.ends_with("_enum.kora")
+        || p.ends_with("_enum.kr");
+
+    let is_model_file = p.contains("/models/")
+        || p.starts_with("models/")
+        || p.contains("/entities/")
+        || p.starts_with("entities/")
+        || p.contains("/dto/")
+        || p.starts_with("dto/")
+        || p.ends_with(".model.kora")
+        || p.ends_with(".model.kr")
+        || p.ends_with("_model.kora")
+        || p.ends_with("_model.kr")
+        || p.ends_with(".entity.kora")
+        || p.ends_with(".dto.kora");
+
+    let is_interface_file = p.contains("/interfaces/")
+        || p.starts_with("interfaces/")
+        || p.ends_with(".interface.kora")
+        || p.ends_with(".interface.kr")
+        || p.ends_with("_interface.kora")
+        || p.ends_with("_interface.kr");
+
+    let is_model_or_iface_file = is_model_file || is_interface_file;
+
+    let is_controller_or_service = !is_model_or_iface_file
+        && !is_enum_file
+        && (p.contains("controller")
+            || p.contains("service")
+            || p.contains("/controllers/")
+            || p.contains("/services/")
+            || p.ends_with(".controller.kora")
+            || p.ends_with(".service.kora"));
+
+    let is_main_kora =
+        p.ends_with("/main.kora") || p.ends_with("/main.kr") || p == "main.kora" || p == "main.kr";
+
+    let has_classes = ast.items.iter().any(|i| matches!(i, Item::Class(_)));
+
+    for item in &ast.items {
+        match item {
+            Item::Enum(en) => {
+                if has_classes {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5003",
+                            format!(
+                                "architectural violation: cannot define enum `{}` and class in the same file",
+                                en.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            en.span,
+                            "inline enum definition forbidden alongside class; extract enums into dedicated files in `enums/`",
+                        )
+                        .with_help("Clean Architecture enforces strict layer segregation: enums must reside in dedicated enum files, and classes in dedicated service/controller files."),
+                    );
+                } else if is_controller_or_service {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5003",
+                            format!(
+                                "architectural violation: controller or service cannot define inline enum `{}`",
+                                en.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            en.span,
+                            "inline enum definition forbidden in controllers/services; import from `enums/`",
+                        )
+                        .with_help("Enums must reside in dedicated files in `enums/` (e.g. `*.enum.kora`)."),
+                    );
+                } else if is_main_kora {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5004",
+                            format!(
+                                "architectural violation: 'main.kora' cannot define inline enum `{}`",
+                                en.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            en.span,
+                            "inline enum definition forbidden in 'main.kora'; import from dedicated `enums/` module",
+                        )
+                        .with_help("Extract enums to `enums/<name>.enum.kora` and import them into `main.kora`."),
+                    );
+                } else if is_model_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5002",
+                            format!(
+                                "architectural violation: file inside 'models/' cannot define enum `{}`",
+                                en.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            en.span,
+                            "enums forbidden inside 'models/'; extract into `enums/`",
+                        ),
+                    );
+                }
+            }
+            Item::Model(m) => {
+                if has_classes {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5003",
+                            format!(
+                                "architectural violation: cannot define model `{}` and class in the same file",
+                                m.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            m.span,
+                            "inline model definition forbidden alongside class; extract models into dedicated files in `models/`",
+                        )
+                        .with_help("Clean Architecture enforces strict layer segregation: models (DTOs/entities) must reside in dedicated model files and classes (services/controllers) in dedicated service files."),
+                    );
+                } else if is_controller_or_service {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5003",
+                            format!(
+                                "architectural violation: controller or service cannot define inline model `{}`",
+                                m.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            m.span,
+                            "inline model definition forbidden in controllers/services; import from `models/`",
+                        )
+                        .with_help("Models must reside in dedicated files in `models/` (e.g. `*.model.kora`)."),
+                    );
+                } else if is_main_kora {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5004",
+                            format!(
+                                "architectural violation: 'main.kora' cannot define inline model `{}`",
+                                m.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            m.span,
+                            "inline model definition forbidden in 'main.kora'; import from dedicated `models/` module",
+                        )
+                        .with_help("Extract models to `models/<name>.model.kora` and import them into `main.kora`."),
+                    );
+                } else if is_enum_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5001",
+                            format!(
+                                "architectural violation: file inside 'enums/' cannot define model `{}`",
+                                m.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            m.span,
+                            "models forbidden inside 'enums/'; extract into `models/`",
+                        ),
+                    );
+                }
+            }
+            Item::Interface(iface) => {
+                if has_classes {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5003",
+                            format!(
+                                "architectural violation: cannot define interface `{}` and class in the same file",
+                                iface.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            iface.span,
+                            "inline interface definition forbidden alongside class; extract interfaces into dedicated files in `interfaces/`",
+                        ),
+                    );
+                } else if is_controller_or_service {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5003",
+                            format!(
+                                "architectural violation: controller or service cannot define inline interface `{}`",
+                                iface.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            iface.span,
+                            "inline interface definition forbidden in controllers/services; import from `interfaces/`",
+                        ),
+                    );
+                } else if is_main_kora {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5004",
+                            format!(
+                                "architectural violation: 'main.kora' cannot define inline interface `{}`",
+                                iface.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            iface.span,
+                            "inline interface definition forbidden in 'main.kora'; import from dedicated `interfaces/` module",
+                        ),
+                    );
+                } else if is_enum_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5001",
+                            format!(
+                                "architectural violation: file inside 'enums/' cannot define interface `{}`",
+                                iface.name.name
+                            ),
+                        )
+                        .with_primary_label(
+                            iface.span,
+                            "interfaces forbidden inside 'enums/'; extract into `interfaces/`",
+                        ),
+                    );
+                }
+            }
+            Item::Fn(f) => {
+                if is_enum_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5001",
+                            format!(
+                                "architectural violation: file inside 'enums/' cannot define function `{}`",
+                                f.sig.name.name
+                            ),
+                        )
+                        .with_primary_label(f.span, "functions are forbidden inside 'enums/' directory"),
+                    );
+                } else if is_model_or_iface_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5002",
+                            format!(
+                                "architectural violation: file inside 'models/' or 'interfaces/' cannot define function `{}`",
+                                f.sig.name.name
+                            ),
+                        )
+                        .with_primary_label(f.span, "functions are forbidden inside 'models/' or 'interfaces/'"),
+                    );
+                }
+            }
+            Item::Class(c) => {
+                if is_enum_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5001",
+                            format!(
+                                "architectural violation: file inside 'enums/' cannot define class `{}`",
+                                c.name.name
+                            ),
+                        )
+                        .with_primary_label(c.span, "classes are forbidden inside 'enums/' directory"),
+                    );
+                } else if is_model_or_iface_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5002",
+                            format!(
+                                "architectural violation: file inside 'models/' or 'interfaces/' cannot define class `{}`",
+                                c.name.name
+                            ),
+                        )
+                        .with_primary_label(c.span, "classes are forbidden inside 'models/' or 'interfaces/'"),
+                    );
+                }
+            }
+            Item::Stmt(s) => {
+                if is_enum_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5001",
+                            "architectural violation: file inside 'enums/' cannot define statements or HTTP routes",
+                        )
+                        .with_primary_label(
+                            s.span(),
+                            "statements/routes forbidden inside 'enums/' directory",
+                        ),
+                    );
+                } else if is_model_or_iface_file {
+                    bag.emit(
+                        Diagnostic::error(
+                            "E5002",
+                            "architectural violation: file inside 'models/' or 'interfaces/' cannot define statements or HTTP routes",
+                        )
+                        .with_primary_label(
+                            s.span(),
+                            "statements/routes forbidden inside 'models/' or 'interfaces/'",
+                        ),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use kora_parser::parse_module;
@@ -754,5 +1212,44 @@ counter = counter + 1
         let ast = parse_module(FileId(0), src, &mut bag);
         let _ = lower_and_resolve(ast, &mut bag);
         assert!(bag.items().iter().any(|d| d.code == "E4013"));
+    }
+
+    #[test]
+    fn architectural_purity_enforces_rules_across_all_layers() {
+        let mut bag = DiagnosticBag::new();
+
+        // 1. Mixing model with class in the same file -> E5003
+        let src_class_model = "class UserService {}\nmodel User { id: Int }\n";
+        let ast = parse_module(FileId(0), src_class_model, &mut bag);
+        verify_architectural_purity("services/user.service.kora", &ast, &mut bag);
+        assert!(bag.items().iter().any(|d| d.code == "E5003"));
+
+        // 2. Mixing enum with class in the same file -> E5003
+        let mut bag2 = DiagnosticBag::new();
+        let src_class_enum = "class AuthService {}\nenum Role { Admin, User }\n";
+        let ast2 = parse_module(FileId(0), src_class_enum, &mut bag2);
+        verify_architectural_purity("services/auth.service.kora", &ast2, &mut bag2);
+        assert!(bag2.items().iter().any(|d| d.code == "E5003"));
+
+        // 3. Defining inline model in main.kora -> E5004
+        let mut bag3 = DiagnosticBag::new();
+        let src_main_model = "model Config { host: String }\n";
+        let ast3 = parse_module(FileId(0), src_main_model, &mut bag3);
+        verify_architectural_purity("src/main.kora", &ast3, &mut bag3);
+        assert!(bag3.items().iter().any(|d| d.code == "E5004"));
+
+        // 4. Defining class inside enums/ -> E5001
+        let mut bag4 = DiagnosticBag::new();
+        let src_enum_class = "class BadInEnum {}\n";
+        let ast4 = parse_module(FileId(0), src_enum_class, &mut bag4);
+        verify_architectural_purity("enums/status.enum.kora", &ast4, &mut bag4);
+        assert!(bag4.items().iter().any(|d| d.code == "E5001"));
+
+        // 5. Defining statements inside models/ -> E5002
+        let mut bag5 = DiagnosticBag::new();
+        let src_model_stmt = "print(\"oops\")\n";
+        let ast5 = parse_module(FileId(0), src_model_stmt, &mut bag5);
+        verify_architectural_purity("models/user.model.kora", &ast5, &mut bag5);
+        assert!(bag5.items().iter().any(|d| d.code == "E5002"));
     }
 }

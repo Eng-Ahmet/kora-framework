@@ -1,0 +1,101 @@
+/* ==========================================================================
+   Kora Documentation Platform — Code Blocks & Syntax Highlighting Tokens
+   ========================================================================== */
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  color: var(--accent-blue);
+}
+
+[data-theme="light"] code {
+  background: #e2e8f0;
+  color: #0284c7;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin: 1.25rem 0;
+  position: relative;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--text-primary);
+  font-size: 1em;
+}
+
+/* Code Container with Header & Copy Button */
+.code-block {
+  position: relative;
+  margin: 1.5rem 0;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--code-bg);
+  overflow: hidden;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.code-lang {
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent-blue);
+}
+
+.copy-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-muted);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all var(--transition-fast);
+}
+
+.copy-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.code-block pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
+
+/* Syntax Highlighting Tokens */
+.syn-kw { color: #f43f5e; font-weight: 600; }        /* let, fn, class, model, interface, return */
+.syn-type { color: #38bdf8; }                        /* Int, String, Bool, Option, Result */
+.syn-str { color: #34d399; }                         /* "string" */
+.syn-num { color: #fbbf24; }                         /* 10, 3.14 */
+.syn-comment { color: #64748b; font-style: italic; } /* // comment */
+.syn-decorator { color: #a855f7; font-weight: 600; } /* @table, @id, @column, @unique */
+.syn-fn { color: #60a5fa; }                          /* function call */
+.syn-prop { color: #e2e8f0; }                        /* property name */

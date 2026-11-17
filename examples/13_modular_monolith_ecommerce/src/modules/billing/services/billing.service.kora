@@ -1,4 +1,4 @@
-import { InvoiceEntity } from "../models/invoice.entity"
+import { InvoiceEntity } from "../entities/invoice.entity"
 import { BillingRepository } from "../repositories/billing.repository"
 
 class BillingService {

@@ -1,4 +1,4 @@
-import { DomainEventEntity } from "../models/domain_event.entity"
+import { DomainEventEntity } from "../entities/domain_event.entity"
 import { EventStoreRepository } from "../repositories/event_store.repository"
 
 class EventPublisherService {

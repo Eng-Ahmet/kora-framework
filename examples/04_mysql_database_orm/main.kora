@@ -1,19 +1,19 @@
 // ============================================================================
-// Example 04: MySQL Database Connection & ORM Repository — Main Entrypoint
+// Example 04: MySQL Database ORM & Migrations — Main Entrypoint
+// Encapsulated within Application Class Container
 // ============================================================================
 
 import { CustomerRouter } from "./routes/customer.routes"
 
-let app = run()
+class Application {
+    init() {}
 
-get("/customers/lookup", (request: Request, routes: CustomerRouter) => {
-    return routes.lookup(request.body)
-})
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(CustomerRouter)
+        app.listen(3000)
+    }
+}
 
-post("/customers", (request: Request, routes: CustomerRouter) => {
-    return routes.register(request.body)
-})
-
-post("/customers/{id}/credit", (id: Int, request: Request, routes: CustomerRouter) => {
-    return routes.addCredit(id, 250)
-})
+let app = Application()
+app.bootstrap()

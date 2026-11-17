@@ -1,0 +1,30 @@
+// ============================================================================
+// Example 17: Set Collections Clean Architecture — Main Entrypoint
+// Encapsulated within Application Class Container
+// ============================================================================
+
+import { SetAlgebraService } from "./services/set_algebra.service"
+
+class Application {
+    service: SetAlgebraService
+
+    init(service: SetAlgebraService) {
+        this.service = service
+    }
+
+    fn runDemo() -> Unit {
+        let unionCount = this.service.calculateUnion()
+        let interCount = this.service.calculateIntersection()
+        let flagsCount = this.service.calculateBitSetFlags()
+        let sortedCount = this.service.calculateBTreeSet()
+
+        print("=== Set Collections Clean Architecture ===")
+        print(unionCount)
+        print(interCount)
+        print(flagsCount)
+        print(sortedCount)
+    }
+}
+
+let app = Application(SetAlgebraService())
+app.runDemo()

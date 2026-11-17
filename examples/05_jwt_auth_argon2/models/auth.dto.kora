@@ -2,12 +2,7 @@
 // Authentication Data Transfer Objects & Domain Models
 // ============================================================================
 
-model AuthUser {
-    id: Int
-    username: String
-    passwordHash: String
-    role: String
-}
+import { AuthUser } from "../entities/auth_user.entity"
 
 model RegisterRequest {
     username: String

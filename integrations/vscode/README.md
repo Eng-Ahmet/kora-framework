@@ -48,11 +48,41 @@ Run the root setup script:
 Copy the extension into your VS Code / Antigravity IDE extensions directory:
 ```bash
 # For VS Code:
-mkdir -p ~/.vscode/extensions/kora-vscode
-cp -r * ~/.vscode/extensions/kora-vscode/
+mkdir -p ~/.vscode/extensions/kora-lang.kora-vscode-0.4.1
+cp -r * ~/.vscode/extensions/kora-lang.kora-vscode-0.4.1/
 
 # For Antigravity IDE:
-mkdir -p ~/.antigravity-ide/extensions/kora-lang.kora-vscode-0.1.0
-cp -r * ~/.antigravity-ide/extensions/kora-lang.kora-vscode-0.1.0/
+mkdir -p ~/.antigravity-ide/extensions/kora-lang.kora-vscode-0.4.1
+cp -r * ~/.antigravity-ide/extensions/kora-lang.kora-vscode-0.4.1/
 ```
+
+---
+
+## 📦 CI/CD & Automated Marketplace Publishing
+
+The extension is continuously built, packaged, and published via automated GitHub Actions:
+
+- **`.github/workflows/extension-ci.yml`**: Triggers on pushes touching `integrations/vscode/**` and tag releases (`v*`).
+- **`.github/workflows/publish-packages.yml`**: Integrated multi-platform release pipeline publishing `.vsix` binaries to GitHub Releases, Visual Studio Marketplace, and Open VSX Registry.
+
+### Required Secrets for Publishing:
+| Secret Name | Target Marketplace | Purpose |
+|---|---|---|
+| `KORA_VSCODE_MARKETPLACE_TOKEN` (or `VSCE_PAT`) | Visual Studio Marketplace (Microsoft) | Personal Access Token with Marketplace Publish permissions |
+| `KORA_OVSX_TOKEN` (or `OVSX_PAT`) | Open VSX Registry (Eclipse Foundation) | Access token for publishing to Open VSX (used by VSCodium & Antigravity IDE) |
+
+### Manual Packaging & Publishing via CLI:
+```bash
+cd integrations/vscode
+
+# Package .vsix
+npm run package
+
+# Publish to Visual Studio Marketplace
+npx @vscode/vsce publish -p <YOUR_VSCODE_MARKETPLACE_TOKEN>
+
+# Publish to Open VSX Registry
+npx ovsx publish -p <YOUR_OVSX_TOKEN>
+```
+
 

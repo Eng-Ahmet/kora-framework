@@ -1,14 +1,19 @@
 // ============================================================================
-// Example 12: Event-Driven Microservice Architecture
-// Main Application Container with Event Bus & Consumer Handlers
+// Example 12: Microservices & Event-Driven Architecture — Main Entrypoint
+// Encapsulated within Application Class Container
 // ============================================================================
 
-import { App } from "kora/http"
 import { OrderEventsRoutes } from "./routes/order_events.routes"
 
-let app = App()
+class Application {
+    init() {}
 
-// Register Event Sourcing & Messaging Routes
-app.use(OrderEventsRoutes)
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(OrderEventsRoutes)
+        app.listen(8081)
+    }
+}
 
-app.listen(8081)
+let app = Application()
+app.bootstrap()

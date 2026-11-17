@@ -1,19 +1,19 @@
 // ============================================================================
-// Example 08: OpenAPI 3.1 & Interactive Swagger UI — Main Entrypoint
+// Example 08: OpenAPI Swagger & Schema Generation — Main Entrypoint
+// Encapsulated within Application Class Container
 // ============================================================================
 
 import { ArticleRouter } from "./routes/article.routes"
 
-let app = run()
+class Application {
+    init() {}
 
-get("/articles", (routes: ArticleRouter) => {
-    return routes.list()
-})
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(ArticleRouter)
+        app.listen(3000)
+    }
+}
 
-get("/articles/{slug}", (slug: String, routes: ArticleRouter) => {
-    return routes.getBySlug(slug)
-})
-
-post("/articles", (request: Request, routes: ArticleRouter) => {
-    return routes.create(request.body)
-})
+let app = Application()
+app.bootstrap()

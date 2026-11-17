@@ -3,61 +3,7 @@
 // Decorated with Schema Indexing, Uniqueness & DTO Constraints
 // ============================================================================
 
-@entity
-@table("orders")
-model Order {
-    @primary
-    @autoIncrement
-    @unique
-    @required
-    id: Int
-
-    @unique
-    @index
-    @required
-    orderNumber: String
-
-    @index
-    @required
-    userId: Int
-
-    @required
-    @min(0)
-    totalAmount: Int
-
-    @default("pending")
-    status: String
-
-    @default("unpaid")
-    paymentStatus: String
-}
-
-@entity
-@table("order_items")
-model OrderItem {
-    @primary
-    @autoIncrement
-    @unique
-    @required
-    id: Int
-
-    @index
-    @required
-    orderId: Int
-
-    @index
-    @required
-    productId: Int
-
-    @min(1)
-    quantity: Int
-
-    @min(0)
-    unitPrice: Int
-
-    @min(0)
-    subtotal: Int
-}
+import { Order, OrderItem } from "entities/order.entity";
 
 model CreateOrderInput {
     @required

@@ -1,0 +1,24 @@
+import { PaymentStatus } from "../enums/payment_status.enum"
+import { ServerConfig } from "../models/server_config.model"
+
+class TypeInferenceService {
+    fn describePayment(status: PaymentStatus) -> String {
+        return match status {
+            PaymentStatus.Pending => "Pending payment confirmation",
+            PaymentStatus.Completed => "Payment completed successfully",
+            PaymentStatus.Failed(reason) => reason,
+            PaymentStatus.Refunded(amount) => "Payment refunded",
+        }
+    }
+
+    fn getServerPort(config: ServerConfig) -> Int {
+        return config.port
+    }
+
+    fn inferPrimitives() -> String {
+        let username = "ahmet"
+        let requestCount = 1000
+        let isProduction = true
+        return username
+    }
+}

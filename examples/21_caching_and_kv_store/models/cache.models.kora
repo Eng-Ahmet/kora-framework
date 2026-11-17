@@ -1,0 +1,17 @@
+model CacheStats {
+    totalHits: Int
+    totalMisses: Int
+    activeKeys: Int
+}
+
+model RateLimitResult {
+    allowed: Bool
+    remainingRequests: Int
+    retryAfterSeconds: Int
+}
+
+model SessionData {
+    sessionId: String
+    userId: Int
+    role: String
+}

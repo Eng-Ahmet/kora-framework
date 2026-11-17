@@ -8,10 +8,50 @@ use argon2::{
     },
 };
 use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::{HashMap, HashSet};
 
 type HmacSha256 = Hmac<Sha256>;
+
+/// Standard RFC 7519 JSON Web Token Registered Claims.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StandardClaims {
+    pub sub: String,
+    pub exp: u64,
+    pub iat: u64,
+    pub iss: Option<String>,
+    pub role: Option<String>,
+}
+
+impl StandardClaims {
+    pub fn new(sub: impl Into<String>, validity_secs: u64) -> Self {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        Self {
+            sub: sub.into(),
+            exp: now + validity_secs,
+            iat: now,
+            iss: Some("kora-auth".to_string()),
+            role: None,
+        }
+    }
+
+    pub fn with_role(mut self, role: impl Into<String>) -> Self {
+        self.role = Some(role.into());
+        self
+    }
+
+    pub fn is_expired(&self, clock_skew_secs: u64) -> bool {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        now > (self.exp + clock_skew_secs)
+    }
+}
 
 pub struct PasswordAuth;
 
@@ -56,6 +96,41 @@ impl JwtSigner {
         let expected = hex_encode(&mac.finalize().into_bytes());
         constant_time_compare(expected.as_bytes(), signature_hex.as_bytes())
     }
+
+    /// Signs standard registered claims into an authenticated bearer token.
+    pub fn sign_claims(secret: &[u8], claims: &StandardClaims) -> Result<String, String> {
+        let payload = serde_json::to_string(claims).map_err(|e| e.to_string())?;
+        let sig = Self::sign_hs256(secret, &payload)?;
+        Ok(format!("{}.{}", hex_encode(payload.as_bytes()), sig))
+    }
+
+    /// Verifies cryptographic signature and expiration status of a claims token.
+    pub fn verify_token_claims(
+        secret: &[u8],
+        token: &str,
+        clock_skew_secs: u64,
+    ) -> Result<StandardClaims, String> {
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 2 {
+            return Err("invalid token format: expected payload.signature".to_string());
+        }
+        let payload_bytes =
+            hex_decode(parts[0]).map_err(|e| format!("invalid hex payload: {e}"))?;
+        let payload_str = std::str::from_utf8(&payload_bytes).map_err(|e| e.to_string())?;
+
+        if !Self::verify_hs256(secret, payload_str, parts[1]) {
+            return Err("cryptographic signature verification failed".to_string());
+        }
+
+        let claims: StandardClaims = serde_json::from_str(payload_str)
+            .map_err(|e| format!("failed to parse claims: {e}"))?;
+
+        if claims.is_expired(clock_skew_secs) {
+            return Err("token has expired".to_string());
+        }
+
+        Ok(claims)
+    }
 }
 
 /// Constant-time byte slice comparison to mitigate timing attacks.
@@ -76,6 +151,19 @@ fn hex_encode(bytes: &[u8]) -> String {
         s.push_str(&format!("{b:02x}"));
     }
     s
+}
+
+fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
+    if s.len() % 2 != 0 {
+        return Err("hex string length must be even".to_string());
+    }
+    let mut bytes = Vec::with_capacity(s.len() / 2);
+    for i in (0..s.len()).step_by(2) {
+        let byte = u8::from_str_radix(&s[i..i + 2], 16)
+            .map_err(|e| format!("invalid hex byte at {i}: {e}"))?;
+        bytes.push(byte);
+    }
+    Ok(bytes)
 }
 
 /// Role-Based Access Control (RBAC) Guard
@@ -188,5 +276,25 @@ mod tests {
         assert!(!guard.has_permission("editor", "posts:delete"));
         assert!(!guard.has_permission("editor", "users:manage"));
         assert!(!guard.has_permission("guest", "posts:create"));
+    }
+
+    #[test]
+    fn security_verifies_jwt_claims_and_expiration_rejection() {
+        let secret = b"my-ultra-secure-key-32-bytes-long";
+
+        // 1. Valid Token
+        let valid_claims = StandardClaims::new("user_1001", 3600).with_role("admin");
+        let token = JwtSigner::sign_claims(secret, &valid_claims).unwrap();
+        let verified = JwtSigner::verify_token_claims(secret, &token, 0).unwrap();
+        assert_eq!(verified.sub, "user_1001");
+        assert_eq!(verified.role.as_deref(), Some("admin"));
+
+        // 2. Expired Token must be rejected
+        let mut expired_claims = StandardClaims::new("user_1002", 0);
+        expired_claims.exp = 1000; // far in the past
+        let expired_token = JwtSigner::sign_claims(secret, &expired_claims).unwrap();
+        let res = JwtSigner::verify_token_claims(secret, &expired_token, 0);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("token has expired"));
     }
 }

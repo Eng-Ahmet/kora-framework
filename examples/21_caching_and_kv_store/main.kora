@@ -1,0 +1,19 @@
+// ============================================================================
+// Example 21: Redis & Key-Value Caching Architecture
+// Encapsulated within Application Class Container
+// ============================================================================
+
+import { CacheRouter } from "./routes/cache.routes"
+
+class Application {
+    init() {}
+
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(CacheRouter)
+        app.listen(8081)
+    }
+}
+
+let app = Application()
+app.bootstrap()

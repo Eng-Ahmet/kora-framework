@@ -11,17 +11,11 @@ class ChatRoutes {
         this.controller = controller
     }
 
-    fn register(app: App) -> App {
-        app.get(
-            "/chat/presence/{room}",
-            this.controller.presence
-        )
+    fn presence(request: Request) -> Response {
+        return this.controller.presence(request)
+    }
 
-        app.post(
-            "/chat/message",
-            this.controller.sendMessage
-        )
-
-        return app
+    fn sendMessage(request: Request) -> Response {
+        return this.controller.sendMessage(request)
     }
 }

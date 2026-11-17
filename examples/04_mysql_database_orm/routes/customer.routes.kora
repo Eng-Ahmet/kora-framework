@@ -1,8 +1,10 @@
 // ============================================================================
-// MySQL Customer Router
+// Multi-Engine Customer Router (SQL, NoSQL, Redis Cache)
+// Pure Class: Enforcing E5001 - Exposes decoupled route endpoints
 // ============================================================================
 
-import { Customer, CustomerSignupInput } from "../models/customer.models"
+import { Customer, CustomerAuditDocument } from "../entities/customer.entity"
+import { CustomerSignupInput, CustomerCacheProfile, FundTransferResult } from "../models/customer.models"
 import { MySqlCustomerRepository } from "../services/mysql_customer.service"
 
 class CustomerRouter {
@@ -12,6 +14,7 @@ class CustomerRouter {
         this.repo = repo
     }
 
+    // 1. Relational SQL Queries (MySQL, PostgreSQL, SQLite)
     fn lookup(email: String) -> Option<Customer> {
         return this.repo.findByEmail(email)
     }
@@ -27,5 +30,40 @@ class CustomerRouter {
 
     fn addCredit(id: Int, amount: Int) -> Result<Customer, String> {
         return this.repo.addCredit(id, amount)
+    }
+
+    // 2. ACID Transaction Transfer
+    fn transfer(fromId: Int, toId: Int, amount: Int) -> Result<FundTransferResult, String> {
+        return this.repo.transferFunds(fromId, toId, amount)
+    }
+
+    // 3. NoSQL Document Store
+    fn audit(customerId: Int, action: String) -> Result<String, String> {
+        let doc = CustomerAuditDocument {
+            id: "",
+            customerId: customerId,
+            action: action,
+            clientIp: "127.0.0.1",
+            metadataJson: "{\"source\": \"kora_http_gateway\"}",
+        }
+        return this.repo.logCustomerAudit(doc)
+    }
+
+    fn getAudit(customerId: Int) -> Option<CustomerAuditDocument> {
+        return this.repo.getCustomerAudit(customerId)
+    }
+
+    // 4. Redis Key-Value Cache
+    fn saveSession(key: String, session: String) -> Result<Bool, String> {
+        let profile = CustomerCacheProfile {
+            cacheKey: key,
+            cachedSession: session,
+            ttlSeconds: 3600,
+        }
+        return this.repo.cacheCustomerSession(profile)
+    }
+
+    fn getSession(key: String) -> Option<String> {
+        return this.repo.getCustomerSession(key)
     }
 }

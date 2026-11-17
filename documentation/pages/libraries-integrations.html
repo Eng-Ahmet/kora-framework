@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Essential Backend Libraries & Integrations — Kora Documentation</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/syntax.css">
+  <script defer src="../js/app.js"></script>
+  <script defer src="../js/search.js"></script>
+  <script defer src="../js/code.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-header">
+    <a href="../index.html" class="brand">
+      <img src="../assets/logo.svg" alt="Kora Logo">
+      <span>Kora Docs</span>
+      <span class="badge badge-blue">v0.4.1 Beta</span>
+    </a>
+
+    <div class="header-center">
+      <button class="search-bar-trigger" id="search-trigger">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Search documentation, guides, APIs...
+        </span>
+        <span class="search-shortcut">Ctrl+K</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme"></button>
+      <a href="https://github.com/Hwai-technology/kora-framework" target="_blank" class="github-link" title="GitHub Repository">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Shell Container -->
+  <div class="docs-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">Getting Started</div>
+        <ul class="nav-list">
+          <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="language-tour.html" class="nav-link">Language Tour</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Architecture & OOP</div>
+        <ul class="nav-list">
+          <li><a href="oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
+          <li><a href="project-feature-templates.html" class="nav-link">Project & Feature Templates</a></li>
+          <li><a href="microservices-events.html" class="nav-link">Microservices & Events</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Core Systems</div>
+        <ul class="nav-list">
+          <li><a href="database-orm.html" class="nav-link">Multi-Engine Database ORM</a></li>
+          <li><a href="middleware-ecosystem.html" class="nav-link">Middleware Ecosystem</a></li>
+          <li><a href="libraries-integrations.html" class="nav-link active">Essential Backend Libraries</a></li>
+          <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Security & Hardening</div>
+        <ul class="nav-list">
+          <li><a href="security-hardened-architecture.html" class="nav-link">Hardened Architecture & Audits</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Language Engineering</div>
+        <ul class="nav-list">
+          <li><a href="language-gap-analysis.html" class="nav-link">Language Gap Analysis & Roadmap</a></li>
+          <li><a href="crates-reference.html" class="nav-link">Crates Reference (23 Crates)</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Tooling & Ecosystem</div>
+        <ul class="nav-list">
+          <li><a href="cli-tooling.html" class="nav-link">CLI Toolchain (`kora`)</a></li>
+          <li><a href="vscode-extension.html" class="nav-link">VS Code Extension & LSP</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content-area">
+      <div class="content-header">
+        <h1>Essential Backend Libraries & Integrations</h1>
+        <p class="lead">
+          Real-world enterprise backend applications require battle-tested building blocks: transactional email delivery, image transformation, PDF invoice generation, Excel data streaming, cloud object storage, and reporting engines.
+        </p>
+      </div>
+
+      <!-- Quick Matrix Grid -->
+      <div class="grid grid-3" style="margin-bottom: 2.5rem;">
+        <div class="card">
+          <div class="card-icon" style="color: var(--accent-blue);">📧</div>
+          <h3>Email Engine</h3>
+          <p>SMTP delivery, HTML templating, attachment streaming, and verification link generators.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="color: var(--accent-green);">🖼️</div>
+          <h3>Media & Images</h3>
+          <p>Aspect-ratio preserving resizers, magic-byte format detection, thumbnail generator, and security validators.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="color: var(--accent-purple);">📄</div>
+          <h3>Document Suite</h3>
+          <p>Native PDF generators, invoice builders, Excel workbooks, CSV streamers, and reporting engine.</p>
+        </div>
+      </div>
+
+      <!-- 1. Email Service -->
+      <section id="email-service" class="doc-section">
+        <h2>1. Transactional Email Engine</h2>
+        <p>
+          The <code>kora_runtime::email</code> module provides an asynchronous email delivery engine supporting TLS, authentication, HTML templates, and binary attachments.
+        </p>
+
+        <div class="code-block-header">
+          <span>Sending Verification Email</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_runtime::email::{EmailService, EmailMessage, SmtpConfig};
+
+let config = SmtpConfig::new("smtp.sendgrid.net", 587)
+    .with_credentials("apikey", "SG.secret_key_token")
+    .with_tls(true);
+
+let service = EmailService::new(config);
+
+// Generate automated verification email with token
+let verification_email = service.create_verification_email(
+    "user@example.com",
+    "Sara Smith",
+    "https://api.kora.dev/v1/auth/verify?token=secure_tok_123"
+);
+
+match service.send(&verification_email) {
+    Ok(msg_id) => println!("Email sent successfully! Message ID: {}", msg_id),
+    Err(e) => eprintln!("Failed to deliver email: {}", e),
+}</code></pre>
+      </section>
+
+      <!-- 2. Image & Media Processing -->
+      <section id="media-processing" class="doc-section">
+        <h2>2. Image Processing & Media Security Pipeline</h2>
+        <p>
+          Handling user file uploads without validation is a major security vulnerability. Kora's media engine protects against <strong>Decompression Bombs (Pixel Floods)</strong>, <strong>SVG Stored XSS</strong>, and <strong>EXIF Geolocation Privacy Leaks</strong>:
+        </p>
+
+        <div class="code-block-header">
+          <span>Security Validation, EXIF Stripping & Resizing</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_runtime::media::{ImageProcessor, ImageFormat, UploadSecurityValidator};
+
+// 1. Validate inbound file security (Max 5MB, JPG/PNG/WebP/SVG, Max 50M Pixels)
+let validator = UploadSecurityValidator::new(5 * 1024 * 1024)
+    .allow_format(ImageFormat::Jpeg)
+    .allow_format(ImageFormat::Png)
+    .allow_format(ImageFormat::Webp)
+    .allow_format(ImageFormat::Svg)
+    .with_max_pixels(50_000_000);
+
+let format = validator.validate(&file_bytes, "avatar.png")?;
+
+// 2. Load into processor & strip privacy-sensitive EXIF camera/GPS tags
+let mut processor = ImageProcessor::from_bytes(file_bytes, 1920, 1080)?;
+let bytes_removed = processor.strip_metadata();
+println!("Stripped {} bytes of EXIF metadata", bytes_removed);
+
+// 3. Proportional resize maintaining aspect ratio
+let (target_w, target_h) = processor.resize(800, 600, true);
+println!("Resized dimensions: {}x{}", target_w, target_h); // 800x450
+
+// 4. Generate thumbnail
+let (thumb_w, thumb_h) = processor.thumbnail(150);
+println!("Thumbnail dimensions: {}x{}", thumb_w, thumb_h);</code></pre>
+      </section>
+
+      <!-- 3. PDF Invoices & Reports -->
+      <section id="pdf-generation" class="doc-section">
+        <h2>3. PDF Generation, Layout Positioning & Commercial Invoices</h2>
+        <p>
+          Design beautiful documents with fine-grained control over page dimensions, margins, typography sizes, colors, borders, diagonal watermarks, and access permissions.
+        </p>
+
+        <div class="code-block-header">
+          <span>Designing Styled PDF Document</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_runtime::document::pdf::{
+    PdfDocument, PageSize, Margins, PdfTable, PdfColor, TableCell, PdfSecurity
+};
+
+let mut doc = PdfDocument::new("Quarterly Enterprise Audit")
+    .with_page_size(PageSize::A4)
+    .with_margins(Margins::uniform(45.0));
+
+// Set document header and running footer
+doc.set_header("Hwai Technology Group — Confidential Report");
+doc.set_footer("Page 1 of 1 — Generated by Kora Platform");
+
+// Add styled typography
+doc.add_heading("Financial Summary & Compliance", 1);
+doc.add_paragraph("All services verified with 99.99% availability.");
+doc.add_spacer(12.0);
+
+// Add table with zebra striping and custom headers
+let mut table = PdfTable::new();
+table.set_zebra_striping(true, PdfColor::LIGHT_GRAY);
+table.add_header_row(&["Service Cluster", "P99 Latency", "Monthly Cost"]);
+table.add_data_row(&["Authentication", "1.4ms", "$1,250.00"]);
+table.add_data_row(&["Payment Gateway", "8.1ms", "$4,800.00"]);
+doc.add_table(table);
+
+// Add diagonal watermark and password protection
+doc.add_watermark("CONFIDENTIAL", 0.15);
+doc.set_security(PdfSecurity {
+    owner_password: Some("admin_secret".into()),
+    user_password: None,
+    can_print: true,
+    can_copy_text: false,
+    can_modify: false,
+    can_annotate: true,
+});
+
+let pdf_bytes = doc.render_to_bytes();</code></pre>
+
+        <div class="code-block-header">
+          <span>Building Commercial Invoice with Tax & Discounts</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_runtime::document::pdf::InvoicePdfBuilder;
+
+let mut builder = InvoicePdfBuilder::new("INV-2026-0089", "Acme Corporation")
+    .with_company_info("Kora Global Inc.", Some("US-EIN-987654321".into()))
+    .with_currency("$", "USD")
+    .with_tax_percent(15)
+    .with_global_discount(20000) // $200.00 discount
+    .with_dates("2026-11-17", Some("2026-12-17".into()));
+
+builder.add_line_item("Dedicated Cloud Cluster (48 Cores)", 2, 150000); // 2 x $1,500.00
+builder.add_line_item("Managed Redis Enterprise Cache", 1, 45000);     // 1 x $450.00
+
+println!("Subtotal:    {}", builder.format_money(builder.calculate_subtotal()));
+println!("Discount:   -{}", builder.format_money(builder.calculate_discount()));
+println!("VAT (15%):   {}", builder.format_money(builder.calculate_tax()));
+println!("Total Due:   {}", builder.format_money(builder.calculate_total()));
+
+let invoice_doc = builder.build();
+let invoice_pdf = invoice_doc.render_to_bytes();</code></pre>
+      </section>
+
+      <!-- 4. Excel & CSV Spreadsheets -->
+      <section id="excel-spreadsheets" class="doc-section">
+        <h2>4. Excel Workbooks & Formatted Spreadsheets</h2>
+        <p>
+          Export multi-sheet workbooks with currency formatting, auto-fitting column widths, and formula summations:
+        </p>
+
+        <div class="code-block-header">
+          <span>Formatted Worksheet with Summation</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_runtime::document::excel::{Worksheet, Workbook, CellValue, CellStyle, NumberFormat};
+
+let mut sheet = Worksheet::new("Q4 Revenue");
+
+// Styled Header Row
+sheet.set_cell_styled(1, 1, CellValue::Text("Product Name".into()), CellStyle::bold_header());
+sheet.set_cell_styled(1, 2, CellValue::Text("Quarter".into()), CellStyle::bold_header());
+sheet.set_cell_styled(1, 3, CellValue::Text("Revenue".into()), CellStyle::bold_header());
+
+// Data Rows with Currency Formatting
+let currency_style = CellStyle::currency('$');
+sheet.set_cell(2, 1, CellValue::Text("Enterprise Subscription".into()));
+sheet.set_cell(2, 2, CellValue::Text("Q4".into()));
+sheet.set_cell_styled(2, 3, CellValue::Number(125000.0), currency_style.clone());
+
+sheet.set_cell(3, 1, CellValue::Text("Professional Support Plan".into()));
+sheet.set_cell(3, 2, CellValue::Text("Q4".into()));
+sheet.set_cell_styled(3, 3, CellValue::Number(45000.0), currency_style);
+
+// Calculate Totals & Auto-Fit Column Widths
+let total_revenue = sheet.calculate_sum(3, 2, 3);
+let avg_revenue = sheet.calculate_average(3, 2, 3).unwrap();
+sheet.auto_fit_columns();
+
+println!("Total Revenue: ${:.2}, Average: ${:.2}", total_revenue, avg_revenue);
+
+// Export to CSV or TSV
+let csv = sheet.export_to_csv();
+let tsv = sheet.export_to_tsv();</code></pre>
+      </section>
+
+      <!-- 5. Cloud Object Storage Abstraction -->
+      <section id="cloud-storage" class="doc-section">
+        <h2>5. Secure Cloud Object Storage (S3 / Local / Memory)</h2>
+        <p>
+          Enterprise storage with <strong>Path Traversal Defense (CWE-22)</strong>, storage quota management, and pre-signed URLs:
+        </p>
+
+        <div class="code-block-header">
+          <span>Safe Storage with Path Traversal Defense</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_runtime::storage::{StorageManager, MemoryStorageDriver, sanitize_storage_key};
+
+// Reject malicious path traversal keys automatically
+assert!(sanitize_storage_key("../../../etc/passwd").is_err());
+assert!(sanitize_storage_key("safe/bucket/invoices/inv_101.pdf").is_ok());
+
+let driver = MemoryStorageDriver::new("https://cdn.kora.dev")
+    .with_quota(10 * 1024 * 1024 * 1024); // 10 GB Quota
+
+let storage = StorageManager::new(driver);
+
+// Store file with SHA-256 checksum verification
+let metadata = storage.put("invoices/2026/inv_101.pdf", pdf_bytes, "application/pdf")?;
+println!("Stored key: {}, Checksum: {}", metadata.key, metadata.checksum);
+
+// Generate pre-signed download URL valid for 2 hours
+let presigned_url = storage.generate_presigned_url("invoices/2026/inv_101.pdf", 7200)?;
+println!("Secure URL: {}", presigned_url);
+
+// List files under a prefix
+let files = storage.list_prefix("invoices/2026/", 50)?;
+println!("Found {} files", files.len());</code></pre>
+      </section>
+
+        <div class="code-block-header">
+          <span>Unified Storage API</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_runtime::storage::{StorageManager, MemoryStorageDriver};
+
+// Inject memory driver for tests or S3 driver for production
+let storage = StorageManager::new(MemoryStorageDriver::new());
+
+// Put object
+storage.put("reports/q1_2026.pdf", pdf_bytes, "application/pdf").await?;
+
+// Generate secure pre-signed download URL valid for 1 hour
+let download_url = storage.generate_presigned_url("reports/q1_2026.pdf", 3600)?;
+println!("Presigned URL: {}", download_url);</code></pre>
+      </section>
+
+      <!-- 6. Universal Reporting Engine -->
+      <section id="reporting-engine" class="doc-section">
+        <h2>6. Multi-Format Reporting Engine</h2>
+        <p>
+          Define a report schema once and export it on demand to CSV, HTML, or PDF formats:
+        </p>
+
+        <div class="code-block-header">
+          <span>Exporting Multi-Format Report</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_runtime::document::reporting::{ReportDataset, ReportEngine, ReportFormat};
+
+let dataset = ReportDataset {
+    title: "Quarterly Performance Audit".into(),
+    headers: vec!["Service".into(), "P99 Latency".into(), "Availability".into()],
+    rows: vec![
+        vec!["Auth Service".into(), "1.2ms".into(), "99.99%".into()],
+        vec!["Payment Gateway".into(), "8.4ms".into(), "99.95%".into()],
+        vec!["Orders Worker".into(), "3.1ms".into(), "99.98%".into()],
+    ],
+};
+
+let html_report = ReportEngine::generate(&dataset, ReportFormat::Html)?;
+let csv_report  = ReportEngine::generate(&dataset, ReportFormat::Csv)?;
+let pdf_report  = ReportEngine::generate(&dataset, ReportFormat::Pdf)?;</code></pre>
+      </section>
+
+    </main>
+  </div>
+
+</body>
+</html>

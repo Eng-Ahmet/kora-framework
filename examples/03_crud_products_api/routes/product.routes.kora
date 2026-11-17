@@ -26,10 +26,10 @@ class ProductRouter {
 
     fn getProduct(id: Int) -> Result<ProductDetailsResponse, String> {
         let opt = this.svc.findById(id)
+        let seo = this.svc.getProductSeo(id)
+        let geo = this.svc.getGeoLocation()
         return match opt {
             Some(p) => {
-                let seo = this.svc.getProductSeo(p)
-                let geo = this.svc.getGeoLocation()
                 Ok(ProductDetailsResponse {
                     product: p,
                     seo: seo,

@@ -1,0 +1,17 @@
+// ============================================================================
+// Database Entity: AuthUser (@table("auth_users"))
+// Placed in entities/ - Strictly segregated from DTOs
+// ============================================================================
+
+@table("auth_users")
+model AuthUser {
+    @id
+    id: Int
+    @unique
+    @column("username")
+    username: String
+    @column("password_hash")
+    passwordHash: String
+    @column("role")
+    role: String
+}

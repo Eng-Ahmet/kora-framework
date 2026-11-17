@@ -2,7 +2,7 @@
 // Clean Architecture Users Router
 // ============================================================================
 
-import { User } from "../models/user.models"
+import { User } from "../entities/user.entity"
 import { UserService } from "../services/user.service"
 
 class UserRouter {

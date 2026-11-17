@@ -1,0 +1,31 @@
+// ============================================================================
+// Database Entities: Relational SQL Table & NoSQL Document Collection
+// Placed in entities/ - Enforcing architectural segregation from DTOs
+// ============================================================================
+
+// Database Entity Model: Customer (@table("customers"))
+@table("customers")
+model Customer {
+    @id
+    id: Int
+    @column("full_name")
+    fullName: String
+    @unique
+    email: String
+    @column("credit_balance")
+    creditBalance: Int
+    active: Bool
+    engine: String
+}
+
+// NoSQL Document Entity: CustomerAuditDocument (@collection("customer_audits"))
+@collection("customer_audits")
+model CustomerAuditDocument {
+    @id
+    id: String
+    @index
+    customerId: Int
+    action: String
+    clientIp: String
+    metadataJson: String
+}

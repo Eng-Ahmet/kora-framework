@@ -1,15 +1,19 @@
+// Example 05: JWT Auth with Argon2 Password Hashing — Main Entrypoint
 // ============================================================================
-// Example 05: Clean Architecture JWT & Argon2 Authentication API — Main Entrypoint
+// Encapsulated within Application Class Container
 // ============================================================================
 
 import { AuthRouter } from "./routes/auth.routes"
 
-let app = run()
+class Application {
+    init() {}
 
-post("/auth/register", (request: Request, routes: AuthRouter) => {
-    return routes.handleRegister(request.body)
-})
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(AuthRouter)
+        app.listen(3000)
+    }
+}
 
-post("/auth/login", (request: Request, routes: AuthRouter) => {
-    return routes.handleLogin(request.body)
-})
+let app = Application()
+app.bootstrap()

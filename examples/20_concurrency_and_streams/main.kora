@@ -1,0 +1,32 @@
+// ============================================================================
+// Example 20: Concurrency & Stream Processing Clean Architecture — Main Entrypoint
+// Encapsulated within Application Class Container
+// ============================================================================
+
+import { StreamRecord } from "./models/stream_record.model"
+import { StreamPipelineService } from "./services/stream_pipeline.service"
+
+class Application {
+    pipeline: StreamPipelineService
+
+    init(pipeline: StreamPipelineService) {
+        this.pipeline = pipeline
+    }
+
+    fn runDemo() -> Unit {
+        let count = this.pipeline.processBatch()
+        let sample = StreamRecord {
+            id: 100,
+            topic: "auth.events",
+            payload: "login_success",
+        }
+        let description = this.pipeline.describeRecord(sample)
+
+        print("=== Concurrency & Stream Processing Clean Architecture ===")
+        print(count)
+        print(description)
+    }
+}
+
+let app = Application(StreamPipelineService())
+app.runDemo()

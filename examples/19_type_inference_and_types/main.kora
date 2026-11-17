@@ -1,0 +1,37 @@
+// ============================================================================
+// Example 19: Type Inference & Algebraic Enums Clean Architecture — Main Entrypoint
+// Encapsulated within Application Class Container
+// ============================================================================
+
+import { PaymentStatus } from "./enums/payment_status.enum"
+import { ServerConfig } from "./models/server_config.model"
+import { TypeInferenceService } from "./services/type_inference.service"
+
+class Application {
+    service: TypeInferenceService
+
+    init(service: TypeInferenceService) {
+        this.service = service
+    }
+
+    fn runDemo() -> Unit {
+        let status = PaymentStatus.Completed
+        let message = this.service.describePayment(status)
+        let config = ServerConfig {
+            host: "127.0.0.1",
+            port: 8080,
+            ssl_enabled: true,
+            max_connections: 50000,
+        }
+        let port = this.service.getServerPort(config)
+        let developer = this.service.inferPrimitives()
+
+        print("=== Type Inference Clean Architecture ===")
+        print(developer)
+        print(port)
+        print(message)
+    }
+}
+
+let app = Application(TypeInferenceService())
+app.runDemo()

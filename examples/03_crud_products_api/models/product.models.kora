@@ -2,13 +2,7 @@
 // Product Domain Models & DTOs
 // ============================================================================
 
-model Product {
-    id: Int
-    sku: String
-    title: String
-    priceCents: Int
-    inStock: Bool
-}
+import { Product } from "../entities/product.entity"
 
 model CreateProductRequest {
     sku: String

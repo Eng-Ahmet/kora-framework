@@ -3,33 +3,7 @@
 // Decorated with Schema Indexing, Uniqueness & DTO Constraints
 // ============================================================================
 
-@entity
-@table("users")
-model User {
-    @primary
-    @autoIncrement
-    @unique
-    @required
-    id: Int
-
-    @unique
-    @index
-    @required
-    @email
-    email: String
-
-    @required
-    fullName: String
-
-    @default("customer")
-    role: String
-
-    @min(0)
-    balance: Int
-
-    @default(true)
-    isActive: Bool
-}
+import { User } from "entities/user.entity";
 
 model UserRegisterInput {
     @required

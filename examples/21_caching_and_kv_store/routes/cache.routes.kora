@@ -1,0 +1,22 @@
+import { SessionData } from "../models/cache.models"
+import { RedisCacheService } from "../services/redis_cache.service"
+
+class CacheRouter {
+    cache: RedisCacheService
+
+    init(cache: RedisCacheService) {
+        this.cache = cache
+    }
+
+    fn registerRoutes(app: App) -> Unit {
+        get("/api/v1/cache/{key}", (key: String, router: CacheRouter) => {
+            let res = router.cache.get(key)
+            return Response.json(res)
+        })
+
+        post("/api/v1/ratelimit/check", (request: Request, router: CacheRouter) => {
+            let limitCheck = router.cache.checkRateLimit(request.body, 100)
+            return Response.json(limitCheck)
+        })
+    }
+}

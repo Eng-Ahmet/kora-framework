@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security-Hardened Architecture & Auditing — Kora Documentation</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/syntax.css">
+  <script defer src="../js/app.js"></script>
+  <script defer src="../js/search.js"></script>
+  <script defer src="../js/code.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-header">
+    <a href="../index.html" class="brand">
+      <img src="../assets/logo.svg" alt="Kora Logo">
+      <span>Kora Docs</span>
+      <span class="badge badge-blue">v0.4.1 Beta</span>
+    </a>
+
+    <div class="header-center">
+      <button class="search-bar-trigger" id="search-trigger">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Search documentation, guides, APIs...
+        </span>
+        <span class="search-shortcut">Ctrl+K</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme"></button>
+      <a href="https://github.com/Hwai-technology/kora-framework" target="_blank" class="github-link" title="GitHub Repository">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Shell Container -->
+  <div class="docs-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">Getting Started</div>
+        <ul class="nav-list">
+          <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="language-tour.html" class="nav-link">Language Tour</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Architecture & OOP</div>
+        <ul class="nav-list">
+          <li><a href="oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
+          <li><a href="project-feature-templates.html" class="nav-link">Project & Feature Templates</a></li>
+          <li><a href="microservices-events.html" class="nav-link">Microservices & Events</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Core Systems</div>
+        <ul class="nav-list">
+          <li><a href="database-orm.html" class="nav-link">Multi-Engine Database ORM</a></li>
+          <li><a href="middleware-ecosystem.html" class="nav-link">Middleware Ecosystem</a></li>
+          <li><a href="libraries-integrations.html" class="nav-link">Essential Backend Libraries</a></li>
+          <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Security & Hardening</div>
+        <ul class="nav-list">
+          <li><a href="security-hardened-architecture.html" class="nav-link active">Hardened Architecture & Auditing</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Language Engineering</div>
+        <ul class="nav-list">
+          <li><a href="language-gap-analysis.html" class="nav-link">Language Gap Analysis & Roadmap</a></li>
+          <li><a href="crates-reference.html" class="nav-link">Crates Reference (23 Crates)</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Tooling & Ecosystem</div>
+        <ul class="nav-list">
+          <li><a href="cli-tooling.html" class="nav-link">CLI Toolchain (`kora`)</a></li>
+          <li><a href="vscode-extension.html" class="nav-link">VS Code Extension & LSP</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content-area">
+      <div class="content-header">
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+          <span class="badge badge-emerald">Hardened Architecture</span>
+          <span class="badge badge-blue">Zero-Trust by Default</span>
+          <span class="badge badge-purple">CWE / OWASP Compliant</span>
+        </div>
+        <h1>Security-Hardened Architecture & Auditing</h1>
+        <p class="lead">
+          Kora approaches security as an invariant enforced at every stage of the lifecycle: from compiler parsing depth limits and static Clean Architecture rules, to multi-dialect SQL identifier escaping, constant-time token cryptography, media decompression bomb limits, SVG XSS neutralization, and CWE-22 path traversal defense.
+        </p>
+      </div>
+
+      <!-- Quick Nav -->
+      <div class="quick-nav card">
+        <div class="card-header">Table of Contents</div>
+        <ul class="toc-list">
+          <li><a href="#philosophy">1. Zero-Trust Security Philosophy</a></li>
+          <li><a href="#compiler-parser">2. Compiler & Parser Stack Overflow Defense (E1005)</a></li>
+          <li><a href="#orm-injection">3. Database ORM & Dialect Identifier Escaping</a></li>
+          <li><a href="#auth-crypto">4. Cryptographic Authentication & Expiration Verification</a></li>
+          <li><a href="#media-defense">5. Media Bomb, SVG XSS & EXIF Sanitization</a></li>
+          <li><a href="#storage-zip">6. Storage Path Traversal (CWE-22) & Zip Slip Defense</a></li>
+          <li><a href="#email-smtp">7. SMTP CRLF Header Injection & Attachment Defense</a></li>
+          <li><a href="#http-edge">8. HTTP Defense: OWASP Headers & Rate Limiting</a></li>
+          <li><a href="#matrix">9. Comprehensive Security Verification Matrix</a></li>
+        </ul>
+      </div>
+
+      <!-- 1. Zero-Trust Security Philosophy -->
+      <section id="philosophy" class="doc-section">
+        <h2>1. Zero-Trust Security Philosophy</h2>
+        <p>
+          In modern enterprise backends, runtime vulnerabilities often stem from implicit trust assumptions: assuming input paths are benign, assuming AST nesting won't exceed stack frames, assuming SQL identifiers are safe, or assuming SVG files only contain vector curves.
+        </p>
+        <p>
+          Kora eliminates these failure classes by adhering to <strong>Security by Construction</strong>:
+        </p>
+        <ul>
+          <li><strong>Compile-Time Boundary Enforcement:</strong> Memory safety without garbage collection, non-nullable types by default, and compile-time architectural integrity rules (<code>E5001</code>–<code>E5004</code>).</li>
+          <li><strong>Strict Input & Parser Limits:</strong> Bounded resource consumption during compilation to thwart Denial-of-Service (DoS) and crash vectors.</li>
+          <li><strong>Sanitization at the Driver Level:</strong> Database drivers, storage managers, and email transports sanitize payloads natively before dispatch.</li>
+          <li><strong>Constant-Time Cryptography:</strong> Prevention of side-channel timing attacks across all token validations and password checks.</li>
+        </ul>
+      </section>
+
+      <!-- 2. Compiler & Parser Stack Overflow Defense -->
+      <section id="compiler-parser" class="doc-section">
+        <h2>2. Compiler & Parser Stack Overflow Defense (E1005)</h2>
+        <p>
+          Recursive descent parsers are vulnerable to deep recursive AST attacks (e.g., thousands of nested parentheses or unary operators) which deplete the call stack and cause uncontrolled thread aborts.
+        </p>
+        <p>
+          <code>kora-parser</code> implements an explicit recursion-depth guard bound to <code>MAX_RECURSION_DEPTH = 48</code>. If malicious source code exceeds this nesting limit, the parser safely halts recursion and emits diagnostic code <code>E1005</code> without crashing:
+        </p>
+
+        <div class="code-block-header">
+          <span>crates/kora-parser/src/lib.rs — Recursion Guard</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">const MAX_RECURSION_DEPTH: usize = 48;
+
+fn enter_recursion(&mut self) -> Result<(), ()> {
+    if self.recursion_depth >= MAX_RECURSION_DEPTH {
+        let span = self.peek().map(|t| t.span).unwrap_or(Span::new(0, 0));
+        self.diagnostics.error(
+            "E1005",
+            "Maximum parser recursion depth exceeded (stack overflow defense)",
+            span,
+        );
+        Err(())
+    } else {
+        self.recursion_depth += 1;
+        Ok(())
+    }
+}</code></pre>
+
+        <div class="alert alert-important">
+          <div class="alert-title">Diagnostic E1005</div>
+          Any deeply nested nested expression or bracket hierarchy beyond 48 frames triggers a deterministic compile error, safeguarding IDE language servers and CI/CD pipelines from malicious craft payloads.
+        </div>
+      </section>
+
+      <!-- 3. Database ORM & Dialect Identifier Escaping -->
+      <section id="orm-injection" class="doc-section">
+        <h2>3. Database ORM & Dialect Identifier Escaping</h2>
+        <p>
+          While parameterized queries protect values, table and column names cannot be parameterized in standard SQL drivers. If dynamic identifiers are concatenated unsafely, SQL injection occurs.
+        </p>
+        <p>
+          <code>kora-orm</code> provides dialect-specific identifier escaping and null-byte elimination in <code>quote_identifier</code>:
+        </p>
+
+        <div class="code-block-header">
+          <span>crates/kora-orm/src/dialect.rs — Identifier Sanitization</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">pub fn quote_identifier(&self, ident: &str) -> String {
+    // 1. Strip null bytes to prevent truncation attacks
+    let cleaned = ident.replace('\0', "");
+    match self {
+        SqlDialect::MySql => {
+            // Escape internal backticks by doubling them
+            let escaped = cleaned.replace('`', "``");
+            format!("`{}`", escaped)
+        }
+        SqlDialect::PostgreSql | SqlDialect::Sqlite => {
+            // Escape internal double quotes by doubling them
+            let escaped = cleaned.replace('"', "\"\"");
+            format!("\"{}\"", escaped)
+        }
+    }
+}</code></pre>
+
+        <div class="alert alert-note">
+          <div class="alert-title">Architecture Invariant</div>
+          In Kora, database entities must be defined with <code>@table("name")</code> inside the <code>entities/</code> directory, while pure business objects live in <code>models/</code> without ORM annotations.
+        </div>
+      </section>
+
+      <!-- 4. Cryptographic Authentication & Expiration Verification -->
+      <section id="auth-crypto" class="doc-section">
+        <h2>4. Cryptographic Authentication & Expiration Verification</h2>
+        <p>
+          <code>kora-auth</code> implements standard JWT claims verification and constant-time signature comparison to defeat timing attacks and enforce strict token expiration:
+        </p>
+
+        <div class="code-block-header">
+          <span>Standard JWT Claims with Expiration</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StandardClaims {
+    pub sub: String,
+    pub exp: u64,
+    pub iat: u64,
+    pub iss: String,
+    pub role: String,
+}
+
+impl StandardClaims {
+    pub fn is_expired(&self, current_time: u64) -> bool {
+        current_time >= self.exp
+    }
+}
+
+// Constant-time signature verification prevents timing side-channels
+let is_valid = subtle::constant_time_eq(expected_sig.as_bytes(), provided_sig.as_bytes());
+if !is_valid {
+    return Err(TokenError::InvalidSignature);
+}</code></pre>
+      </section>
+
+      <!-- 5. Media Bomb, SVG XSS & EXIF Sanitization -->
+      <section id="media-defense" class="doc-section">
+        <h2>5. Media Bomb, SVG XSS & EXIF Sanitization</h2>
+        <p>
+          File upload endpoints are primary attack surfaces for resource exhaustion (decompression bombs) and Cross-Site Scripting (Stored XSS in SVG uploads). <code>kora-runtime::media</code> defends against both:
+        </p>
+
+        <div class="code-block-header">
+          <span>Pixel Flood Defense & SVG Sanitizer</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">pub const MAX_ALLOWED_PIXELS: usize = 50_000_000; // 50 Megapixels
+
+pub fn validate_dimensions(width: u32, height: u32) -> Result<(), MediaError> {
+    if (width as usize * height as usize) > MAX_ALLOWED_PIXELS || width > 8192 || height > 8192 {
+        return Err(MediaError::ImageBombDetected);
+    }
+    Ok(())
+}
+
+// SvgSanitizer removes executable scripts and DOM event handlers
+pub struct SvgSanitizer;
+impl SvgSanitizer {
+    pub fn sanitize(raw_svg: &str) -> String {
+        // Strips &lt;script&gt;, onload=, onclick=, onerror=, javascript: URIs
+        ...
+    }
+}</code></pre>
+      </section>
+
+      <!-- 6. Storage Path Traversal & Zip Slip Defense -->
+      <section id="storage-zip" class="doc-section">
+        <h2>6. Storage Path Traversal (CWE-22) & Zip Slip Defense</h2>
+        <p>
+          Path traversal enables adversaries to overwrite critical system binaries or exfiltrate private credentials outside the sandbox directory. Kora enforces path sanitization across runtime storage and package extraction:
+        </p>
+
+        <div class="code-block-header">
+          <span>crates/kora-runtime/src/storage/mod.rs — Key Sanitizer</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">pub fn sanitize_storage_key(raw_key: &str) -> Result<String, StorageError> {
+    let clean = raw_key.replace('\0', "").replace('\\', "/");
+    let parts: Vec<&str> = clean.split('/')
+        .filter(|part| !part.is_empty() && *part != "." && *part != "..")
+        .collect();
+    
+    if parts.is_empty() {
+        return Err(StorageError::InvalidKey("Key resolves to empty path".into()));
+    }
+    Ok(parts.join("/"))
+}</code></pre>
+
+        <p>
+          Simultaneously, <code>kora-pkg</code> verifies every zip file archive entry using <code>verify_safe_extraction_path</code>, ensuring extracted target paths stay strictly inside the intended destination root.
+        </p>
+      </section>
+
+      <!-- 7. SMTP CRLF Header Injection & Attachment Defense -->
+      <section id="email-smtp" class="doc-section">
+        <h2>7. SMTP CRLF Header Injection & Attachment Defense</h2>
+        <p>
+          Carriage Return / Line Feed (CRLF) characters (<code>\r</code>, <code>\n</code>) in recipient addresses allow attackers to inject arbitrary SMTP headers or hijack email dispatch. Kora's email subsystem strictly sanitizes every address and blocks dangerous executable attachments:
+        </p>
+
+        <div class="code-block-header">
+          <span>crates/kora-runtime/src/email/mod.rs — Address Validation</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">pub fn validate_email_address(addr: &str) -> Result<(), EmailError> {
+    if addr.contains('\r') || addr.contains('\n') {
+        return Err(EmailError::InvalidHeader("CRLF header injection detected".into()));
+    }
+    if !addr.contains('@') || addr.len() > 254 {
+        return Err(EmailError::InvalidAddress(addr.into()));
+    }
+    Ok(())
+}
+
+// Blocks executable attachment extensions:
+const BLOCKED_EXTENSIONS: &[&str] = &[
+    "exe", "bat", "cmd", "sh", "vbs", "js", "scr", "com", "pif"
+];</code></pre>
+      </section>
+
+      <!-- 8. HTTP Defense: OWASP Headers & Rate Limiting -->
+      <section id="http-edge" class="doc-section">
+        <h2>8. HTTP Defense: OWASP Headers & Rate Limiting</h2>
+        <p>
+          In <code>kora-http</code>, production APIs automatically include security headers and distributed rate limiting:
+        </p>
+        <div class="code-block-header">
+          <span>OWASP Baseline Security Headers</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+Referrer-Policy: strict-origin-when-cross-origin
+Content-Security-Policy: default-src 'self'; frame-ancestors 'none';</code></pre>
+      </section>
+
+      <!-- 9. Comprehensive Security Verification Matrix -->
+      <section id="matrix" class="doc-section">
+        <h2>9. Comprehensive Security Verification Matrix</h2>
+        <p>
+          Every security mitigation in Kora is accompanied by automated unit and integration tests. Below is the verification status across all workspace crates:
+        </p>
+
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Security Category</th>
+              <th>Vulnerability Target</th>
+              <th>Enforcing Crate</th>
+              <th>Automated Test Name</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Compiler / AST</td>
+              <td>Stack Overflow DoS (CWE-400)</td>
+              <td><code>kora-parser</code></td>
+              <td><code>security_blocks_excessive_expression_nesting_stack_overflow</code></td>
+              <td><span class="badge badge-emerald">Verified Pass</span></td>
+            </tr>
+            <tr>
+              <td>Database</td>
+              <td>SQL Identifier Injection (CWE-89)</td>
+              <td><code>kora-orm</code></td>
+              <td><code>test_identifier_escaping_defense</code></td>
+              <td><span class="badge badge-emerald">Verified Pass</span></td>
+            </tr>
+            <tr>
+              <td>Packaging</td>
+              <td>Zip Slip Extraction (CWE-22)</td>
+              <td><code>kora-pkg</code></td>
+              <td><code>security_verifies_zip_slip_extraction_defense</code></td>
+              <td><span class="badge badge-emerald">Verified Pass</span></td>
+            </tr>
+            <tr>
+              <td>Authentication</td>
+              <td>Expired Tokens / Tampering (CWE-287)</td>
+              <td><code>kora-auth</code></td>
+              <td><code>security_verifies_jwt_claims_and_expiration_rejection</code></td>
+              <td><span class="badge badge-emerald">Verified Pass</span></td>
+            </tr>
+            <tr>
+              <td>Runtime Storage</td>
+              <td>Path Traversal (CWE-22)</td>
+              <td><code>kora-runtime</code></td>
+              <td><code>security_verifies_path_traversal_sanitization</code></td>
+              <td><span class="badge badge-emerald">Verified Pass</span></td>
+            </tr>
+            <tr>
+              <td>Runtime Media</td>
+              <td>Decompression Bomb / Stored XSS</td>
+              <td><code>kora-runtime</code></td>
+              <td><code>security_verifies_image_bomb_and_svg_xss_defense</code></td>
+              <td><span class="badge badge-emerald">Verified Pass</span></td>
+            </tr>
+            <tr>
+              <td>Runtime Email</td>
+              <td>CRLF Header Injection (CWE-93)</td>
+              <td><code>kora-runtime</code></td>
+              <td><code>security_verifies_crlf_injection_blocking</code></td>
+              <td><span class="badge badge-emerald">Verified Pass</span></td>
+            </tr>
+            <tr>
+              <td>HTTP Transport</td>
+              <td>Brute-Force & Flooding (CWE-799)</td>
+              <td><code>kora-http</code></td>
+              <td><code>test_rate_limiter_and_security_headers</code></td>
+              <td><span class="badge badge-emerald">Verified Pass</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+
+</body>
+</html>

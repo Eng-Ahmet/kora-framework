@@ -22,16 +22,20 @@ struct Parser<'a> {
     tokens: Vec<Token>,
     pos: usize,
     allow_struct_lit: bool,
+    depth: usize,
     diagnostics: &'a mut DiagnosticBag,
 }
 
 impl<'a> Parser<'a> {
+    const MAX_RECURSION_DEPTH: usize = 48;
+
     fn new(file_id: FileId, tokens: Vec<Token>, diagnostics: &'a mut DiagnosticBag) -> Self {
         Self {
             file_id,
             tokens,
             pos: 0,
             allow_struct_lit: true,
+            depth: 0,
             diagnostics,
         }
     }
@@ -911,7 +915,24 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Option<Expr> {
-        self.parse_assign_expr()
+        if self.depth >= Self::MAX_RECURSION_DEPTH {
+            self.diagnostics.emit(
+                Diagnostic::error(
+                    "E1005",
+                    "maximum expression recursion depth exceeded (stack overflow protection)",
+                )
+                .with_primary_label(
+                    self.peek().span,
+                    "expression nesting exceeds limit of 48 levels",
+                )
+                .with_help("refactor deeply nested expressions into intermediate variables"),
+            );
+            return None;
+        }
+        self.depth += 1;
+        let res = self.parse_assign_expr();
+        self.depth -= 1;
+        res
     }
 
     fn parse_assign_expr(&mut self) -> Option<Expr> {
@@ -1065,20 +1086,94 @@ impl<'a> Parser<'a> {
                 };
             } else if self.check(&TokenKind::LBracket) && !self.peek().had_newline_before {
                 self.advance();
-                let index = self.with_struct_lit(true, Self::parse_expr)?;
+                let mut elements = Vec::new();
+                if !self.check(&TokenKind::RBracket) {
+                    elements.push(self.with_struct_lit(true, Self::parse_expr)?);
+                    while self.consume(&TokenKind::Comma) {
+                        if self.check(&TokenKind::RBracket) {
+                            break;
+                        }
+                        elements.push(self.with_struct_lit(true, Self::parse_expr)?);
+                    }
+                }
                 let close = self.expect(&TokenKind::RBracket, "expected `]` after index")?;
                 let span = expr.span().merge(close.span);
-                expr = Expr::Index {
-                    receiver: Box::new(expr),
-                    index: Box::new(index),
-                    span,
-                };
+                if matches!(expr, Expr::TypeConstructor { .. }) || elements.len() != 1 {
+                    expr = Expr::CollectionLit {
+                        constructor: Some(Box::new(expr)),
+                        elements,
+                        span,
+                    };
+                } else {
+                    let index = elements.into_iter().next().unwrap();
+                    expr = Expr::Index {
+                        receiver: Box::new(expr),
+                        index: Box::new(index),
+                        span,
+                    };
+                }
             } else {
                 break;
             }
         }
 
         Some(expr)
+    }
+
+    fn is_generic_inst_ahead(&self) -> bool {
+        let mut depth = 0;
+        let mut offset = 0;
+        if self.tokens.get(self.pos).map(|t| &t.kind) != Some(&TokenKind::Lt) {
+            return false;
+        }
+        while let Some(tok) = self.tokens.get(self.pos + offset) {
+            match &tok.kind {
+                TokenKind::Lt => depth += 1,
+                TokenKind::Gt => {
+                    depth -= 1;
+                    if depth == 0 {
+                        let next = self.tokens.get(self.pos + offset + 1);
+                        return matches!(
+                            next.map(|t| &t.kind),
+                            Some(TokenKind::LParen)
+                                | Some(TokenKind::LBracket)
+                                | Some(TokenKind::LBrace)
+                                | Some(TokenKind::Dot)
+                        );
+                    }
+                }
+                TokenKind::Ident(_)
+                | TokenKind::Comma
+                | TokenKind::ThinArrow
+                | TokenKind::LParen
+                | TokenKind::RParen => {}
+                _ => return false,
+            }
+            offset += 1;
+            if offset > 32 {
+                break;
+            }
+        }
+        false
+    }
+
+    fn parse_map_lit(&mut self) -> Option<Expr> {
+        let open = self.expect(&TokenKind::LBrace, "expected `{`")?;
+        let mut entries = Vec::new();
+        while !self.check(&TokenKind::RBrace) && !self.is_at_end() {
+            let key = self.with_struct_lit(false, Self::parse_expr)?;
+            self.expect(&TokenKind::Colon, "expected `:` after map key")?;
+            let value = self.with_struct_lit(true, Self::parse_expr)?;
+            entries.push((key, value));
+            if !self.consume(&TokenKind::Comma) {
+                break;
+            }
+        }
+        let close = self.expect(&TokenKind::RBrace, "expected `}` to close map literal")?;
+        Some(Expr::MapLit {
+            entries,
+            span: open.span.merge(close.span),
+        })
     }
 
     fn parse_primary_expr(&mut self) -> Option<Expr> {
@@ -1101,6 +1196,13 @@ impl<'a> Parser<'a> {
             TokenKind::StringLit(value) => {
                 self.advance();
                 Some(Expr::StringLit {
+                    value,
+                    span: tok.span,
+                })
+            }
+            TokenKind::CharLit(value) => {
+                self.advance();
+                Some(Expr::CharLit {
                     value,
                     span: tok.span,
                 })
@@ -1140,6 +1242,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Match => self.parse_match_expr(),
             TokenKind::LBracket => self.parse_list_lit(),
+            TokenKind::LBrace => self.parse_map_lit(),
             TokenKind::LParen => {
                 if self.is_closure_start() {
                     self.parse_closure_expr()
@@ -1159,6 +1262,28 @@ impl<'a> Parser<'a> {
                     && self.looks_like_struct_lit_body()
                 {
                     self.parse_struct_lit(ident)
+                } else if self.check(&TokenKind::Lt)
+                    && !self.peek().had_newline_before
+                    && self.is_generic_inst_ahead()
+                {
+                    self.advance();
+                    let mut type_args = Vec::new();
+                    while !self.check(&TokenKind::Gt) && !self.is_at_end() {
+                        type_args.push(self.parse_type_expr()?);
+                        if !self.consume(&TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    let gt = self.expect(
+                        &TokenKind::Gt,
+                        "expected `>` to close generic type arguments",
+                    )?;
+                    let span = ident.span.merge(gt.span);
+                    Some(Expr::TypeConstructor {
+                        name: ident,
+                        type_args,
+                        span,
+                    })
                 } else {
                     Some(Expr::Ident(ident))
                 }
@@ -1313,6 +1438,10 @@ impl<'a> Parser<'a> {
             TokenKind::StringLit(s) => {
                 self.advance();
                 Some(Pattern::StringLit(s, tok.span))
+            }
+            TokenKind::CharLit(c) => {
+                self.advance();
+                Some(Pattern::CharLit(c, tok.span))
             }
             TokenKind::True => {
                 self.advance();
@@ -1791,5 +1920,29 @@ try {
         assert!(matches!(module.items[0], Item::Stmt(Stmt::Const { .. })));
         assert!(matches!(module.items[4], Item::Stmt(Stmt::For { .. })));
         assert!(matches!(module.items[5], Item::Stmt(Stmt::TryCatch { .. })));
+    }
+
+    #[test]
+    fn security_blocks_excessive_expression_nesting_stack_overflow() {
+        let mut bag = DiagnosticBag::new();
+        // Construct 60 levels of nested parentheses (exceeding MAX_RECURSION_DEPTH of 48)
+        let mut src = String::new();
+        for _ in 0..60 {
+            src.push('(');
+        }
+        src.push_str("42");
+        for _ in 0..60 {
+            src.push(')');
+        }
+        src.push(';');
+
+        let _ = parse_module(FileId(0), &src, &mut bag);
+        assert!(bag.has_errors());
+        assert_eq!(bag.items()[0].code, "E1005");
+        assert!(
+            bag.items()[0]
+                .message
+                .contains("maximum expression recursion depth exceeded")
+        );
     }
 }

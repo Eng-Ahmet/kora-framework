@@ -1,0 +1,5 @@
+model StreamRecord {
+    id: Int
+    topic: String
+    payload: String
+}

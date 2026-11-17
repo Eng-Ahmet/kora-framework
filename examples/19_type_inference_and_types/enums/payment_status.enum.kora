@@ -1,0 +1,6 @@
+enum PaymentStatus {
+    Pending
+    Completed
+    Failed(String)
+    Refunded(Float)
+}

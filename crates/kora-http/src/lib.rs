@@ -2,6 +2,9 @@
 //! Supports Zero-Config routing, route groups, validation, automatic OpenAPI 3.1 generation,
 //! and RFC 7807 Centralized Global Error Handling with Panic Recovery.
 
+pub mod middleware;
+pub use middleware::*;
+
 use std::any::Any;
 use std::net::SocketAddr;
 use std::time::{SystemTime, UNIX_EPOCH};

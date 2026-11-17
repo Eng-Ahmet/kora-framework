@@ -1,0 +1,15 @@
+// ============================================================================
+// Database Table Entity: Invoice (Stored in entities/ according to Clean Architecture)
+// ============================================================================
+
+@table("invoices")
+model Invoice {
+    @primary
+    @autoIncrement
+    id: Int,
+    @required
+    customer_name: String,
+    amount: Float,
+    status: String,
+    paid: Bool,
+}

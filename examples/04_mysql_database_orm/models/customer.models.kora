@@ -1,14 +1,7 @@
 // ============================================================================
-// MySQL Customer Models & DTOs
+// Multi-Engine DTOs & Transport Models (Non-Entity Data Transfer Objects)
+// Placed in models/ - Transport Models
 // ============================================================================
-
-model Customer {
-    id: Int
-    fullName: String
-    email: String
-    creditBalance: Int
-    active: Bool
-}
 
 model CustomerSignupInput {
     fullName: String
@@ -16,3 +9,16 @@ model CustomerSignupInput {
     initialCredit: Int
 }
 
+model CustomerCacheProfile {
+    cacheKey: String
+    cachedSession: String
+    ttlSeconds: Int
+}
+
+model FundTransferResult {
+    fromCustomerId: Int
+    toCustomerId: Int
+    transferredAmount: Int
+    isCommitted: Bool
+    isolationLevel: String
+}

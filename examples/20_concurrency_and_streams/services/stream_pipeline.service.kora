@@ -1,0 +1,22 @@
+import { StreamRecord } from "../models/stream_record.model"
+
+class StreamPipelineService {
+    fn processBatch() -> Int {
+        let batch = Vector<StreamRecord>()
+        batch.push(StreamRecord {
+            id: 101,
+            topic: "telemetry.cpu",
+            payload: "usage=45%"
+        })
+        batch.push(StreamRecord {
+            id: 102,
+            topic: "telemetry.mem",
+            payload: "usage=70%"
+        })
+        return batch.len()
+    }
+
+    fn describeRecord(record: StreamRecord) -> String {
+        return "Stream processed: " + record.topic
+    }
+}

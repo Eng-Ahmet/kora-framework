@@ -304,6 +304,31 @@ impl PackageManager {
         Ok(lockfile)
     }
 
+    /// Verifies that an archive relative path does not escape the target base directory (Zip Slip / Tar Slip defense).
+    pub fn verify_safe_extraction_path(
+        base_dir: &Path,
+        rel_path: &Path,
+    ) -> Result<std::path::PathBuf, String> {
+        for comp in rel_path.components() {
+            match comp {
+                std::path::Component::ParentDir => {
+                    return Err(format!(
+                        "security violation: directory traversal `..` detected in archive path `{}`",
+                        rel_path.display()
+                    ));
+                }
+                std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                    return Err(format!(
+                        "security violation: absolute path forbidden in archive `{}`",
+                        rel_path.display()
+                    ));
+                }
+                _ => {}
+            }
+        }
+        Ok(base_dir.join(rel_path))
+    }
+
     /// Prepares package for publishing: validates metadata and generates checksum.
     pub fn publish(project_dir: &Path, registry_url: &str) -> Result<RegistryIndexEntry, String> {
         let manifest_path = project_dir.join("kora.toml");
@@ -463,5 +488,23 @@ mod tests {
         tampered_data[0] ^= 1;
         let tampered_hash = PackageManager::calculate_sha256(&tampered_data);
         assert_ne!(hash, tampered_hash);
+    }
+
+    #[test]
+    fn security_verifies_zip_slip_extraction_defense() {
+        let base = Path::new("/var/kora/packages");
+        assert!(
+            PackageManager::verify_safe_extraction_path(base, Path::new("../../etc/shadow"))
+                .is_err()
+        );
+        assert!(
+            PackageManager::verify_safe_extraction_path(base, Path::new("sub/../../root")).is_err()
+        );
+        assert!(
+            PackageManager::verify_safe_extraction_path(base, Path::new("/absolute/path")).is_err()
+        );
+        assert!(
+            PackageManager::verify_safe_extraction_path(base, Path::new("src/lib.kora")).is_ok()
+        );
     }
 }

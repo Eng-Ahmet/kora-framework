@@ -1,4 +1,5 @@
 import { OrderEventsController } from "../controllers/order_events.controller"
+import { DomainEventEntity } from "../entities/domain_event.entity"
 
 class OrderEventsRoutes {
     controller: OrderEventsController
@@ -7,9 +8,11 @@ class OrderEventsRoutes {
         this.controller = controller
     }
 
-    fn register(app: App) -> App {
-        app.post("/events/publish", this.controller.publishOrderPlaced)
-        app.get("/events/stream", this.controller.getEvents)
-        return app
+    fn publishOrderPlaced() -> Result<DomainEventEntity, String> {
+        return this.controller.publishOrderPlaced()
+    }
+
+    fn getEvents() -> Result<Int, String> {
+        return this.controller.getEvents()
     }
 }

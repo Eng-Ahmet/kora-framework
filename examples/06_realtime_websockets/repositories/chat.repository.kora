@@ -13,7 +13,7 @@ class ChatRepository {
 
     fn create(message: ChatMessage) -> ChatMessage {
         let res = this.database.chatMessages.create(message)
-        return message
+        return res
     }
 
     fn getPresence(room: String) -> RoomPresence {

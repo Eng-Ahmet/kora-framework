@@ -1,19 +1,19 @@
 // ============================================================================
 // Example 02: Clean Architecture Users API — Main Entrypoint
+// Encapsulated within Application Class Container
 // ============================================================================
 
 import { UserRouter } from "./routes/user.routes"
 
-let app = run()
+class Application {
+    init() {}
 
-get("/users", (routes: UserRouter) => {
-    return routes.listUsers()
-})
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(UserRouter)
+        app.listen(3000)
+    }
+}
 
-get("/users/{id}", (id: Int, routes: UserRouter) => {
-    return routes.getUser(id)
-})
-
-post("/users", (request: Request, routes: UserRouter) => {
-    return routes.createUser(request.body)
-})
+let app = Application()
+app.bootstrap()

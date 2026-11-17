@@ -1,11 +1,15 @@
 // ============================================================================
-// Model: User
+// User Data Transfer Objects (DTOs) & Request Payloads
+// Placed in models/ - Transport Models
 // ============================================================================
 
-model User {
+model UserDto {
     id: Int
     name: String
     email: String
-    active: Bool
 }
 
+model CreateUserInput {
+    name: String
+    email: String
+}

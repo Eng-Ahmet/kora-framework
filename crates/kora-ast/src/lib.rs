@@ -399,7 +399,9 @@ pub struct MatchArm {
 pub enum Pattern {
     Wildcard(Span),
     IntLit(i64, Span),
+    FloatLit(f64, Span),
     StringLit(String, Span),
+    CharLit(char, Span),
     BoolLit(bool, Span),
     Null(Span),
     Binding(Ident),
@@ -416,7 +418,9 @@ impl Pattern {
         match self {
             Self::Wildcard(s)
             | Self::IntLit(_, s)
+            | Self::FloatLit(_, s)
             | Self::StringLit(_, s)
+            | Self::CharLit(_, s)
             | Self::BoolLit(_, s)
             | Self::Null(s) => *s,
             Self::Binding(id) => id.span,
@@ -505,6 +509,24 @@ pub enum Expr {
         arms: Vec<MatchArm>,
         span: Span,
     },
+    CharLit {
+        value: char,
+        span: Span,
+    },
+    TypeConstructor {
+        name: Ident,
+        type_args: Vec<TypeExpr>,
+        span: Span,
+    },
+    CollectionLit {
+        constructor: Option<Box<Expr>>,
+        elements: Vec<Expr>,
+        span: Span,
+    },
+    MapLit {
+        entries: Vec<(Expr, Expr)>,
+        span: Span,
+    },
 }
 
 impl Expr {
@@ -514,6 +536,7 @@ impl Expr {
             | Self::FloatLit { span, .. }
             | Self::StringLit { span, .. }
             | Self::BoolLit { span, .. }
+            | Self::CharLit { span, .. }
             | Self::Null { span }
             | Self::This { span }
             | Self::Await { span, .. }
@@ -526,7 +549,10 @@ impl Expr {
             | Self::StructLit { span, .. }
             | Self::ListLit { span, .. }
             | Self::Closure { span, .. }
-            | Self::Match { span, .. } => *span,
+            | Self::Match { span, .. }
+            | Self::TypeConstructor { span, .. }
+            | Self::CollectionLit { span, .. }
+            | Self::MapLit { span, .. } => *span,
             Self::Ident(id) => id.span,
         }
     }

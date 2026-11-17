@@ -1,0 +1,17 @@
+// ============================================================================
+// Database Entity: ChatMessage (@table("chat_messages"))
+// Placed in entities/ - Strictly segregated from DTOs
+// ============================================================================
+
+@table("chat_messages")
+model ChatMessage {
+    @id
+    id: Int
+    @column("sender")
+    sender: String
+    @index
+    @column("room")
+    room: String
+    content: String
+    timestamp: Int
+}

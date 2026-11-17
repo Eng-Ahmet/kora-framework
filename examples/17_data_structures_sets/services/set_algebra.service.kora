@@ -1,0 +1,31 @@
+class SetAlgebraService {
+    fn calculateUnion() -> Int {
+        let first = Set<Int>[1, 2, 3, 4]
+        let second = Set<Int>[3, 4, 5, 6]
+        let combined = first.union(second)
+        return combined.len()
+    }
+
+    fn calculateIntersection() -> Int {
+        let first = Set<Int>[1, 2, 3, 4]
+        let second = Set<Int>[3, 4, 5, 6]
+        let common = first.intersection(second)
+        return common.len()
+    }
+
+    fn calculateBitSetFlags() -> Int {
+        let flags = BitSet(64)
+        flags.insert(1)
+        flags.insert(8)
+        flags.insert(32)
+        return flags.len()
+    }
+
+    fn calculateBTreeSet() -> Int {
+        let sorted_ids = BTreeSet<Int>()
+        sorted_ids.insert(50)
+        sorted_ids.insert(10)
+        sorted_ids.insert(30)
+        return sorted_ids.len()
+    }
+}

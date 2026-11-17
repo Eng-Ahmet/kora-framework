@@ -1,0 +1,8 @@
+import { CacheStats, RateLimitResult, SessionData } from "../models/cache.models"
+
+interface CacheRepository {
+    fn get(key: String) -> Option<String>
+    fn set(key: String, value: String, ttl: Int) -> Bool
+    fn checkRateLimit(clientIp: String, limit: Int) -> RateLimitResult
+    fn storeSession(session: SessionData) -> Bool
+}

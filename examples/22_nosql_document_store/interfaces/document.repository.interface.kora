@@ -1,0 +1,7 @@
+import { AuditEvent, DocumentFilter, InsertionResult } from "../models/document.models"
+
+interface AuditDocumentRepository {
+    fn recordEvent(event: AuditEvent) -> InsertionResult
+    fn findByEvent(eventType: String) -> Option<AuditEvent>
+    fn purgeOlderThan(timestamp: Int) -> Int
+}

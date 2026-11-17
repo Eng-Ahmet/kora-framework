@@ -1,15 +1,19 @@
 // ============================================================================
 // Example 07: Async Actors & Channel Concurrency — Main Entrypoint
+// Encapsulated within Application Class Container
 // ============================================================================
 
 import { ActorRouter } from "./routes/actor.routes"
 
-let app = run()
+class Application {
+    init() {}
 
-get("/actors/stats", (routes: ActorRouter) => {
-    return routes.stats()
-})
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(ActorRouter)
+        app.listen(3000)
+    }
+}
 
-post("/actors/jobs", (request: Request, routes: ActorRouter) => {
-    return routes.enqueueJob(request.body)
-})
+let app = Application()
+app.bootstrap()

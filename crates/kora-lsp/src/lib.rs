@@ -66,7 +66,11 @@ impl LanguageServer {
                         "definitionProvider": true,
                         "referencesProvider": true,
                         "documentSymbolProvider": true,
-                        "documentFormattingProvider": true
+                        "documentFormattingProvider": true,
+                        "diagnosticProvider": {
+                            "interFileDependencies": true,
+                            "workspaceDiagnostics": false
+                        }
                     },
                     "serverInfo": {
                         "name": "kora-lsp",
@@ -91,6 +95,16 @@ impl LanguageServer {
                             with_cache(|cache| {
                                 cache.insert(uri.to_string(), text.to_string());
                             });
+                            let lsp_diags = validate_document(uri, text);
+                            let notif = serde_json::json!({
+                                "jsonrpc": "2.0",
+                                "method": "textDocument/publishDiagnostics",
+                                "params": {
+                                    "uri": uri,
+                                    "diagnostics": lsp_diags
+                                }
+                            });
+                            return serde_json::to_string(&notif).ok();
                         }
                     }
                 }
@@ -111,9 +125,65 @@ impl LanguageServer {
                         with_cache(|cache| {
                             cache.insert(uri.to_string(), text.to_string());
                         });
+                        let lsp_diags = validate_document(uri, text);
+                        let notif = serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "method": "textDocument/publishDiagnostics",
+                            "params": {
+                                "uri": uri,
+                                "diagnostics": lsp_diags
+                            }
+                        });
+                        return serde_json::to_string(&notif).ok();
                     }
                 }
                 return None;
+            }
+            "textDocument/didSave" => {
+                if let Some(params) = req.params {
+                    if let Some(uri) = params
+                        .get("textDocument")
+                        .and_then(|d| d.get("uri"))
+                        .and_then(|u| u.as_str())
+                    {
+                        if let Some(text) = get_doc_text(uri) {
+                            let lsp_diags = validate_document(uri, &text);
+                            let notif = serde_json::json!({
+                                "jsonrpc": "2.0",
+                                "method": "textDocument/publishDiagnostics",
+                                "params": {
+                                    "uri": uri,
+                                    "diagnostics": lsp_diags
+                                }
+                            });
+                            return serde_json::to_string(&notif).ok();
+                        }
+                    }
+                }
+                return None;
+            }
+            "textDocument/diagnostic" => {
+                let mut lsp_diags = Vec::new();
+                if let Some(params) = &req.params {
+                    if let Some(uri) = params
+                        .get("textDocument")
+                        .and_then(|d| d.get("uri"))
+                        .and_then(|u| u.as_str())
+                    {
+                        if let Some(text) = get_doc_text(uri) {
+                            lsp_diags = validate_document(uri, &text);
+                        }
+                    }
+                }
+                LspResponse {
+                    jsonrpc: "2.0".into(),
+                    id: req.id,
+                    result: Some(serde_json::json!({
+                        "kind": "full",
+                        "items": lsp_diags
+                    })),
+                    error: None,
+                }
             }
             "textDocument/completion" => {
                 let mut completions = get_static_completions();
@@ -771,6 +841,69 @@ fn get_static_completions() -> Vec<serde_json::Value> {
     ]
 }
 
+/// Validates a Kora document against syntax, clean architecture purity rules,
+/// HIR resolution, and type checking, returning structured LSP diagnostics.
+fn validate_document(uri: &str, src: &str) -> Vec<serde_json::Value> {
+    let source_file = SourceFile::new(FileId(0), uri, src);
+    let mut diags = DiagnosticBag::new();
+    let module = parse_module(FileId(0), src, &mut diags);
+
+    // Enforce Clean Architecture rules across all files and entrypoints
+    kora_hir::verify_architectural_purity(uri, &module, &mut diags);
+
+    if !diags.has_errors() {
+        let hir = kora_hir::lower_and_resolve(module, &mut diags);
+        if !diags.has_errors() {
+            let _ = kora_ty::check_module(&hir, &mut diags);
+        }
+    }
+
+    let mut lsp_diags = Vec::new();
+    for diag in diags.items() {
+        let primary_span = diag
+            .labels
+            .iter()
+            .find(|l| l.is_primary)
+            .or_else(|| diag.labels.first())
+            .map(|l| l.span)
+            .unwrap_or(Span::new(FileId(0), 0, 1));
+
+        let start_lc = source_file.line_col(primary_span.start);
+        let end_lc = source_file.line_col(primary_span.end);
+
+        let severity = match diag.severity {
+            kora_diagnostics::Severity::Error => 1,
+            kora_diagnostics::Severity::Warning => 2,
+            kora_diagnostics::Severity::Hint => 4,
+        };
+
+        let message = if let Some(h) = &diag.help {
+            format!("{}\nhelp: {}", diag.message, h)
+        } else {
+            diag.message.clone()
+        };
+
+        lsp_diags.push(serde_json::json!({
+            "range": {
+                "start": {
+                    "line": start_lc.line.saturating_sub(1),
+                    "character": start_lc.col.saturating_sub(1)
+                },
+                "end": {
+                    "line": end_lc.line.saturating_sub(1),
+                    "character": end_lc.col.saturating_sub(1)
+                }
+            },
+            "severity": severity,
+            "code": diag.code,
+            "source": "kora",
+            "message": message
+        }));
+    }
+
+    lsp_diags
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -820,5 +953,48 @@ class UserService {
         let hover_req = r#"{"jsonrpc":"2.0","id":4,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///sample.kora"},"position":{"line":1,"character":2}}}"#;
         let hover_res = LanguageServer::handle_message(hover_req).expect("must handle hover");
         assert!(hover_res.contains("model"));
+    }
+
+    #[test]
+    fn handles_realtime_architectural_diagnostics() {
+        // Violating architectural purity in service file: defining model alongside class
+        let did_open_req = r#"{
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace/services/user.service.kora",
+                    "languageId": "kora",
+                    "version": 1,
+                    "text": "class UserService {}\nmodel User { id: Int }\n"
+                }
+            }
+        }"#;
+
+        let resp = LanguageServer::handle_message(did_open_req).expect("must publish diagnostics");
+        assert!(resp.contains("textDocument/publishDiagnostics"));
+        assert!(resp.contains("E5003"));
+        assert!(resp.contains("architectural violation"));
+
+        // Violating architectural purity in main.kora: defining inline enum
+        let did_change_req = r#"{
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace/main.kora",
+                    "version": 2
+                },
+                "contentChanges": [
+                    { "text": "enum Status { Active, Inactive }\n" }
+                ]
+            }
+        }"#;
+
+        let resp2 =
+            LanguageServer::handle_message(did_change_req).expect("must publish diagnostics");
+        assert!(resp2.contains("textDocument/publishDiagnostics"));
+        assert!(resp2.contains("E5004"));
+        assert!(resp2.contains("'main.kora' cannot define inline enum"));
     }
 }

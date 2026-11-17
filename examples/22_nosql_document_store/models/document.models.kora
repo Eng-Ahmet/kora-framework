@@ -1,0 +1,11 @@
+import { AuditEvent } from "../entities/audit_event.entity"
+
+model DocumentFilter {
+    eventType: String
+    actorId: Int
+}
+
+model InsertionResult {
+    acknowledged: Bool
+    insertedId: String
+}

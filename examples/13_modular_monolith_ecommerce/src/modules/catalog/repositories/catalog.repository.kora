@@ -1,4 +1,4 @@
-import { CatalogItemEntity } from "../models/catalog_item.entity"
+import { CatalogItemEntity } from "../entities/catalog_item.entity"
 
 class CatalogRepository {
     db: Database

@@ -1,22 +1,24 @@
 // ============================================================================
-// Example 06: Realtime WebSockets & Chat Engine
+// Example 06: Realtime WebSockets & Chat Engine — Main Entrypoint
 // Pure Layered Clean Architecture: App -> Middleware -> Routes -> Controller -> Service -> Repository -> Database
+// Encapsulated within Application Class Container
 // ============================================================================
 
-import { App } from "kora/http"
 import { LoggerMiddleware } from "./middleware/logger.middleware"
 import { AuthMiddleware } from "./middleware/auth.middleware"
 import { ChatRoutes } from "./routes/chat.routes"
 
-// 1. Application Initialization & Dependency Container
-let app = App()
+class Application {
+    init() {}
 
-// 2. Global Middleware Pipeline
-app.use(LoggerMiddleware)
-app.use(AuthMiddleware)
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(LoggerMiddleware)
+        app.use(AuthMiddleware)
+        app.use(ChatRoutes)
+        app.listen(3000)
+    }
+}
 
-// 3. Modular Routes Registration
-app.use(ChatRoutes)
-
-// 4. Server Listener
-app.listen(3000)
+let app = Application()
+app.bootstrap()

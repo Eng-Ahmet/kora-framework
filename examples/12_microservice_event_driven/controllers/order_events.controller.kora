@@ -1,5 +1,5 @@
 import { EventPublisherService } from "../services/event_publisher.service"
-import { DomainEventEntity } from "../models/domain_event.entity"
+import { DomainEventEntity } from "../entities/domain_event.entity"
 
 class OrderEventsController {
     service: EventPublisherService

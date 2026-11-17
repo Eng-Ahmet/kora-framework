@@ -1,0 +1,28 @@
+// ============================================================================
+// Example 16: Associative Collections Clean Architecture — Main Entrypoint
+// Encapsulated within Application Class Container
+// ============================================================================
+
+import { AssociativeService } from "./services/associative.service"
+
+class Application {
+    service: AssociativeService
+
+    init(service: AssociativeService) {
+        this.service = service
+    }
+
+    fn runDemo() -> Unit {
+        let userCount = this.service.countUsers()
+        let scoresCount = this.service.getMapLiteralTotal()
+        let routesCount = this.service.getRoutesCount()
+
+        print("=== Associative Collections Clean Architecture ===")
+        print(userCount)
+        print(scoresCount)
+        print(routesCount)
+    }
+}
+
+let app = Application(AssociativeService())
+app.runDemo()

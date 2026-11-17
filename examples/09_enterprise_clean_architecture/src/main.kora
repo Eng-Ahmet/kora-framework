@@ -4,93 +4,45 @@
 // Everything is Class-Based Architecture with Compile-Time Dependency Injection
 // ============================================================================
 
-import { SecureApiResponse } from "models/response_envelope.model";
-import { ApiRouter } from "routes/api.routes";
-import { DatabaseRouter } from "routes/database.routes";
-import { AuthRouter } from "routes/auth.routes";
-import { OrderRouter } from "routes/order.routes";
+import { ApiRouter } from "./routes/api.routes"
+import { DatabaseRouter } from "./routes/database.routes"
+import { AuthRouter } from "./routes/auth.routes"
+import { OrderRouter } from "./routes/order.routes"
+import { CorsPolicy } from "./middleware/cors.middleware"
+import { RateLimiterService } from "./middleware/rate_limit.middleware"
+import { TelemetryTracker } from "./middleware/telemetry.middleware"
+import { CompressionService } from "./middleware/compression.middleware"
 
 // ============================================================================
 // Enterprise Application Container (Class-based Lifecycle & Orchestration)
 // ============================================================================
 
 class Application {
-    router: ApiRouter
-    database: DatabaseRouter
-    auth: AuthRouter
-    orders: OrderRouter
+    init() {}
 
-    init(
-        router: ApiRouter,
-        database: DatabaseRouter,
-        auth: AuthRouter,
-        orders: OrderRouter,
-    ) {
-        this.router = router
-        this.database = database
-        this.auth = auth
-        this.orders = orders
-    }
+    fn bootstrap() -> Unit {
+        let app = run()
 
-    fn health() -> SecureApiResponse {
-        return this.router.health()
+        // 1. Enterprise Security, Throttling & Observability Middlewares
+        app.use(CorsPolicy)
+        app.use(RateLimiterService)
+        app.use(TelemetryTracker)
+        app.use(CompressionService)
+
+        // 2. Domain & System Routers (Mount via app.use)
+        app.use(ApiRouter)
+        app.use(DatabaseRouter)
+        app.use(AuthRouter)
+        app.use(OrderRouter)
+
+        // 3. Listen on Enterprise Gateway Port
+        app.listen(8080)
     }
 }
 
 // ============================================================================
-// Server Bootstrap & REST Routing via Modular Clean Routers
+// Server Bootstrap & Execution
 // ============================================================================
 
-let app = run()
-
-// 1. Healthcheck & Banner Endpoints
-get("/health", (router: ApiRouter) => {
-    return router.health()
-})
-
-// 2. Database Management & Schema Auto-Sync Endpoints
-get("/api/v1/database/migrate", (dbRoutes: DatabaseRouter) => {
-    return dbRoutes.migrateDatabase()
-})
-
-post("/api/v1/database/sync", (dbRoutes: DatabaseRouter) => {
-    return dbRoutes.syncDatabaseSchema()
-})
-
-post("/api/v1/database/seed", (dbRoutes: DatabaseRouter) => {
-    return dbRoutes.seedDatabase()
-})
-
-post("/api/v1/database/truncate", (dbRoutes: DatabaseRouter) => {
-    return dbRoutes.truncateDatabase()
-})
-
-post("/api/v1/database/drop", (dbRoutes: DatabaseRouter) => {
-    return dbRoutes.dropDatabaseTables()
-})
-
-post("/api/v1/database/refresh", (dbRoutes: DatabaseRouter) => {
-    return dbRoutes.refreshDatabase()
-})
-
-// 3. Auth Routes
-post("/api/v1/auth/login", (authRoutes: AuthRouter) => {
-    return authRoutes.login("ahmet@kora-lang.org", "secretPassword")
-})
-
-post("/api/v1/auth/register", (authRoutes: AuthRouter) => {
-    return authRoutes.register("newuser@kora-lang.org", "New User")
-})
-
-// 4. Orders Routes
-get("/api/v1/orders/{id}", (id: Int, orderRoutes: OrderRouter) => {
-    return orderRoutes.getOrder(id)
-})
-
-post("/api/v1/orders", (orderRoutes: OrderRouter) => {
-    return orderRoutes.createOrder(1, 5, 500000)
-})
-
-post("/api/v1/orders/{id}/cancel", (id: Int, orderRoutes: OrderRouter) => {
-    return orderRoutes.cancelOrder(id)
-})
+let app = Application()
+app.bootstrap()

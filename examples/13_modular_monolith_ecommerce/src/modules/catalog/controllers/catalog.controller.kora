@@ -1,5 +1,5 @@
 import { CatalogService } from "../services/catalog.service"
-import { CatalogItemEntity } from "../models/catalog_item.entity"
+import { CatalogItemEntity } from "../entities/catalog_item.entity"
 
 class CatalogController {
     service: CatalogService

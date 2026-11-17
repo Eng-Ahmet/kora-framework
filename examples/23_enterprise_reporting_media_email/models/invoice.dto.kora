@@ -1,0 +1,22 @@
+// ============================================================================
+// Transport Models & DTOs (Stored in models/ strictly separated from entities)
+// ============================================================================
+
+model CreateInvoiceDto {
+    customer_name: String,
+    amount: Float,
+}
+
+model InvoiceResponseDto {
+    id: Int,
+    customer_name: String,
+    amount: Float,
+    status: String,
+    paid: Bool,
+}
+
+model ReportSummaryDto {
+    total_invoices: Int,
+    total_revenue: Float,
+    generated_at: Int,
+}

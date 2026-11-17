@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clean Architecture & OOP — Kora Documentation</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/syntax.css">
+  <script defer src="../js/app.js"></script>
+  <script defer src="../js/search.js"></script>
+  <script defer src="../js/code.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-header">
+    <a href="../index.html" class="brand">
+      <img src="../assets/logo.svg" alt="Kora Logo">
+      <span>Kora Docs</span>
+      <span class="badge badge-blue">v0.4.1 Beta</span>
+    </a>
+
+    <div class="header-center">
+      <button class="search-bar-trigger" id="search-trigger">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Search documentation, guides, APIs...
+        </span>
+        <span class="search-shortcut">Ctrl+K</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme"></button>
+      <a href="https://github.com/Hwai-technology/kora-framework" target="_blank" class="github-link" title="GitHub Repository">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Shell Container -->
+  <div class="docs-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">Getting Started</div>
+        <ul class="nav-list">
+          <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="language-tour.html" class="nav-link">Language Tour</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Architecture & OOP</div>
+        <ul class="nav-list">
+          <li><a href="oop-clean-arch.html" class="nav-link active">Clean Architecture & OOP</a></li>
+          <li><a href="database-orm.html" class="nav-link">Multi-Engine DB & ORM</a></li>
+          <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Developer Experience</div>
+        <ul class="nav-list">
+          <li><a href="cli-tooling.html" class="nav-link">CLI & Tooling Reference</a></li>
+          <li><a href="crates-reference.html" class="nav-link">23 Crates Deep Dive</a></li>
+          <li><a href="vscode-extension.html" class="nav-link">VS Code IDE Extension</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+        <span class="badge badge-emerald">Clean Architecture</span>
+        <span class="badge badge-blue">OOP & Invariants</span>
+      </div>
+
+      <h1>Object-Oriented Programming & Clean Architecture</h1>
+      <p style="font-size: 1.15rem; color: var(--text-primary);">
+        Kora provides a deterministic hybrid object model where classes encapsulate logic, interfaces declare contracts, and models represent data.
+      </p>
+
+      <h2 id="object-model">The Five Building Blocks</h2>
+      <ul>
+        <li><code>model</code>: Schema entities, database tables, and request/response DTOs.</li>
+        <li><code>struct</code>: Lightweight value types for structured data.</li>
+        <li><code>interface</code>: Pure structural contracts enabling dependency inversion.</li>
+        <li><code>class</code>: Stateful service/controller components with constructor injection (<code>init</code>).</li>
+        <li><code>enum</code>: Algebraic tagged unions with variant payloads.</li>
+      </ul>
+
+      <div class="alert alert-warning">
+        <div class="alert-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          Strict Model-Class Segregation
+        </div>
+        It is strictly forbidden to declare <code>enum</code> or <code>model</code> blocks inside a <code>class</code> body. All domain models and enums must be placed at the top-level or imported from dedicated modules (e.g. <code>models/*.kora</code>).
+      </div>
+
+      <h2 id="clean-architecture-diagnostics">Compile-Time Clean Architecture (E5001 - E5004)</h2>
+      <p>The compiler evaluates every module against Clean Architecture invariants:</p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Diagnostic</th>
+              <th>Rule Description</th>
+              <th>Compiler Fix</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>E5001</code></td>
+              <td>Direct infrastructure instantiation inside controllers</td>
+              <td>Inject dependency via <code>init(...)</code> parameter</td>
+            </tr>
+            <tr>
+              <td><code>E5002</code></td>
+              <td>Service depending on concrete database instead of interface</td>
+              <td>Depend on <code>interface UserRepository</code></td>
+            </tr>
+            <tr>
+              <td><code>E5003</code></td>
+              <td>Returning raw domain entity across API boundary</td>
+              <td>Map entity to a dedicated <code>model UserDto</code></td>
+            </tr>
+            <tr>
+              <td><code>E5004</code></td>
+              <td>Circular dependency between architectural layers</td>
+              <td>Invert dependency using interfaces</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="http-routing-pattern">HTTP Routing & app.use() Pattern</h2>
+      <p>Route endpoints are always registered inside a dedicated <code>Router</code> class and mounted using <code>app.use(RouterClass)</code>:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-comment">// routes/user.routes.kora</span>
+<span class="syn-kw">import</span> { UserService } <span class="syn-kw">from</span> <span class="syn-str">"../services/user.service"</span>
+
+<span class="syn-kw">class</span> UserRouter {
+    service: <span class="syn-type">UserService</span>
+
+    <span class="syn-kw">init</span>(service: <span class="syn-type">UserService</span>) {
+        this.service = service
+    }
+
+    <span class="syn-kw">fn</span> registerRoutes(app: <span class="syn-type">App</span>) -> <span class="syn-type">Unit</span> {
+        get(<span class="syn-str">"/users"</span>, (router: UserRouter) => {
+            <span class="syn-kw">return</span> Response.json(router.service.listUsers())
+        })
+
+        get(<span class="syn-str">"/users/{id}"</span>, (id: <span class="syn-type">Int</span>, router: UserRouter) => {
+            <span class="syn-kw">return</span> Response.json(router.service.getUser(id))
+        })
+    }
+}
+
+<span class="syn-comment">// main.kora</span>
+<span class="syn-kw">class</span> Application {
+    <span class="syn-kw">init</span>() {}
+
+    <span class="syn-kw">fn</span> bootstrap() -> <span class="syn-type">Unit</span> {
+        <span class="syn-kw">let</span> app = run()
+        app.use(UserRouter)
+        app.listen(<span class="syn-num">8080</span>)
+    }
+}
+
+<span class="syn-kw">let</span> app = Application()
+app.bootstrap()</code></pre>
+      </div>
+
+    </main>
+
+    <!-- Table of Contents Sidebar -->
+    <aside class="toc-sidebar">
+      <div class="toc-title">On This Page</div>
+      <ul class="toc-list">
+        <li><a href="#object-model" class="toc-link">Five Building Blocks</a></li>
+        <li><a href="#clean-architecture-diagnostics" class="toc-link">Clean Arch Guard (E5001-E5004)</a></li>
+        <li><a href="#http-routing-pattern" class="toc-link">Routing & app.use() Pattern</a></li>
+      </ul>
+    </aside>
+
+  </div>
+
+  <!-- Search Modal -->
+  <div class="search-modal" id="search-modal">
+    <div class="search-box">
+      <div class="search-input-wrapper">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.75rem; color: var(--text-muted);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" class="search-input" id="search-input" placeholder="Search documentation, guides, and APIs...">
+      </div>
+      <div class="search-results" id="search-results"></div>
+    </div>
+  </div>
+
+</body>
+</html>

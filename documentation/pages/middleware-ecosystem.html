@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Middleware Ecosystem — Kora Documentation</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/syntax.css">
+  <script defer src="../js/app.js"></script>
+  <script defer src="../js/search.js"></script>
+  <script defer src="../js/code.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-header">
+    <a href="../index.html" class="brand">
+      <img src="../assets/logo.svg" alt="Kora Logo">
+      <span>Kora Docs</span>
+      <span class="badge badge-blue">v0.4.1 Beta</span>
+    </a>
+
+    <div class="header-center">
+      <button class="search-bar-trigger" id="search-trigger">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Search documentation, guides, APIs...
+        </span>
+        <span class="search-shortcut">Ctrl+K</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme"></button>
+      <a href="https://github.com/Hwai-technology/kora-framework" target="_blank" class="github-link" title="GitHub Repository">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Shell Container -->
+  <div class="docs-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">Getting Started</div>
+        <ul class="nav-list">
+          <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="language-tour.html" class="nav-link">Language Tour</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Architecture & OOP</div>
+        <ul class="nav-list">
+          <li><a href="oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
+          <li><a href="project-feature-templates.html" class="nav-link">Project & Feature Templates</a></li>
+          <li><a href="microservices-events.html" class="nav-link">Microservices & Events</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Core Systems</div>
+        <ul class="nav-list">
+          <li><a href="database-orm.html" class="nav-link">Multi-Engine Database ORM</a></li>
+          <li><a href="middleware-ecosystem.html" class="nav-link active">Middleware Ecosystem</a></li>
+          <li><a href="libraries-integrations.html" class="nav-link">Essential Backend Libraries</a></li>
+          <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Security & Hardening</div>
+        <ul class="nav-list">
+          <li><a href="security-hardened-architecture.html" class="nav-link">Hardened Architecture & Audits</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Language Engineering</div>
+        <ul class="nav-list">
+          <li><a href="language-gap-analysis.html" class="nav-link">Language Gap Analysis & Roadmap</a></li>
+          <li><a href="crates-reference.html" class="nav-link">Crates Reference (23 Crates)</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Tooling & Ecosystem</div>
+        <ul class="nav-list">
+          <li><a href="cli-tooling.html" class="nav-link">CLI Toolchain (`kora`)</a></li>
+          <li><a href="vscode-extension.html" class="nav-link">VS Code Extension & LSP</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content-area">
+      <div class="content-header">
+        <h1>Middleware Ecosystem</h1>
+        <p class="lead">
+          Kora provides an ultra-fast, composable middleware pipeline designed around zero-cost abstractions, asynchronous interception, RFC-compliant error envelopes, and automated resilience mechanisms.
+        </p>
+      </div>
+
+      <!-- Quick Summary Cards -->
+      <div class="grid grid-3" style="margin-bottom: 2.5rem;">
+        <div class="card">
+          <div class="card-icon" style="color: var(--accent-blue);">🔒</div>
+          <h3>Security & Protection</h3>
+          <p>CORS policies, OWASP Hardened Security Headers (HSTS, CSP, Frame Options), and Client IP validation.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="color: var(--accent-green);">⚡</div>
+          <h3>Traffic & Rate Control</h3>
+          <p>Sliding window and token bucket rate limiters, request timeouts, and backpressure protection.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="color: var(--accent-purple);">🛡️</div>
+          <h3>Observability & Fault Tolerance</h3>
+          <p>Circuit breakers, distributed Request ID correlation, structured JSON access logging, and panic recovery.</p>
+        </div>
+      </div>
+
+      <!-- Pipeline Architecture Section -->
+      <section id="pipeline-architecture" class="doc-section">
+        <h2>1. The Kora Middleware Pipeline</h2>
+        <p>
+          In Kora, every incoming HTTP request travels through an onion-layered middleware chain before reaching route handlers, controllers, or database services. Middlewares can inspect, mutate, short-circuit, or enrich request and response cycles.
+        </p>
+
+        <pre><code class="language-text">Incoming Request ──▶ [Request ID] ──▶ [Security Headers] ──▶ [CORS] ──▶ [Rate Limiter] ──▶ [Timeout] ──▶ [Controller Handler]
+                                                                                                                   │
+Outgoing Response ◀── [Access Logger] ◀── [RFC 7807 Error Envelope] ◀── [Circuit Breaker Check] ◀──────────────────┘</code></pre>
+
+        <div class="callout callout-info">
+          <strong>Non-Blocking Pipeline:</strong> Kora middleware operates natively inside the asynchronous work-stealing scheduler. Slow requests are isolated without stalling healthy connections.
+        </div>
+      </section>
+
+      <!-- Security Headers -->
+      <section id="security-headers" class="doc-section">
+        <h2>2. OWASP-Compliant Security Headers</h2>
+        <p>
+          The <code>SecurityHeaders</code> middleware injects strict HTTP headers to protect against clickjacking, MIME confusion attacks, packet sniffing, and cross-site scripting (XSS).
+        </p>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Header Name</th>
+              <th>Default Value</th>
+              <th>Security Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Strict-Transport-Security</code></td>
+              <td><code>max-age=31536000; includeSubDomains; preload</code></td>
+              <td>Forces HTTPS connections and protects against man-in-the-middle attacks.</td>
+            </tr>
+            <tr>
+              <td><code>X-Frame-Options</code></td>
+              <td><code>DENY</code></td>
+              <td>Prevents UI clickjacking attacks inside iframes or object frames.</td>
+            </tr>
+            <tr>
+              <td><code>X-Content-Type-Options</code></td>
+              <td><code>nosniff</code></td>
+              <td>Stops MIME-sniffing away from the declared content-type.</td>
+            </tr>
+            <tr>
+              <td><code>Content-Security-Policy</code></td>
+              <td><code>default-src 'self'; frame-ancestors 'none';</code></td>
+              <td>Restricts origins for scripts, styles, objects, and framing.</td>
+            </tr>
+            <tr>
+              <td><code>Referrer-Policy</code></td>
+              <td><code>strict-origin-when-cross-origin</code></td>
+              <td>Prevents leakage of sensitive query parameters to external origins.</td>
+            </tr>
+            <tr>
+              <td><code>Permissions-Policy</code></td>
+              <td><code>camera=(), microphone=(), geolocation=()</code></td>
+              <td>Disables unnecessary browser hardware APIs for API endpoints.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="code-block-header">
+          <span>Rust & Kora Configuration</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">// Rust implementation via kora-http
+let config = SecurityHeadersConfig {
+    hsts_enabled: true,
+    hsts_max_age_secs: 31536000,
+    frame_options: "DENY".into(),
+    content_type_options: "nosniff".into(),
+    ..Default::default()
+};
+
+SecurityHeaders::apply(&mut headers, &config);</code></pre>
+      </section>
+
+      <!-- Rate Limiting -->
+      <section id="rate-limiting" class="doc-section">
+        <h2>3. Sliding-Window Rate Limiting</h2>
+        <p>
+          Kora ships with an in-memory, thread-safe sliding window rate limiter designed to guard against brute-force attacks and denial-of-service attempts.
+        </p>
+
+        <div class="code-block-header">
+          <span>Rate Limiting in kora-http</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_http::middleware::{RateLimiter, RateLimitConfig};
+use std::time::Duration;
+
+// Allow at most 100 requests per 60-second rolling window per client IP
+let limiter = RateLimiter::new(RateLimitConfig {
+    max_requests: 100,
+    window: Duration::from_secs(60),
+});
+
+let status = limiter.check("ip-192.168.1.100");
+if !status.allowed {
+    // Returns HTTP 429 Too Many Requests with retry-after header
+    println!("Blocked! Try again in {:?}", status.reset_after);
+} else {
+    println!("Allowed. Remaining requests: {}", status.remaining);
+}</code></pre>
+      </section>
+
+      <!-- Distributed Request ID -->
+      <section id="request-id" class="doc-section">
+        <h2>4. Request ID & Correlation Tracking</h2>
+        <p>
+          Distributed tracing requires every inbound request to have an immutable correlation identifier. Kora propagates existing <code>X-Request-ID</code> headers from API gateways or automatically generates an ultra-fast monotonic ID.
+        </p>
+
+        <pre><code class="language-rust">use kora_http::middleware::RequestIdGenerator;
+
+// Extracts from header or generates req_{timestamp}_{sequence}
+let req_id = RequestIdGenerator::from_header_or_generate(headers.get("x-request-id"));
+// Output: req_1932f91a20_3e9</code></pre>
+      </section>
+
+      <!-- Circuit Breaker -->
+      <section id="circuit-breaker" class="doc-section">
+        <h2>5. Circuit Breaker Resilience Pattern</h2>
+        <p>
+          When calling downstream services, payment gateways, or external microservices, transient network failures can cause cascading system timeouts. Kora's <code>CircuitBreaker</code> tracks consecutive failures and isolates broken dependencies.
+        </p>
+
+        <div class="grid grid-3" style="margin: 1.5rem 0;">
+          <div class="card" style="border-top: 3px solid var(--accent-green);">
+            <h4>🟢 Closed (Normal)</h4>
+            <p>Requests flow smoothly. Errors are tracked in a sliding window.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-red);">
+            <h4>🔴 Open (Tripped)</h4>
+            <p>Downstream failure threshold exceeded. Requests are rejected immediately with fallback.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-yellow);">
+            <h4>🟡 Half-Open (Probing)</h4>
+            <p>After recovery time, limited probe requests verify downstream recovery.</p>
+          </div>
+        </div>
+
+        <div class="code-block-header">
+          <span>Circuit Breaker Usage</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-rust">use kora_http::middleware::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
+use std::time::Duration;
+
+let breaker = CircuitBreaker::new(CircuitBreakerConfig {
+    failure_threshold: 5,                       // Trip after 5 consecutive failures
+    recovery_duration: Duration::from_secs(30),  // Wait 30s before probing
+    half_open_success_threshold: 2,             // Require 2 successes to close
+});
+
+if breaker.can_execute() {
+    match call_payment_gateway().await {
+        Ok(res) => {
+            breaker.record_success();
+            // process result
+        }
+        Err(e) => {
+            breaker.record_failure();
+            // handle error
+        }
+    }
+} else {
+    // Immediate fallback without waiting for timeout
+    return ApiError::ServiceUnavailable("Payment gateway currently degraded").into();
+}</code></pre>
+      </section>
+
+      <!-- Access Logging -->
+      <section id="access-logging" class="doc-section">
+        <h2>6. Structured Access Logging</h2>
+        <p>
+          The <code>AccessLogger</code> records high-fidelity request metrics in human-readable console format or structured JSON for ingestion by Datadog, ELK, or CloudWatch:
+        </p>
+
+        <div class="code-block-header">
+          <span>Structured JSON Output</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-json">{
+  "timestamp": 1731845100,
+  "method": "POST",
+  "path": "/api/v1/orders",
+  "status": 201,
+  "latency_ms": 14.82,
+  "client_ip": "192.168.1.42",
+  "request_id": "req_1932f91a20_3e9",
+  "user_agent": "KoraHttpClient/1.0"
+}</code></pre>
+      </section>
+
+      <!-- Writing Custom Middlewares -->
+      <section id="custom-middleware" class="doc-section">
+        <h2>7. Creating Custom Middleware in Kora</h2>
+        <p>
+          In Kora application code, you can define custom middleware classes using <code>kora g middleware &lt;name&gt;</code>:
+        </p>
+
+        <div class="code-block-header">
+          <span>src/middleware/auth_guard.middleware.kora</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code class="language-kora">class AuthGuardMiddleware {
+    secret: String,
+
+    init(secret: String) {
+        this.secret = secret
+    }
+
+    fn handle(path: String, token: String) -> Bool {
+        if path.starts_with("/api/public") {
+            return true
+        }
+        if token == "" {
+            print("[AuthGuard] Unauthorized access attempt to: " + path)
+            return false
+        }
+        return true
+    }
+}</code></pre>
+      </section>
+
+    </main>
+  </div>
+
+</body>
+</html>

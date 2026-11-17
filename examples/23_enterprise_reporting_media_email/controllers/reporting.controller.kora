@@ -1,0 +1,30 @@
+// ============================================================================
+// Reporting HTTP Controller
+// ============================================================================
+
+import { ReportingService } from "../services/reporting.service"
+import { ReportSummaryDto } from "../models/invoice.dto"
+
+class ReportingController {
+    service: ReportingService,
+
+    init(service: ReportingService) {
+        this.service = service
+    }
+
+    fn get_summary() -> ReportSummaryDto {
+        return this.service.summarize()
+    }
+
+    fn download_pdf(customer: String) -> String {
+        return this.service.generate_invoice_pdf(customer, 2500.0)
+    }
+
+    fn download_csv() -> String {
+        return this.service.export_csv_report()
+    }
+
+    fn email_report(to: String) -> Bool {
+        return this.service.dispatch_invoice_email(to, 101)
+    }
+}

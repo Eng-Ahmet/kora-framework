@@ -284,7 +284,10 @@ fi
 # 5. Install / Update Antigravity IDE, VS Code, and Cursor Extensions
 echo -e "\n${COLOR_BLUE}[5/5] Installing & Synchronizing editor extensions for VS Code, Cursor, and Antigravity IDE...${COLOR_RESET}"
 
-VSIX_PATH="$ROOT_DIR/integrations/vscode/kora-vscode-0.1.0.vsix"
+VSIX_PATH="$(find "$ROOT_DIR/integrations/vscode" -maxdepth 1 -name "kora-vscode-*.vsix" | sort -V | tail -n1)"
+if [[ -z "$VSIX_PATH" ]]; then
+    VSIX_PATH="$ROOT_DIR/integrations/vscode/kora-vscode-0.4.1.vsix"
+fi
 
 # If VSIX does not exist, package it automatically
 if [[ ! -f "$VSIX_PATH" ]] && [[ -d "$ROOT_DIR/integrations/vscode" ]]; then
@@ -296,7 +299,7 @@ base_dir = '$ROOT_DIR/integrations/vscode'
 manifest = '''<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <PackageManifest Version=\"2.0.0\" xmlns=\"http://schemas.microsoft.com/developer/vsx-schema/2011\" xmlns:d=\"http://schemas.microsoft.com/developer/vsx-schema-design/2011\">
   <Metadata>
-    <Identity Language=\"en-US\" Id=\"kora-vscode\" Version=\"0.1.0\" Publisher=\"kora-lang\"/>
+    <Identity Language=\"en-US\" Id=\"kora-vscode\" Version=\"0.4.1\" Publisher=\"kora-lang\"/>
     <DisplayName>Kora Language Support</DisplayName>
     <Description xml:space=\"preserve\">Official syntax highlighting, rich language configuration, snippets, and real-time compiler diagnostics for the Kora programming language and framework.</Description>
     <Tags>kora,rust,backend,syntax,framework</Tags>
@@ -351,12 +354,16 @@ done
 
 # 5.2 Direct directory installation for Antigravity IDE, VS Code, and Cursor
 TARGET_EXT_DIRS=(
+    "$HOME/.antigravity-ide/extensions/kora-lang.kora-vscode-0.4.1"
     "$HOME/.antigravity-ide/extensions/kora-lang.kora-vscode-0.1.0"
+    "$HOME/.antigravity/extensions/kora-lang.kora-vscode-0.4.1"
     "$HOME/.antigravity/extensions/kora-lang.kora-vscode-0.1.0"
+    "$HOME/.vscode/extensions/kora-lang.kora-vscode-0.4.1"
     "$HOME/.vscode/extensions/kora-lang.kora-vscode-0.1.0"
     "$HOME/.vscode/extensions/kora-vscode"
     "$HOME/.vscode-insiders/extensions/kora-vscode"
     "$HOME/.cursor/extensions/kora-vscode"
+    "$HOME/.cursor/extensions/kora-lang.kora-vscode-0.4.1"
     "$HOME/.cursor/extensions/kora-lang.kora-vscode-0.1.0"
     "$HOME/.windsurf/extensions/kora-vscode"
 )

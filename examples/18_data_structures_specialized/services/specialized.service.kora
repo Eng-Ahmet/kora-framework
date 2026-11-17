@@ -1,0 +1,32 @@
+class SpecializedService {
+    fn testPriorityQueue() -> Int {
+        let pq = PriorityQueue<Int>()
+        pq.push(10)
+        pq.push(50)
+        pq.push(30)
+        let top = pq.pop()
+        return pq.len()
+    }
+
+    fn testTrie() -> Bool {
+        let routes = Trie<String>()
+        routes.insert("/api/v1/users", "UserHandler")
+        routes.insert("/api/v1/orders", "OrderHandler")
+        return routes.starts_with("/api/v1")
+    }
+
+    fn testGraph() -> Int {
+        let topology = Graph<String>()
+        let node_db = topology.add_node("Database")
+        let node_api = topology.add_node("Gateway")
+        topology.add_edge(node_api, node_db)
+        return topology.node_count()
+    }
+
+    fn testLruCache() -> Int {
+        let cache = LRUCache<String, String>()
+        cache.put("token_abc", "user_1")
+        cache.put("token_def", "user_2")
+        return cache.len()
+    }
+}

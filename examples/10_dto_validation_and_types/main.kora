@@ -1,27 +1,19 @@
 // ============================================================================
-// Example 10: DTO Validation & Comprehensive API Types
-// Demonstrates Defense-in-Depth ("DTO Protects You") with every essential API type
-// Routes separated into modular router class
+// Example 10: DTO Validation & Type System — Main Entrypoint
+// Encapsulated within Application Class Container
 // ============================================================================
 
 import { ValidationRouter } from "./routes/validation.routes"
 
-let app = run()
+class Application {
+    init() {}
 
-// 1. File Upload & Binary Asset Validation Endpoint
-post("/api/v1/files/upload", (router: ValidationRouter) => {
-    let checkResult = router.validateFileUpload()
-    return send(checkResult)
-})
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(ValidationRouter)
+        app.listen(3000)
+    }
+}
 
-// 2. Structured JSON / Nested Object Validation Endpoint
-post("/api/v1/addresses/validate", (router: ValidationRouter) => {
-    let checkResult = router.validateAddress()
-    return send(checkResult)
-})
-
-// 3. Master User Registration DTO Validation Endpoint (All Types Combined)
-post("/api/v1/users/register", (router: ValidationRouter) => {
-    let validationResult = router.validateRegistration()
-    return send(validationResult)
-})
+let app = Application()
+app.bootstrap()

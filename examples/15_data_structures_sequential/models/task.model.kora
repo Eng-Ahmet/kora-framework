@@ -1,0 +1,5 @@
+model Task {
+    id: Int
+    title: String
+    priority: Int
+}

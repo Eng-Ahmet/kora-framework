@@ -99,7 +99,7 @@ class ProductService implements ProductRepository {
         }
     }
 
-    fn getProductSeo(product: Product) -> SeoMetadata {
+    fn getProductSeo(id: Int) -> SeoMetadata {
         return SeoMetadata {
             title: "Product Details - Kora Store",
             description: "View specifications and pricing for this product.",

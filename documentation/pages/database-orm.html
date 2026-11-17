@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Engine Database & ORM — Kora Documentation</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/syntax.css">
+  <script defer src="../js/app.js"></script>
+  <script defer src="../js/search.js"></script>
+  <script defer src="../js/code.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-header">
+    <a href="../index.html" class="brand">
+      <img src="../assets/logo.svg" alt="Kora Logo">
+      <span>Kora Docs</span>
+      <span class="badge badge-blue">v0.4.1 Beta</span>
+    </a>
+
+    <div class="header-center">
+      <button class="search-bar-trigger" id="search-trigger">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Search documentation, guides, APIs...
+        </span>
+        <span class="search-shortcut">Ctrl+K</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme"></button>
+      <a href="https://github.com/Hwai-technology/kora-framework" target="_blank" class="github-link" title="GitHub Repository">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Shell Container -->
+  <div class="docs-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">Getting Started</div>
+        <ul class="nav-list">
+          <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="language-tour.html" class="nav-link">Language Tour</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Architecture & OOP</div>
+        <ul class="nav-list">
+          <li><a href="oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
+          <li><a href="database-orm.html" class="nav-link active">Multi-Engine DB & ORM</a></li>
+          <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Developer Experience</div>
+        <ul class="nav-list">
+          <li><a href="cli-tooling.html" class="nav-link">CLI & Tooling Reference</a></li>
+          <li><a href="crates-reference.html" class="nav-link">23 Crates Deep Dive</a></li>
+          <li><a href="vscode-extension.html" class="nav-link">VS Code IDE Extension</a></li>
+          <li><a href="language-gap-analysis.html" class="nav-link">Language Gap Analysis</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+        <span class="badge badge-blue">Database & Persistence</span>
+        <span class="badge badge-emerald">Multi-Engine ORM</span>
+      </div>
+
+      <h1>Comprehensive Multi-Engine Database & ORM Guide</h1>
+      <p style="font-size: 1.15rem; color: var(--text-primary); font-weight: 500;">
+        Kora provides unified, compile-time typed support for Relational SQL databases (MySQL, PostgreSQL, SQLite), Schema-Free Document Collections (MongoDB-compatible), and In-Memory Key-Value Caching (Redis-compatible).
+      </p>
+
+      <!-- Key Architectural Rule Callout -->
+      <div class="alert alert-important">
+        <div class="alert-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          Mandatory Architectural Distinction: Entities vs DTO Models
+        </div>
+        Clean Architecture strictly segregates persistence models from transport data transfer objects:
+        <ul>
+          <li><strong>Database Table Entities (<code>entities/</code>)</strong>: Must reside in a dedicated <code>entities/</code> folder (e.g. <code>entities/customer.entity.kora</code>). Must be explicitly annotated with <code>@table("table_name")</code> and primary key <code>@id</code>.</li>
+          <li><strong>Document Store Entities (<code>entities/</code>)</strong>: Schema-free NoSQL collections must be annotated with <code>@collection("collection_name")</code>.</li>
+          <li><strong>Data Transfer Objects (<code>models/</code> or <code>dto/</code>)</strong>: API request/response payloads (e.g. <code>CreateCustomerRequest</code>, <code>CustomerResponseDto</code>) must reside in <code>models/</code> and must NEVER carry table or collection annotations.</li>
+        </ul>
+      </div>
+
+      <h2 id="table-entity-decorators">Entity & Field Decorators Reference</h2>
+      <p>The Kora compiler recognizes semantic attributes prefixed with <code>@</code> on models and fields to generate database blueprints and synchronization queries:</p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Decorator</th>
+              <th>Target</th>
+              <th>Description</th>
+              <th>SQL Equivalent</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>@table("name")</code></td>
+              <td>Model</td>
+              <td>Specifies target SQL table name for schema synchronization</td>
+              <td><code>CREATE TABLE name (...)</code></td>
+            </tr>
+            <tr>
+              <td><code>@collection("name")</code></td>
+              <td>Model</td>
+              <td>Specifies NoSQL document collection name</td>
+              <td><code>db.createCollection("name")</code></td>
+            </tr>
+            <tr>
+              <td><code>@id</code> / <code>@primary</code></td>
+              <td>Field</td>
+              <td>Marks the primary unique key of the table or document</td>
+              <td><code>PRIMARY KEY</code> / <code>_id</code></td>
+            </tr>
+            <tr>
+              <td><code>@column("db_name")</code></td>
+              <td>Field</td>
+              <td>Maps language camelCase property to custom snake_case column</td>
+              <td><code>full_name VARCHAR(...)</code></td>
+            </tr>
+            <tr>
+              <td><code>@autoIncrement</code></td>
+              <td>Field</td>
+              <td>Configures sequence auto-incrementing key generation</td>
+              <td><code>AUTO_INCREMENT</code> / <code>SERIAL</code></td>
+            </tr>
+            <tr>
+              <td><code>@unique</code></td>
+              <td>Field</td>
+              <td>Enforces unique constraint on the column</td>
+              <td><code>UNIQUE INDEX</code></td>
+            </tr>
+            <tr>
+              <td><code>@index</code></td>
+              <td>Field</td>
+              <td>Creates a high-performance B-Tree or compound lookup index</td>
+              <td><code>INDEX (column_name)</code></td>
+            </tr>
+            <tr>
+              <td><code>@default(value)</code></td>
+              <td>Field</td>
+              <td>Defines default literal column value on insertion</td>
+              <td><code>DEFAULT 'active'</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="relational-sql-deepdive">1. Relational SQL & Automated Migration</h2>
+      <p>Here is an end-to-end example demonstrating an entity declared inside <code>entities/customer.entity.kora</code> and manipulated via a Clean Architecture repository:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora (entities/customer.entity.kora)</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-comment">// ============================================================================</span>
+<span class="syn-comment">// Database Entity: Customer</span>
+<span class="syn-comment">// ============================================================================</span>
+
+<span class="syn-decorator">@entity</span>
+<span class="syn-decorator">@table</span>(<span class="syn-str">"customers"</span>)
+<span class="syn-kw">model</span> Customer {
+    <span class="syn-decorator">@id</span>
+    <span class="syn-decorator">@autoIncrement</span>
+    id: <span class="syn-type">Int</span>
+
+    <span class="syn-decorator">@column</span>(<span class="syn-str">"full_name"</span>)
+    fullName: <span class="syn-type">String</span>
+
+    <span class="syn-decorator">@unique</span>
+    <span class="syn-decorator">@index</span>
+    email: <span class="syn-type">String</span>
+
+    <span class="syn-decorator">@column</span>(<span class="syn-str">"credit_balance"</span>)
+    creditBalance: <span class="syn-type">Int</span>
+
+    <span class="syn-decorator">@default</span>(<span class="syn-kw">true</span>)
+    active: <span class="syn-type">Bool</span>
+
+    engine: <span class="syn-type">String</span>
+}</code></pre>
+      </div>
+
+      <h3>Safe Parameterized Queries & Transactions</h3>
+      <p>Kora prevents SQL injection vulnerabilities by enforcing parameterized queries with positional bind parameters (<code>?</code> for MySQL/SQLite, <code>$1, $2</code> for PostgreSQL):</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora (services/mysql_customer.service.kora)</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-kw">import</span> { Customer } <span class="syn-kw">from</span> <span class="syn-str">"../entities/customer.entity"</span>
+<span class="syn-kw">import</span> { CustomerSignupInput } <span class="syn-kw">from</span> <span class="syn-str">"../models/customer.models"</span>
+
+<span class="syn-kw">class</span> CustomerRepository {
+    db: <span class="syn-type">Database</span>
+
+    <span class="syn-kw">init</span>(db: <span class="syn-type">Database</span>) {
+        this.db = db
+    }
+
+    <span class="syn-comment">// Strongly-typed CRUD</span>
+    <span class="syn-kw">fn</span> create(input: <span class="syn-type">CustomerSignupInput</span>) -> <span class="syn-type">Customer</span> {
+        <span class="syn-kw">let</span> entity = Customer {
+            id: <span class="syn-num">0</span>,
+            fullName: input.fullName,
+            email: input.email,
+            creditBalance: input.initialCredit,
+            active: <span class="syn-kw">true</span>,
+            engine: <span class="syn-str">"MySQL 8.4 InnoDB"</span>
+        }
+        <span class="syn-kw">return</span> this.db.customers.create(entity)
+    }
+
+    <span class="syn-comment">// ACID Multi-Statement Transaction</span>
+    <span class="syn-kw">fn</span> transferFunds(fromId: <span class="syn-type">Int</span>, toId: <span class="syn-type">Int</span>, amount: <span class="syn-type">Int</span>) -> <span class="syn-type">Bool</span> {
+        this.db.begin() <span class="syn-comment">// ACID Isolation Level: RepeatableRead</span>
+        this.db.execute(<span class="syn-str">"UPDATE customers SET credit_balance = credit_balance - ? WHERE id = ?"</span>)
+        this.db.execute(<span class="syn-str">"UPDATE customers SET credit_balance = credit_balance + ? WHERE id = ?"</span>)
+        this.db.commit()
+        <span class="syn-kw">return true</span>
+    }
+}</code></pre>
+      </div>
+
+      <h2 id="nosql-document-store">2. Schema-Free NoSQL Document Store (MongoDB-Compatible)</h2>
+      <p>Kora's NoSQL engine allows managing polymorphic, schema-free audit logs and documents with nested dot-notation querying:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora (entities/audit_event.entity.kora)</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-decorator">@collection</span>(<span class="syn-str">"audit_events"</span>)
+<span class="syn-kw">model</span> AuditEvent {
+    <span class="syn-decorator">@id</span>
+    id: <span class="syn-type">String</span>
+
+    <span class="syn-decorator">@index</span>
+    eventType: <span class="syn-type">String</span>
+
+    <span class="syn-decorator">@index</span>
+    actorId: <span class="syn-type">Int</span>
+
+    ipAddress: <span class="syn-type">String</span>
+    timestamp: <span class="syn-type">Int</span>
+    payload: <span class="syn-type">String</span>
+}
+
+<span class="syn-kw">class</span> AuditService {
+    db: <span class="syn-type">Database</span>
+
+    <span class="syn-kw">init</span>(db: <span class="syn-type">Database</span>) {
+        this.db = db
+    }
+
+    <span class="syn-kw">fn</span> logEvent(evt: <span class="syn-type">AuditEvent</span>) -> <span class="syn-type">String</span> {
+        <span class="syn-kw">let</span> coll = this.db.collection(<span class="syn-str">"audit_events"</span>)
+        <span class="syn-kw">return</span> coll.insertOne(evt)
+    }
+
+    <span class="syn-kw">fn</span> purgeOldEvents(cutoff: <span class="syn-type">Int</span>) -> <span class="syn-type">Int</span> {
+        <span class="syn-kw">let</span> coll = this.db.collection(<span class="syn-str">"audit_events"</span>)
+        <span class="syn-kw">return</span> coll.deleteMany(cutoff)
+    }
+}</code></pre>
+      </div>
+
+      <h2 id="redis-caching-kv">3. In-Memory Key-Value Caching (Redis-Compatible)</h2>
+      <p>Kora incorporates high-performance caching primitives directly on the <code>Database</code> instance:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">kora (services/redis_cache.service.kora)</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code><span class="syn-kw">class</span> RedisCacheService {
+    db: <span class="syn-type">Database</span>
+
+    <span class="syn-kw">init</span>(db: <span class="syn-type">Database</span>) {
+        this.db = db
+    }
+
+    <span class="syn-comment">// Store key with 3600 seconds time-to-live</span>
+    <span class="syn-kw">fn</span> storeSession(sessionId: <span class="syn-type">String</span>, role: <span class="syn-type">String</span>) -> <span class="syn-type">Bool</span> {
+        <span class="syn-kw">return</span> this.db.setEx(sessionId, role, <span class="syn-num">3600</span>)
+    }
+
+    <span class="syn-comment">// Atomic Rate-Limiting counter</span>
+    <span class="syn-kw">fn</span> enforceRateLimit(ip: <span class="syn-type">String</span>, maxRequests: <span class="syn-type">Int</span>) -> <span class="syn-type">Bool</span> {
+        <span class="syn-kw">let</span> current = this.db.incr(ip)
+        <span class="syn-kw">return</span> current <= maxRequests
+    }
+}</code></pre>
+      </div>
+
+      <h2 id="clean-docker-environment">4. Production Database Docker Compose Setup</h2>
+      <p>To run with real, verified external database infrastructure, use the standard production compose definition:</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">yaml (docker-compose.yml)</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+        <pre><code>services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: kora_root_secret
+      MYSQL_DATABASE: kora_production
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"</code></pre>
+      </div>
+
+    </main>
+
+    <!-- Table of Contents Sidebar -->
+    <aside class="toc-sidebar">
+      <div class="toc-title">On This Page</div>
+      <ul class="toc-list">
+        <li><a href="#table-entity-decorators" class="toc-link">Decorators Reference</a></li>
+        <li><a href="#relational-sql-deepdive" class="toc-link">1. Relational SQL & Migration</a></li>
+        <li><a href="#nosql-document-store" class="toc-link">2. NoSQL Document Store</a></li>
+        <li><a href="#redis-caching-kv" class="toc-link">3. Key-Value & Redis Caching</a></li>
+        <li><a href="#clean-docker-environment" class="toc-link">4. Production Docker Setup</a></li>
+      </ul>
+    </aside>
+
+  </div>
+
+  <!-- Search Modal -->
+  <div class="search-modal" id="search-modal">
+    <div class="search-box">
+      <div class="search-input-wrapper">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.75rem; color: var(--text-muted);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" class="search-input" id="search-input" placeholder="Search documentation, guides, and APIs...">
+      </div>
+      <div class="search-results" id="search-results"></div>
+    </div>
+  </div>
+
+</body>
+</html>

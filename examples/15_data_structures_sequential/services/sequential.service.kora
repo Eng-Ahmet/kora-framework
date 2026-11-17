@@ -1,0 +1,39 @@
+import { Task } from "../models/task.model"
+
+class SequentialService {
+    fn runVectorDemo() -> Int {
+        let numbers = Vector<Int>[10, 20, 30, 40]
+        numbers.push(50)
+        numbers.push(60)
+        return numbers.length()
+    }
+
+    fn runStackDemo() -> String {
+        let undo_stack = Stack<String>()
+        undo_stack.push("Action 1")
+        undo_stack.push("Action 2")
+        return undo_stack.pop().unwrap_or("empty")
+    }
+
+    fn runQueueDemo() -> Int {
+        let q = Queue<Int>()
+        q.enqueue(101)
+        q.enqueue(102)
+        return q.dequeue().unwrap_or(0)
+    }
+
+    fn runBufferDemo() -> Int {
+        let buffer = CircularBuffer<Float>(5)
+        buffer.push(1.5)
+        buffer.push(2.5)
+        return buffer.len()
+    }
+
+    fn createSampleTask() -> Task {
+        return Task {
+            id: 1,
+            title: "Optimize collections",
+            priority: 10
+        }
+    }
+}

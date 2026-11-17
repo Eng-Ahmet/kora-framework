@@ -1,0 +1,32 @@
+// ============================================================================
+// User Database Entity (@table("users"))
+// Placed in entities/ - Domain persistence entity
+// ============================================================================
+
+@entity
+@table("users")
+model User {
+    @primary
+    @autoIncrement
+    @unique
+    @required
+    id: Int
+
+    @unique
+    @index
+    @required
+    @email
+    email: String
+
+    @required
+    fullName: String
+
+    @default("customer")
+    role: String
+
+    @min(0)
+    balance: Int
+
+    @default(true)
+    isActive: Bool
+}

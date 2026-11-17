@@ -1,0 +1,6 @@
+model ServerConfig {
+    host: String
+    port: Int
+    ssl_enabled: Bool
+    max_connections: Int
+}

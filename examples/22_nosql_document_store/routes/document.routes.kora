@@ -1,0 +1,30 @@
+import { AuditEvent } from "../models/document.models"
+import { MongoAuditRepository } from "../services/mongo_document.service"
+
+class AuditRouter {
+    repo: MongoAuditRepository
+
+    init(repo: MongoAuditRepository) {
+        this.repo = repo
+    }
+
+    fn registerRoutes(app: App) -> Unit {
+        post("/api/v1/audit/events", (request: Request, router: AuditRouter) => {
+            let event = AuditEvent {
+                id: "evt_01",
+                eventType: "user.login",
+                actorId: 42,
+                ipAddress: "192.168.1.1",
+                timestamp: 1718000000,
+                payload: request.body,
+            }
+            let res = router.repo.recordEvent(event)
+            return Response.json(res)
+        })
+
+        get("/api/v1/audit/events/{type}", (type: String, router: AuditRouter) => {
+            let record = router.repo.findByEvent(type)
+            return Response.json(record)
+        })
+    }
+}

@@ -1,0 +1,36 @@
+import { User } from "../models/user.model"
+
+class AssociativeService {
+    fn countUsers() -> Int {
+        let users = HashMap<String, User>()
+        users.insert("ahmet", User {
+            id: 1,
+            name: "Ahmet",
+            email: "ahmet@kora.dev",
+            role: "admin"
+        })
+        users.insert("sara", User {
+            id: 2,
+            name: "Sara",
+            email: "sara@kora.dev",
+            role: "engineer"
+        })
+        return users.len()
+    }
+
+    fn getMapLiteralTotal() -> Int {
+        let scores = {
+            "team_alpha": 95,
+            "team_beta": 88
+        }
+        return scores.len()
+    }
+
+    fn getRoutesCount() -> Int {
+        let routing = BTreeMap<Int, String>()
+        routing.insert(80, "HTTP")
+        routing.insert(443, "HTTPS")
+        routing.insert(22, "SSH")
+        return routing.len()
+    }
+}

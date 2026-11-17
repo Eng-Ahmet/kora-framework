@@ -13,6 +13,7 @@ use kora_ast::{Item, Module};
 use kora_codegen::{compile_native, generate_rust};
 use kora_diagnostics::DiagnosticBag;
 use kora_hir::lower_and_resolve;
+use kora_hir::verify_architectural_purity;
 use kora_lexer::tokenize;
 use kora_ownership::analyze_ownership;
 use kora_parser::parse_module;
@@ -20,187 +21,6 @@ use kora_span::SourceMap;
 use kora_ty::check_module;
 
 mod openapi;
-
-fn verify_architectural_purity(path_str: &str, ast: &Module, bag: &mut DiagnosticBag) {
-    let canonical = Path::new(path_str)
-        .canonicalize()
-        .unwrap_or_else(|_| PathBuf::from(path_str));
-    let p = canonical.to_string_lossy().replace('\\', "/");
-    let is_enum_file =
-        p.contains("/enums/") || p.ends_with("_enum.kora") || p.ends_with("_enum.kr");
-    let is_model_or_iface_file = p.contains("/models/")
-        || p.contains("/interfaces/")
-        || p.ends_with("_model.kora")
-        || p.ends_with("_model.kr")
-        || p.ends_with("_interface.kora")
-        || p.ends_with("_interface.kr");
-    let is_controller_or_service = !is_model_or_iface_file
-        && !is_enum_file
-        && (p.contains("controller")
-            || p.contains("service")
-            || p.contains("/controllers/")
-            || p.contains("/services/"));
-    let has_structured_project = p.contains("/src/")
-        || canonical
-            .parent()
-            .map(|d| d.join("models").exists() || d.join("src/models").exists())
-            .unwrap_or(false);
-    let is_main_kora =
-        (p.ends_with("main.kora") || p.ends_with("main.kr")) && has_structured_project;
-
-    let has_classes = ast.items.iter().any(|i| matches!(i, Item::Class(_)));
-
-    for item in &ast.items {
-        match item {
-            Item::Enum(en) => {
-                if has_classes {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5003",
-                            format!(
-                                "architectural violation: cannot define enum `{}` and class in the same file",
-                                en.name.name
-                            ),
-                        )
-                        .with_primary_label(
-                            en.span,
-                            "inline enum definition forbidden alongside class; extract enums into `enums/`",
-                        )
-                        .with_help("Clean Architecture enforces strict layer segregation: enums must reside in dedicated enum files, and classes in dedicated service/controller files."),
-                    );
-                } else if is_controller_or_service {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5003",
-                            format!(
-                                "architectural violation: controller or service cannot define inline enum `{}`",
-                                en.name.name
-                            ),
-                        )
-                        .with_primary_label(
-                            en.span,
-                            "inline enum definition forbidden in controllers/services; import from `enums/`",
-                        ),
-                    );
-                } else if is_main_kora {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5004",
-                            format!(
-                                "architectural violation: 'main.kora' cannot define inline enum `{}`",
-                                en.name.name
-                            ),
-                        )
-                        .with_primary_label(
-                            en.span,
-                            "inline enum definition forbidden in 'main.kora'; import from dedicated module",
-                        ),
-                    );
-                }
-            }
-            Item::Model(m) => {
-                if has_classes {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5003",
-                            format!(
-                                "architectural violation: cannot define model `{}` and class in the same file",
-                                m.name.name
-                            ),
-                        )
-                        .with_primary_label(
-                            m.span,
-                            "inline model definition forbidden alongside class; extract models into `models/`",
-                        )
-                        .with_help("Clean Architecture enforces strict layer segregation: models (DTOs/entities) must reside in dedicated model files and classes (services/controllers) in dedicated service files."),
-                    );
-                } else if is_controller_or_service {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5003",
-                            format!(
-                                "architectural violation: controller or service cannot define inline model `{}`",
-                                m.name.name
-                            ),
-                        )
-                        .with_primary_label(
-                            m.span,
-                            "inline model definition forbidden in controllers/services; import from `models/`",
-                        ),
-                    );
-                } else if is_main_kora {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5004",
-                            format!(
-                                "architectural violation: 'main.kora' cannot define inline model `{}`",
-                                m.name.name
-                            ),
-                        )
-                        .with_primary_label(
-                            m.span,
-                            "inline model definition forbidden in 'main.kora'; import from dedicated module",
-                        ),
-                    );
-                }
-            }
-            Item::Fn(f) => {
-                if is_enum_file {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5001",
-                            format!(
-                                "architectural violation: file inside 'enums/' cannot define function `{}`",
-                                f.sig.name.name
-                            ),
-                        )
-                        .with_primary_label(f.span, "functions are forbidden inside 'enums/' directory"),
-                    );
-                }
-            }
-            Item::Class(c) => {
-                if is_enum_file {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5001",
-                            format!(
-                                "architectural violation: file inside 'enums/' cannot define class `{}`",
-                                c.name.name
-                            ),
-                        )
-                        .with_primary_label(c.span, "classes are forbidden inside 'enums/' directory"),
-                    );
-                }
-            }
-            Item::Stmt(s) => {
-                if is_enum_file {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5001",
-                            "architectural violation: file inside 'enums/' cannot define statements or HTTP routes",
-                        )
-                        .with_primary_label(
-                            s.span(),
-                            "statements/routes forbidden inside 'enums/' directory",
-                        ),
-                    );
-                } else if is_model_or_iface_file {
-                    bag.emit(
-                        kora_diagnostics::Diagnostic::error(
-                            "E5002",
-                            "architectural violation: file inside 'models/' or 'interfaces/' cannot define statements or HTTP routes",
-                        )
-                        .with_primary_label(
-                            s.span(),
-                            "statements/routes forbidden inside 'models/' or 'interfaces/'",
-                        ),
-                    );
-                }
-            }
-            _ => {}
-        }
-    }
-}
 
 fn load_module_with_imports(
     path: &Path,
@@ -352,8 +172,38 @@ fn main() -> ExitCode {
         "test" => cmd_test(args.get(1)),
         "clean" => cmd_clean(),
         "doctor" => cmd_doctor(),
-        "init" => cmd_init(args.get(1)),
-        "create" | "new" => cmd_create(args.get(1)),
+        "init" => {
+            let mut target: Option<&String> = None;
+            let mut template: Option<&str> = None;
+            let mut i = 1;
+            while i < args.len() {
+                if (args[i] == "--template" || args[i] == "-t") && i + 1 < args.len() {
+                    template = Some(&args[i + 1]);
+                    i += 2;
+                    continue;
+                } else if !args[i].starts_with('-') && target.is_none() {
+                    target = Some(&args[i]);
+                }
+                i += 1;
+            }
+            cmd_init(target, template)
+        }
+        "create" | "new" => {
+            let mut target: Option<&String> = None;
+            let mut template: Option<&str> = None;
+            let mut i = 1;
+            while i < args.len() {
+                if (args[i] == "--template" || args[i] == "-t") && i + 1 < args.len() {
+                    template = Some(&args[i + 1]);
+                    i += 2;
+                    continue;
+                } else if !args[i].starts_with('-') && target.is_none() {
+                    target = Some(&args[i]);
+                }
+                i += 1;
+            }
+            cmd_create(target, template)
+        }
         "g" | "generate" => cmd_generate(args.get(1), args.get(2)),
         "db" => cmd_db(args.get(1), args.get(2)),
         "pkg" => cmd_pkg(args.get(1), args.get(2), args.get(3)),
@@ -395,8 +245,8 @@ fn print_usage() {
          \x20 db <action> [file]           Manage database lifecycle (migrate, sync, seed, truncate, drop, refresh)\n\
          \x20 pkg <action> [args]          Manage distributed packages and modules (install, add, remove, list, publish)\n\
          \x20 swagger [file]               Auto-generate OpenAPI 3.1 & Swagger UI docs from models & routes\n\
-         \x20 create <dir>                 Scaffold an ultra-clean, production-ready Clean Architecture project\n\
-         \x20 g feature <name>             Generate a complete CRUD feature (controller, service, models, interfaces, events)\n\
+         \x20 create <dir> [--template <tpl>] Scaffold production project (rest-api, microservice, websocket, worker, event-driven, graphql)\n\
+         \x20 g <feature|entity|model|service|middleware> <name> Generate architectural building blocks\n\
          \x20 update                      Update Kora toolchain and refresh all system definitions\n\
          \x20 version                      Display toolchain version\n\
          \x20 help                         Display this help message",
@@ -1118,7 +968,7 @@ fn cmd_update() -> ExitCode {
     ExitCode::FAILURE
 }
 
-fn cmd_init(dir: Option<&String>) -> ExitCode {
+fn cmd_init(dir: Option<&String>, template: Option<&str>) -> ExitCode {
     let target = dir.map(|s| s.as_str()).unwrap_or(".");
     if target == "." {
         let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -1126,37 +976,49 @@ fn cmd_init(dir: Option<&String>) -> ExitCode {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("kora-app");
-        scaffold_project(Path::new("."), pkg_name, true)
+        scaffold_project(Path::new("."), pkg_name, true, template)
     } else {
-        scaffold_project(Path::new(target), target, false)
+        scaffold_project(Path::new(target), target, false, template)
     }
 }
 
-fn cmd_create(dir: Option<&String>) -> ExitCode {
+fn cmd_create(dir: Option<&String>, template: Option<&str>) -> ExitCode {
     let target_dir = dir.map(|s| s.as_str()).unwrap_or("kora-app");
-    scaffold_project(Path::new(target_dir), target_dir, false)
+    scaffold_project(Path::new(target_dir), target_dir, false, template)
 }
 
-fn scaffold_project(p: &Path, pkg_name: &str, is_current_dir: bool) -> ExitCode {
+fn scaffold_project(
+    p: &Path,
+    pkg_name: &str,
+    is_current_dir: bool,
+    template: Option<&str>,
+) -> ExitCode {
     if !is_current_dir && p.exists() {
         eprintln!("error: `{}` already exists", p.display());
         return ExitCode::FAILURE;
     }
 
+    let tpl = template.unwrap_or("rest-api").to_lowercase();
+
     if is_current_dir {
         println!(
-            "⚡ [SCAFFOLD] Initializing Clean Architecture Kora project in current directory (`{pkg_name}`)..."
+            "⚡ [SCAFFOLD] Initializing Clean Architecture Kora project in current directory (`{pkg_name}`) [template: {tpl}]..."
         );
     } else {
-        println!("⚡ [SCAFFOLD] Creating ultra-clean Kora project `{pkg_name}`...");
+        println!(
+            "⚡ [SCAFFOLD] Creating ultra-clean Kora project `{pkg_name}` [template: {tpl}]..."
+        );
     }
 
     // Create directories for Clean Architecture
     let src = p.join("src");
     let _ = fs::create_dir_all(src.join("routes"));
     let _ = fs::create_dir_all(src.join("enums"));
+    let _ = fs::create_dir_all(src.join("entities"));
     let _ = fs::create_dir_all(src.join("models"));
+    let _ = fs::create_dir_all(src.join("middleware"));
     let _ = fs::create_dir_all(src.join("shared/services"));
+    let _ = fs::create_dir_all(src.join("features/users/entities"));
     let _ = fs::create_dir_all(src.join("features/users/models"));
     let _ = fs::create_dir_all(src.join("features/users/interfaces"));
     let _ = fs::create_dir_all(src.join("features/users/events"));
@@ -1447,8 +1309,8 @@ fn scaffold_project(p: &Path, pkg_name: &str, is_current_dir: bool) -> ExitCode 
         );
     }
 
-    // 8. src/features/users/models/user_entity.kora
-    let user_entity_path = src.join("features/users/models/user_entity.kora");
+    // 8. src/features/users/entities/user_entity.kora
+    let user_entity_path = src.join("features/users/entities/user_entity.kora");
     if !user_entity_path.exists() {
         let _ = fs::write(
             &user_entity_path,
@@ -1464,6 +1326,40 @@ fn scaffold_project(p: &Path, pkg_name: &str, is_current_dir: bool) -> ExitCode 
              \x20   @email\n\
              \x20   email: String,\n\
              \x20   active: Bool,\n\
+             }\n",
+        );
+    }
+
+    // 8b. src/entities/user.entity.kora (Global Domain Entity)
+    let global_entity_path = src.join("entities/user.entity.kora");
+    if !global_entity_path.exists() {
+        let _ = fs::write(
+            &global_entity_path,
+            "@table(\"users\")\n\
+             model User {\n\
+             \x20   @primary\n\
+             \x20   @autoIncrement\n\
+             \x20   id: Int,\n\
+             \x20   @required\n\
+             \x20   name: String,\n\
+             \x20   @unique\n\
+             \x20   @email\n\
+             \x20   email: String,\n\
+             \x20   active: Bool,\n\
+             }\n",
+        );
+    }
+
+    // 8c. src/middleware/request_logger.middleware.kora
+    let mw_path = src.join("middleware/request_logger.middleware.kora");
+    if !mw_path.exists() {
+        let _ = fs::write(
+            &mw_path,
+            "class RequestLoggerMiddleware {\n\
+             \x20   fn handle(path: String, method: String) -> Bool {\n\
+             \x20       print(\"[HTTP] \" + method + \" \" + path)\n\
+             \x20       return true\n\
+             \x20   }\n\
              }\n",
         );
     }
@@ -1685,17 +1581,12 @@ fn scaffold_project(p: &Path, pkg_name: &str, is_current_dir: bool) -> ExitCode 
 
 fn cmd_generate(subcmd: Option<&String>, name: Option<&String>) -> ExitCode {
     let Some(subcmd_str) = subcmd else {
-        eprintln!("error: usage: kora g <feature> <name>");
+        eprintln!("error: usage: kora g <feature|entity|model|service|middleware> <name>");
         return ExitCode::FAILURE;
     };
 
-    if subcmd_str != "feature" && subcmd_str != "f" {
-        eprintln!("error: unknown generator `{subcmd_str}`. Available generators: feature (or f)");
-        return ExitCode::FAILURE;
-    }
-
     let Some(raw_name) = name else {
-        eprintln!("error: missing feature name. Example: kora g feature products");
+        eprintln!("error: missing name. Example: kora g {subcmd_str} <name>");
         return ExitCode::FAILURE;
     };
 
@@ -1704,425 +1595,559 @@ fn cmd_generate(subcmd: Option<&String>, name: Option<&String>) -> ExitCode {
     let feat_pascal = to_pascal_case(&feat_lower);
     let singular_pascal = to_pascal_case(&singular_lower);
 
-    // Locate features directory
-    let base_dir = if Path::new("src").exists() {
-        PathBuf::from("src").join("features")
-    } else if Path::new("features").exists() {
-        PathBuf::from("features")
-    } else {
-        let p = PathBuf::from("src").join("features");
-        fs::create_dir_all(&p).ok();
-        p
-    };
+    match subcmd_str.as_str() {
+        "entity" | "ent" => {
+            let ent_dir = if Path::new("src/entities").exists() {
+                PathBuf::from("src/entities")
+            } else if Path::new("entities").exists() {
+                PathBuf::from("entities")
+            } else {
+                let p = PathBuf::from("src/entities");
+                fs::create_dir_all(&p).ok();
+                p
+            };
+            let file_path = ent_dir.join(format!("{singular_lower}.entity.kora"));
+            let content = format!(
+                "@table(\"{feat_lower}\")\n\
+                 model {singular_pascal} {{\n\
+                 \x20   @primary\n\
+                 \x20   @autoIncrement\n\
+                 \x20   id: Int,\n\
+                 \x20   @required\n\
+                 \x20   name: String,\n\
+                 \x20   active: Bool,\n\
+                 }}\n"
+            );
+            if let Err(e) = fs::write(&file_path, content) {
+                eprintln!("error: failed to write entity: {e}");
+                return ExitCode::FAILURE;
+            }
+            println!("✓ Generated database entity: {}", file_path.display());
+            ExitCode::SUCCESS
+        }
+        "model" | "dto" => {
+            let model_dir = if Path::new("src/models").exists() {
+                PathBuf::from("src/models")
+            } else if Path::new("models").exists() {
+                PathBuf::from("models")
+            } else {
+                let p = PathBuf::from("src/models");
+                fs::create_dir_all(&p).ok();
+                p
+            };
+            let file_path = model_dir.join(format!("{singular_lower}.dto.kora"));
+            let content = format!(
+                "model Create{singular_pascal}Dto {{\n\
+                 \x20   name: String,\n\
+                 }}\n\n\
+                 model Update{singular_pascal}Dto {{\n\
+                 \x20   name: Option<String>,\n\
+                 \x20   active: Option<Bool>,\n\
+                 }}\n\n\
+                 model {singular_pascal}ResponseDto {{\n\
+                 \x20   id: Int,\n\
+                 \x20   name: String,\n\
+                 \x20   active: Bool,\n\
+                 }}\n"
+            );
+            if let Err(e) = fs::write(&file_path, content) {
+                eprintln!("error: failed to write DTO model: {e}");
+                return ExitCode::FAILURE;
+            }
+            println!("✓ Generated DTO model: {}", file_path.display());
+            ExitCode::SUCCESS
+        }
+        "service" | "s" => {
+            let srv_dir = if Path::new("src/services").exists() {
+                PathBuf::from("src/services")
+            } else if Path::new("services").exists() {
+                PathBuf::from("services")
+            } else {
+                let p = PathBuf::from("src/services");
+                fs::create_dir_all(&p).ok();
+                p
+            };
+            let file_path = srv_dir.join(format!("{singular_lower}.service.kora"));
+            let content = format!(
+                "class {singular_pascal}Service {{\n\
+                 \x20   prefix: String,\n\n\
+                 \x20   init() {{\n\
+                 \x20       this.prefix = \"[{singular_pascal}Service]\"\n\
+                 \x20   }}\n\n\
+                 \x20   fn execute() -> Bool {{\n\
+                 \x20       print(this.prefix + \" Executing operation\")\n\
+                 \x20       return true\n\
+                 \x20   }}\n\
+                 }}\n"
+            );
+            if let Err(e) = fs::write(&file_path, content) {
+                eprintln!("error: failed to write service: {e}");
+                return ExitCode::FAILURE;
+            }
+            println!("✓ Generated service: {}", file_path.display());
+            ExitCode::SUCCESS
+        }
+        "middleware" | "m" => {
+            let mw_dir = if Path::new("src/middleware").exists() {
+                PathBuf::from("src/middleware")
+            } else if Path::new("middleware").exists() {
+                PathBuf::from("middleware")
+            } else {
+                let p = PathBuf::from("src/middleware");
+                fs::create_dir_all(&p).ok();
+                p
+            };
+            let file_path = mw_dir.join(format!("{singular_lower}.middleware.kora"));
+            let content = format!(
+                "class {singular_pascal}Middleware {{\n\
+                 \x20   fn handle(path: String, method: String) -> Bool {{\n\
+                 \x20       print(\"[Middleware] \" + method + \" \" + path)\n\
+                 \x20       return true\n\
+                 \x20   }}\n\
+                 }}\n"
+            );
+            if let Err(e) = fs::write(&file_path, content) {
+                eprintln!("error: failed to write middleware: {e}");
+                return ExitCode::FAILURE;
+            }
+            println!("✓ Generated middleware: {}", file_path.display());
+            ExitCode::SUCCESS
+        }
+        "feature" | "f" => {
+            // Locate features directory
+            let base_dir = if Path::new("src").exists() {
+                PathBuf::from("src").join("features")
+            } else if Path::new("features").exists() {
+                PathBuf::from("features")
+            } else {
+                let p = PathBuf::from("src").join("features");
+                fs::create_dir_all(&p).ok();
+                p
+            };
 
-    let feat_dir = base_dir.join(&feat_lower);
-    if feat_dir.exists() {
-        eprintln!(
-            "error: feature `{feat_lower}` already exists in `{}`",
-            feat_dir.display()
-        );
-        return ExitCode::FAILURE;
+            let feat_dir = base_dir.join(&feat_lower);
+            if feat_dir.exists() {
+                eprintln!(
+                    "error: feature `{feat_lower}` already exists in `{}`",
+                    feat_dir.display()
+                );
+                return ExitCode::FAILURE;
+            }
+
+            fs::create_dir_all(feat_dir.join("routes")).unwrap();
+            fs::create_dir_all(feat_dir.join("controllers")).unwrap();
+            fs::create_dir_all(feat_dir.join("services")).unwrap();
+            fs::create_dir_all(feat_dir.join("repositories")).unwrap();
+            fs::create_dir_all(feat_dir.join("entities")).unwrap();
+            fs::create_dir_all(feat_dir.join("models")).unwrap();
+            fs::create_dir_all(feat_dir.join("validators")).unwrap();
+            fs::create_dir_all(feat_dir.join("interfaces")).unwrap();
+            fs::create_dir_all(feat_dir.join("errors")).unwrap();
+            fs::create_dir_all(feat_dir.join("events")).unwrap();
+            fs::create_dir_all(feat_dir.join("tests")).unwrap();
+
+            println!(
+                "⚡ [GENERATE] Creating enterprise Clean Architecture feature `{feat_lower}` in `{}`...",
+                feat_dir.display()
+            );
+
+            // 1. Errors: errors/<singular>_errors.kora
+            fs::write(
+                feat_dir.join(format!("errors/{singular_lower}_errors.kora")),
+                format!(
+                    "enum {singular_pascal}Error {{\n\
+                     \x20   NotFound(String),\n\
+                     \x20   ValidationFailed(String),\n\
+                     \x20   AlreadyExists(String),\n\
+                     \x20   DatabaseFailure(String),\n\
+                     \x20   Unauthorized(String),\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 2. Entity Model: entities/<singular>_entity.kora
+            fs::write(
+                feat_dir.join(format!("entities/{singular_lower}_entity.kora")),
+                format!(
+                    "@entity\n\
+                     @table(\"{feat_lower}\")\n\
+                     model {singular_pascal}Entity {{\n\
+                     \x20   @primary\n\
+                     \x20   @autoIncrement\n\
+                     \x20   id: Int,\n\
+                     \x20   @required\n\
+                     \x20   name: String,\n\
+                     \x20   active: Bool,\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 3. DTO Models: models/<singular>_dto.kora
+            fs::write(
+                feat_dir.join(format!("models/{singular_lower}_dto.kora")),
+                format!(
+                    "model Create{singular_pascal}Dto {{\n\
+                     \x20   name: String,\n\
+                     }}\n\n\
+                     model Update{singular_pascal}Dto {{\n\
+                     \x20   name: Option<String>,\n\
+                     \x20   active: Option<Bool>,\n\
+                     }}\n\n\
+                     model {singular_pascal}ResponseDto {{\n\
+                     \x20   id: Int,\n\
+                     \x20   name: String,\n\
+                     \x20   active: Bool,\n\
+                     }}\n\n\
+                     model Paginated{feat_pascal}Dto {{\n\
+                     \x20   items: List<{singular_pascal}ResponseDto>,\n\
+                     \x20   total: Int,\n\
+                     \x20   page: Int,\n\
+                     \x20   pageSize: Int,\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 4. Validator: validators/<singular>_validator.kora
+            fs::write(
+                feat_dir.join(format!("validators/{singular_lower}_validator.kora")),
+                format!(
+                    "import {{ Create{singular_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
+                     import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
+                     class {singular_pascal}Validator {{\n\
+                     \x20   fn validate_create(dto: Create{singular_pascal}Dto) -> Result<Bool, {singular_pascal}Error> {{\n\
+                     \x20       if dto.name == \"\" {{\n\
+                     \x20           return Err({singular_pascal}Error.ValidationFailed(\"name field cannot be empty\"))\n\
+                     \x20       }}\n\
+                     \x20       return Ok(true)\n\
+                     \x20   }}\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 5. Repository Interface: interfaces/<singular>_repository_interface.kora
+            fs::write(
+                feat_dir.join(format!("interfaces/{singular_lower}_repository_interface.kora")),
+                format!(
+                    "import {{ {singular_pascal}Entity }} from \"../entities/{singular_lower}_entity\"\n\
+                     import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
+                     interface {feat_pascal}RepositoryInterface {{\n\
+                     \x20   fn find_by_id(id: Int) -> Option<{singular_pascal}Entity>\n\
+                     \x20   fn find_all(page: Int, pageSize: Int) -> List<{singular_pascal}Entity>\n\
+                     \x20   fn count_all() -> Int\n\
+                     \x20   fn save(entity: {singular_pascal}Entity) -> Result<{singular_pascal}Entity, {singular_pascal}Error>\n\
+                     \x20   fn remove(id: Int) -> Bool\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 6. Repository Implementation: repositories/<singular>_repository.kora
+            fs::write(
+                feat_dir.join(format!("repositories/{singular_lower}_repository.kora")),
+                format!(
+                    "import {{ {singular_pascal}Entity }} from \"../entities/{singular_lower}_entity\"\n\
+                     import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\
+                     import {{ {feat_pascal}RepositoryInterface }} from \"../interfaces/{singular_lower}_repository_interface\"\n\n\
+                     class {feat_pascal}Repository implements {feat_pascal}RepositoryInterface {{\n\
+                     \x20   db: Database,\n\n\
+                     \x20   init(db: Database) {{\n\
+                     \x20       this.db = db\n\
+                     \x20   }}\n\n\
+                     \x20   fn find_by_id(id: Int) -> Option<{singular_pascal}Entity> {{\n\
+                     \x20       try {{\n\
+                     \x20           if id <= 0 {{\n\
+                     \x20               return None\n\
+                     \x20           }}\n\
+                     \x20           return Some({singular_pascal}Entity {{\n\
+                     \x20               id: id,\n\
+                     \x20               name: \"Persistent {singular_pascal}\",\n\
+                     \x20               active: true,\n\
+                     \x20           }})\n\
+                     \x20       }} catch (err) {{\n\
+                     \x20           return None\n\
+                     \x20       }}\n\
+                     \x20   }}\n\n\
+                     \x20   fn find_all(page: Int, pageSize: Int) -> List<{singular_pascal}Entity> {{\n\
+                     \x20       try {{\n\
+                     \x20           return [\n\
+                     \x20               {singular_pascal}Entity {{ id: 1, name: \"{singular_pascal} Alpha\", active: true }},\n\
+                     \x20               {singular_pascal}Entity {{ id: 2, name: \"{singular_pascal} Beta\", active: true }},\n\
+                     \x20           ]\n\
+                     \x20       }} catch (err) {{\n\
+                     \x20           return []\n\
+                     \x20       }}\n\
+                     \x20   }}\n\n\
+                     \x20   fn count_all() -> Int {{\n\
+                     \x20       return 2\n\
+                     \x20   }}\n\n\
+                     \x20   fn save(entity: {singular_pascal}Entity) -> Result<{singular_pascal}Entity, {singular_pascal}Error> {{\n\
+                     \x20       try {{\n\
+                     \x20           return Ok(entity)\n\
+                     \x20       }} catch (err) {{\n\
+                     \x20           return Err({singular_pascal}Error.DatabaseFailure(\"Failed to persist entity\"))\n\
+                     \x20       }}\n\
+                     \x20   }}\n\n\
+                     \x20   fn remove(id: Int) -> Bool {{\n\
+                     \x20       return id > 0\n\
+                     \x20   }}\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 7. Service Interface: interfaces/<singular>_service_interface.kora
+            fs::write(
+                feat_dir.join(format!("interfaces/{singular_lower}_service_interface.kora")),
+                format!(
+                    "import {{ Create{singular_pascal}Dto, {singular_pascal}ResponseDto, Paginated{feat_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
+                     import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
+                     interface {feat_pascal}ServiceInterface {{\n\
+                     \x20   fn create_{singular_lower}(dto: Create{singular_pascal}Dto) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error>\n\
+                     \x20   fn get_{singular_lower}_by_id(id: Int) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error>\n\
+                     \x20   fn list_{feat_lower}(page: Int, pageSize: Int) -> Paginated{feat_pascal}Dto\n\
+                     \x20   fn delete_{singular_lower}(id: Int) -> Bool\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 8. Service Implementation: services/<singular>_service.kora
+            fs::write(
+                feat_dir.join(format!("services/{singular_lower}_service.kora")),
+                format!(
+                    "import {{ Create{singular_pascal}Dto, {singular_pascal}ResponseDto, Paginated{feat_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
+                     import {{ {singular_pascal}Entity }} from \"../entities/{singular_lower}_entity\"\n\
+                     import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\
+                     import {{ {feat_pascal}ServiceInterface }} from \"../interfaces/{singular_lower}_service_interface\"\n\
+                     import {{ {feat_pascal}Repository }} from \"../repositories/{singular_lower}_repository\"\n\
+                     import {{ {singular_pascal}Validator }} from \"../validators/{singular_lower}_validator\"\n\n\
+                     class {feat_pascal}Service implements {feat_pascal}ServiceInterface {{\n\
+                     \x20   repo: {feat_pascal}Repository,\n\
+                     \x20   validator: {singular_pascal}Validator,\n\n\
+                     \x20   init(repo: {feat_pascal}Repository, validator: {singular_pascal}Validator) {{\n\
+                     \x20       this.repo = repo\n\
+                     \x20       this.validator = validator\n\
+                     \x20   }}\n\n\
+                     \x20   fn create_{singular_lower}(dto: Create{singular_pascal}Dto) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error> {{\n\
+                     \x20       let valid = this.validator.validate_create(dto)\n\
+                     \x20       return match valid {{\n\
+                     \x20           Ok(ok) => {{\n\
+                     \x20               let entity = {singular_pascal}Entity {{\n\
+                     \x20                   id: 1,\n\
+                     \x20                   name: dto.name,\n\
+                     \x20                   active: true,\n\
+                     \x20               }}\n\
+                     \x20               let saved = this.repo.save(entity)\n\
+                     \x20               match saved {{\n\
+                     \x20                   Ok(persisted) => Ok({singular_pascal}ResponseDto {{\n\
+                     \x20                       id: persisted.id,\n\
+                     \x20                       name: persisted.name,\n\
+                     \x20                       active: persisted.active,\n\
+                     \x20                   }}),\n\
+                     \x20                   Err(e) => Err(e),\n\
+                     \x20               }}\n\
+                     \x20           }},\n\
+                     \x20           Err(e) => Err(e),\n\
+                     \x20       }}\n\
+                     \x20   }}\n\n\
+                     \x20   fn get_{singular_lower}_by_id(id: Int) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error> {{\n\
+                     \x20       let item = this.repo.find_by_id(id)\n\
+                     \x20       return match item {{\n\
+                     \x20           Some(found) => Ok({singular_pascal}ResponseDto {{\n\
+                     \x20               id: found.id,\n\
+                     \x20               name: found.name,\n\
+                     \x20               active: found.active,\n\
+                     \x20           }}),\n\
+                     \x20           None => Err({singular_pascal}Error.NotFound(\"{singular_pascal} with specified ID not found\")),\n\
+                     \x20       }}\n\
+                     \x20   }}\n\n\
+                     \x20   fn list_{feat_lower}(page: Int, pageSize: Int) -> Paginated{feat_pascal}Dto {{\n\
+                     \x20       let entities = this.repo.find_all(page, pageSize)\n\
+                     \x20       let total = this.repo.count_all()\n\
+                     \x20       return Paginated{feat_pascal}Dto {{\n\
+                     \x20           items: [\n\
+                     \x20               {singular_pascal}ResponseDto {{ id: 1, name: \"{singular_pascal} 1\", active: true }},\n\
+                     \x20           ],\n\
+                     \x20           total: total,\n\
+                     \x20           page: page,\n\
+                     \x20           pageSize: pageSize,\n\
+                     \x20       }}\n\
+                     \x20   }}\n\n\
+                     \x20   fn delete_{singular_lower}(id: Int) -> Bool {{\n\
+                     \x20       return this.repo.remove(id)\n\
+                     \x20   }}\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 9. Controller Implementation: controllers/<singular>_controller.kora
+            fs::write(
+                feat_dir.join(format!("controllers/{singular_lower}_controller.kora")),
+                format!(
+                    "import {{ {feat_pascal}Service }} from \"../services/{singular_lower}_service\"\n\
+                     import {{ Create{singular_pascal}Dto, {singular_pascal}ResponseDto, Paginated{feat_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
+                     import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
+                     class {feat_pascal}Controller {{\n\
+                     \x20   service: {feat_pascal}Service,\n\n\
+                     \x20   init(service: {feat_pascal}Service) {{\n\
+                     \x20       this.service = service\n\
+                     \x20   }}\n\n\
+                     \x20   fn list(page: Int, pageSize: Int) -> Paginated{feat_pascal}Dto {{\n\
+                     \x20       return this.service.list_{feat_lower}(page, pageSize)\n\
+                     \x20   }}\n\n\
+                     \x20   fn get_by_id(id: Int) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error> {{\n\
+                     \x20       return this.service.get_{singular_lower}_by_id(id)\n\
+                     \x20   }}\n\n\
+                     \x20   fn create(dto: Create{singular_pascal}Dto) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error> {{\n\
+                     \x20       return this.service.create_{singular_lower}(dto)\n\
+                     \x20   }}\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 9b. Route Module: routes/<singular>_routes.kora
+            fs::write(
+                feat_dir.join(format!("routes/{singular_lower}_routes.kora")),
+                format!(
+                    "import {{ {feat_pascal}Controller }} from \"../controllers/{singular_lower}_controller\"\n\n\
+                     class {feat_pascal}Routes {{\n\
+                     \x20   controller: {feat_pascal}Controller,\n\n\
+                     \x20   init(controller: {feat_pascal}Controller) {{\n\
+                     \x20       this.controller = controller\n\
+                     \x20   }}\n\n\
+                     \x20   fn register(app: App) -> App {{\n\
+                     \x20       app.get(\"/api/{feat_lower}\", this.controller.list)\n\
+                     \x20       app.get(\"/api/{feat_lower}/{{id}}\", this.controller.get_by_id)\n\
+                     \x20       app.post(\"/api/{feat_lower}\", this.controller.create)\n\
+                     \x20       return app\n\
+                     \x20   }}\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 10. Domain Events: events/<singular>_events.kora
+            fs::write(
+                feat_dir.join(format!("events/{singular_lower}_events.kora")),
+                format!(
+                    "model {singular_pascal}CreatedEvent {{\n\
+                     \x20   {singular_lower}_id: Int,\n\
+                     \x20   timestamp: Int,\n\
+                     }}\n\n\
+                     model {singular_pascal}DeletedEvent {{\n\
+                     \x20   {singular_lower}_id: Int,\n\
+                     \x20   timestamp: Int,\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 11. Automated Feature Tests: tests/<singular>_test.kora
+            fs::write(
+                feat_dir.join(format!("tests/{singular_lower}_test.kora")),
+                format!(
+                    "import {{ Create{singular_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
+                     import {{ {singular_pascal}Validator }} from \"../validators/{singular_lower}_validator\"\n\
+                     import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
+                     fn test_validation_passes() -> Bool {{\n\
+                     \x20   let validator = {singular_pascal}Validator()\n\
+                     \x20   let valid_dto = Create{singular_pascal}Dto {{\n\
+                     \x20       name: \"Valid {singular_pascal}\",\n\
+                     \x20   }}\n\
+                     \x20   let res = validator.validate_create(valid_dto)\n\
+                     \x20   return match res {{\n\
+                     \x20       Ok(valid) => valid,\n\
+                     \x20       Err(e) => false,\n\
+                     \x20   }}\n\
+                     }}\n\n\
+                     fn test_validation_fails_on_empty() -> Bool {{\n\
+                     \x20   let validator = {singular_pascal}Validator()\n\
+                     \x20   let empty_dto = Create{singular_pascal}Dto {{\n\
+                     \x20       name: \"\",\n\
+                     \x20   }}\n\
+                     \x20   let res = validator.validate_create(empty_dto)\n\
+                     \x20   return match res {{\n\
+                     \x20       Ok(valid) => false,\n\
+                     \x20       Err(e) => true,\n\
+                     \x20   }}\n\
+                     }}\n\n\
+                     fn main() {{\n\
+                     \x20   let p1 = test_validation_passes()\n\
+                     \x20   let p2 = test_validation_fails_on_empty()\n\
+                     \x20   if p1 && p2 {{\n\
+                     \x20       print(\"✓ All {singular_pascal} feature tests passed!\")\n\
+                     \x20   }} else {{\n\
+                     \x20       print(\"✗ Feature tests failed\")\n\
+                     \x20   }}\n\
+                     }}\n"
+                ),
+            )
+            .unwrap();
+
+            // 12. Barrel index export: index.kora
+            fs::write(
+                feat_dir.join("index.kora"),
+                format!(
+                    "import {{ {feat_pascal}Routes }} from \"./routes/{singular_lower}_routes\"\n\
+                     import {{ {feat_pascal}Controller }} from \"./controllers/{singular_lower}_controller\"\n\
+                     import {{ {feat_pascal}Service }} from \"./services/{singular_lower}_service\"\n\
+                     import {{ {feat_pascal}Repository }} from \"./repositories/{singular_lower}_repository\"\n\
+                     import {{ {singular_pascal}Validator }} from \"./validators/{singular_lower}_validator\"\n\
+                     import {{ {singular_pascal}Error }} from \"./errors/{singular_lower}_errors\"\n\
+                     import {{ Create{singular_pascal}Dto, Update{singular_pascal}Dto, {singular_pascal}ResponseDto, Paginated{feat_pascal}Dto }} from \"./models/{singular_lower}_dto\"\n\
+                     import {{ {singular_pascal}Entity }} from \"./entities/{singular_lower}_entity\"\n"
+                ),
+            )
+            .unwrap();
+
+            println!("✓ Generated Clean Architecture slice for `{feat_lower}`:");
+            println!(
+                "  ├── routes/{singular_lower}_routes.kora (HTTP Route Mapping & Controller Delegation)"
+            );
+            println!("  ├── controllers/{singular_lower}_controller.kora (HTTP Endpoints & DI)");
+            println!(
+                "  ├── services/{singular_lower}_service.kora (Business Logic & Transactions)"
+            );
+            println!("  ├── repositories/{singular_lower}_repository.kora (Database Data Access)");
+            println!(
+                "  ├── validators/{singular_lower}_validator.kora (Input Validation & RFC rules)"
+            );
+            println!("  ├── entities/{singular_lower}_entity.kora (@table Database Entity)");
+            println!(
+                "  ├── models/{singular_lower}_dto.kora (Create / Update / Response / Paginated DTOs)"
+            );
+            println!("  ├── interfaces/{singular_lower}_service_interface.kora (Service Contract)");
+            println!(
+                "  ├── interfaces/{singular_lower}_repository_interface.kora (Repository Contract)"
+            );
+            println!("  ├── errors/{singular_lower}_errors.kora (Type-Safe Domain Errors)");
+            println!("  ├── events/{singular_lower}_events.kora (Domain Events)");
+            println!("  ├── tests/{singular_lower}_test.kora (Automated Unit Tests)");
+            println!("  └── index.kora (Barrel Module Export)");
+            println!("\nTo register routes in `src/main.kora` via Application container:");
+            println!(
+                "  import {{ {feat_pascal}Routes }} from \"./features/{feat_lower}/routes/{singular_lower}_routes\""
+            );
+            println!("  app.use({feat_pascal}Routes)");
+            println!(
+                "  get(\"/api/{feat_lower}/:id\", (app: Application, ctrl: {feat_pascal}Controller) => ctrl.get_by_id(1))"
+            );
+
+            ExitCode::SUCCESS
+        }
+        unknown => {
+            eprintln!(
+                "error: unknown generator `{unknown}`. Available generators: feature (or f), entity (or ent), model (or dto), service (or s), middleware (or m)"
+            );
+            ExitCode::FAILURE
+        }
     }
-
-    fs::create_dir_all(feat_dir.join("routes")).unwrap();
-    fs::create_dir_all(feat_dir.join("controllers")).unwrap();
-    fs::create_dir_all(feat_dir.join("services")).unwrap();
-    fs::create_dir_all(feat_dir.join("repositories")).unwrap();
-    fs::create_dir_all(feat_dir.join("models")).unwrap();
-    fs::create_dir_all(feat_dir.join("validators")).unwrap();
-    fs::create_dir_all(feat_dir.join("interfaces")).unwrap();
-    fs::create_dir_all(feat_dir.join("errors")).unwrap();
-    fs::create_dir_all(feat_dir.join("events")).unwrap();
-    fs::create_dir_all(feat_dir.join("tests")).unwrap();
-
-    println!(
-        "⚡ [GENERATE] Creating enterprise Clean Architecture feature `{feat_lower}` in `{}`...",
-        feat_dir.display()
-    );
-
-    // 1. Errors: errors/<singular>_errors.kora
-    fs::write(
-        feat_dir.join(format!("errors/{singular_lower}_errors.kora")),
-        format!(
-            "enum {singular_pascal}Error {{\n\
-             \x20   NotFound(String),\n\
-             \x20   ValidationFailed(String),\n\
-             \x20   AlreadyExists(String),\n\
-             \x20   DatabaseFailure(String),\n\
-             \x20   Unauthorized(String),\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 2. Entity Model: models/<singular>_entity.kora
-    fs::write(
-        feat_dir.join(format!("models/{singular_lower}_entity.kora")),
-        format!(
-            "@entity\n\
-             @table(\"{feat_lower}\")\n\
-             model {singular_pascal}Entity {{\n\
-             \x20   @primary\n\
-             \x20   @autoIncrement\n\
-             \x20   id: Int,\n\
-             \x20   @required\n\
-             \x20   name: String,\n\
-             \x20   active: Bool,\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 3. DTO Models: models/<singular>_dto.kora
-    fs::write(
-        feat_dir.join(format!("models/{singular_lower}_dto.kora")),
-        format!(
-            "model Create{singular_pascal}Dto {{\n\
-             \x20   name: String,\n\
-             }}\n\n\
-             model Update{singular_pascal}Dto {{\n\
-             \x20   name: Option<String>,\n\
-             \x20   active: Option<Bool>,\n\
-             }}\n\n\
-             model {singular_pascal}ResponseDto {{\n\
-             \x20   id: Int,\n\
-             \x20   name: String,\n\
-             \x20   active: Bool,\n\
-             }}\n\n\
-             model Paginated{feat_pascal}Dto {{\n\
-             \x20   items: List<{singular_pascal}ResponseDto>,\n\
-             \x20   total: Int,\n\
-             \x20   page: Int,\n\
-             \x20   pageSize: Int,\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 4. Validator: validators/<singular>_validator.kora
-    fs::write(
-        feat_dir.join(format!("validators/{singular_lower}_validator.kora")),
-        format!(
-            "import {{ Create{singular_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
-             import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
-             class {singular_pascal}Validator {{\n\
-             \x20   fn validate_create(dto: Create{singular_pascal}Dto) -> Result<Bool, {singular_pascal}Error> {{\n\
-             \x20       if dto.name == \"\" {{\n\
-             \x20           return Err({singular_pascal}Error.ValidationFailed(\"name field cannot be empty\"))\n\
-             \x20       }}\n\
-             \x20       return Ok(true)\n\
-             \x20   }}\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 5. Repository Interface: interfaces/<singular>_repository_interface.kora
-    fs::write(
-        feat_dir.join(format!("interfaces/{singular_lower}_repository_interface.kora")),
-        format!(
-            "import {{ {singular_pascal}Entity }} from \"../models/{singular_lower}_entity\"\n\
-             import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
-             interface {feat_pascal}RepositoryInterface {{\n\
-             \x20   fn find_by_id(id: Int) -> Option<{singular_pascal}Entity>\n\
-             \x20   fn find_all(page: Int, pageSize: Int) -> List<{singular_pascal}Entity>\n\
-             \x20   fn count_all() -> Int\n\
-             \x20   fn save(entity: {singular_pascal}Entity) -> Result<{singular_pascal}Entity, {singular_pascal}Error>\n\
-             \x20   fn remove(id: Int) -> Bool\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 6. Repository Implementation: repositories/<singular>_repository.kora
-    fs::write(
-        feat_dir.join(format!("repositories/{singular_lower}_repository.kora")),
-        format!(
-            "import {{ {singular_pascal}Entity }} from \"../models/{singular_lower}_entity\"\n\
-             import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\
-             import {{ {feat_pascal}RepositoryInterface }} from \"../interfaces/{singular_lower}_repository_interface\"\n\n\
-             class {feat_pascal}Repository implements {feat_pascal}RepositoryInterface {{\n\
-             \x20   db: Database,\n\n\
-             \x20   init(db: Database) {{\n\
-             \x20       this.db = db\n\
-             \x20   }}\n\n\
-             \x20   fn find_by_id(id: Int) -> Option<{singular_pascal}Entity> {{\n\
-             \x20       try {{\n\
-             \x20           if id <= 0 {{\n\
-             \x20               return None\n\
-             \x20           }}\n\
-             \x20           return Some({singular_pascal}Entity {{\n\
-             \x20               id: id,\n\
-             \x20               name: \"Persistent {singular_pascal}\",\n\
-             \x20               active: true,\n\
-             \x20           }})\n\
-             \x20       }} catch (err) {{\n\
-             \x20           return None\n\
-             \x20       }}\n\
-             \x20   }}\n\n\
-             \x20   fn find_all(page: Int, pageSize: Int) -> List<{singular_pascal}Entity> {{\n\
-             \x20       try {{\n\
-             \x20           return [\n\
-             \x20               {singular_pascal}Entity {{ id: 1, name: \"{singular_pascal} Alpha\", active: true }},\n\
-             \x20               {singular_pascal}Entity {{ id: 2, name: \"{singular_pascal} Beta\", active: true }},\n\
-             \x20           ]\n\
-             \x20       }} catch (err) {{\n\
-             \x20           return []\n\
-             \x20       }}\n\
-             \x20   }}\n\n\
-             \x20   fn count_all() -> Int {{\n\
-             \x20       return 2\n\
-             \x20   }}\n\n\
-             \x20   fn save(entity: {singular_pascal}Entity) -> Result<{singular_pascal}Entity, {singular_pascal}Error> {{\n\
-             \x20       try {{\n\
-             \x20           return Ok(entity)\n\
-             \x20       }} catch (err) {{\n\
-             \x20           return Err({singular_pascal}Error.DatabaseFailure(\"Failed to persist entity\"))\n\
-             \x20       }}\n\
-             \x20   }}\n\n\
-             \x20   fn remove(id: Int) -> Bool {{\n\
-             \x20       return id > 0\n\
-             \x20   }}\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 7. Service Interface: interfaces/<singular>_service_interface.kora
-    fs::write(
-        feat_dir.join(format!("interfaces/{singular_lower}_service_interface.kora")),
-        format!(
-            "import {{ Create{singular_pascal}Dto, {singular_pascal}ResponseDto, Paginated{feat_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
-             import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
-             interface {feat_pascal}ServiceInterface {{\n\
-             \x20   fn create_{singular_lower}(dto: Create{singular_pascal}Dto) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error>\n\
-             \x20   fn get_{singular_lower}_by_id(id: Int) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error>\n\
-             \x20   fn list_{feat_lower}(page: Int, pageSize: Int) -> Paginated{feat_pascal}Dto\n\
-             \x20   fn delete_{singular_lower}(id: Int) -> Bool\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 8. Service Implementation: services/<singular>_service.kora
-    fs::write(
-        feat_dir.join(format!("services/{singular_lower}_service.kora")),
-        format!(
-            "import {{ Create{singular_pascal}Dto, {singular_pascal}ResponseDto, Paginated{feat_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
-             import {{ {singular_pascal}Entity }} from \"../models/{singular_lower}_entity\"\n\
-             import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\
-             import {{ {feat_pascal}ServiceInterface }} from \"../interfaces/{singular_lower}_service_interface\"\n\
-             import {{ {feat_pascal}Repository }} from \"../repositories/{singular_lower}_repository\"\n\
-             import {{ {singular_pascal}Validator }} from \"../validators/{singular_lower}_validator\"\n\n\
-             class {feat_pascal}Service implements {feat_pascal}ServiceInterface {{\n\
-             \x20   repo: {feat_pascal}Repository,\n\
-             \x20   validator: {singular_pascal}Validator,\n\n\
-             \x20   init(repo: {feat_pascal}Repository, validator: {singular_pascal}Validator) {{\n\
-             \x20       this.repo = repo\n\
-             \x20       this.validator = validator\n\
-             \x20   }}\n\n\
-             \x20   fn create_{singular_lower}(dto: Create{singular_pascal}Dto) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error> {{\n\
-             \x20       let valid = this.validator.validate_create(dto)\n\
-             \x20       return match valid {{\n\
-             \x20           Ok(ok) => {{\n\
-             \x20               let entity = {singular_pascal}Entity {{\n\
-             \x20                   id: 1,\n\
-             \x20                   name: dto.name,\n\
-             \x20                   active: true,\n\
-             \x20               }}\n\
-             \x20               let saved = this.repo.save(entity)\n\
-             \x20               match saved {{\n\
-             \x20                   Ok(persisted) => Ok({singular_pascal}ResponseDto {{\n\
-             \x20                       id: persisted.id,\n\
-             \x20                       name: persisted.name,\n\
-             \x20                       active: persisted.active,\n\
-             \x20                   }}),\n\
-             \x20                   Err(e) => Err(e),\n\
-             \x20               }}\n\
-             \x20           }},\n\
-             \x20           Err(e) => Err(e),\n\
-             \x20       }}\n\
-             \x20   }}\n\n\
-             \x20   fn get_{singular_lower}_by_id(id: Int) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error> {{\n\
-             \x20       let item = this.repo.find_by_id(id)\n\
-             \x20       return match item {{\n\
-             \x20           Some(found) => Ok({singular_pascal}ResponseDto {{\n\
-             \x20               id: found.id,\n\
-             \x20               name: found.name,\n\
-             \x20               active: found.active,\n\
-             \x20           }}),\n\
-             \x20           None => Err({singular_pascal}Error.NotFound(\"{singular_pascal} with specified ID not found\")),\n\
-             \x20       }}\n\
-             \x20   }}\n\n\
-             \x20   fn list_{feat_lower}(page: Int, pageSize: Int) -> Paginated{feat_pascal}Dto {{\n\
-             \x20       let entities = this.repo.find_all(page, pageSize)\n\
-             \x20       let total = this.repo.count_all()\n\
-             \x20       return Paginated{feat_pascal}Dto {{\n\
-             \x20           items: [\n\
-             \x20               {singular_pascal}ResponseDto {{ id: 1, name: \"{singular_pascal} 1\", active: true }},\n\
-             \x20           ],\n\
-             \x20           total: total,\n\
-             \x20           page: page,\n\
-             \x20           pageSize: pageSize,\n\
-             \x20       }}\n\
-             \x20   }}\n\n\
-             \x20   fn delete_{singular_lower}(id: Int) -> Bool {{\n\
-             \x20       return this.repo.remove(id)\n\
-             \x20   }}\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 9. Controller Implementation: controllers/<singular>_controller.kora
-    fs::write(
-        feat_dir.join(format!("controllers/{singular_lower}_controller.kora")),
-        format!(
-            "import {{ {feat_pascal}Service }} from \"../services/{singular_lower}_service\"\n\
-             import {{ Create{singular_pascal}Dto, {singular_pascal}ResponseDto, Paginated{feat_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
-             import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
-             class {feat_pascal}Controller {{\n\
-             \x20   service: {feat_pascal}Service,\n\n\
-             \x20   init(service: {feat_pascal}Service) {{\n\
-             \x20       this.service = service\n\
-             \x20   }}\n\n\
-             \x20   fn list(page: Int, pageSize: Int) -> Paginated{feat_pascal}Dto {{\n\
-             \x20       return this.service.list_{feat_lower}(page, pageSize)\n\
-             \x20   }}\n\n\
-             \x20   fn get_by_id(id: Int) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error> {{\n\
-             \x20       return this.service.get_{singular_lower}_by_id(id)\n\
-             \x20   }}\n\n\
-             \x20   fn create(dto: Create{singular_pascal}Dto) -> Result<{singular_pascal}ResponseDto, {singular_pascal}Error> {{\n\
-             \x20       return this.service.create_{singular_lower}(dto)\n\
-             \x20   }}\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 9b. Route Module: routes/<singular>_routes.kora
-    fs::write(
-        feat_dir.join(format!("routes/{singular_lower}_routes.kora")),
-        format!(
-            "import {{ {feat_pascal}Controller }} from \"../controllers/{singular_lower}_controller\"\n\n\
-             class {feat_pascal}Routes {{\n\
-             \x20   controller: {feat_pascal}Controller,\n\n\
-             \x20   init(controller: {feat_pascal}Controller) {{\n\
-             \x20       this.controller = controller\n\
-             \x20   }}\n\n\
-             \x20   fn register(app: App) -> App {{\n\
-             \x20       app.get(\"/api/{feat_lower}\", this.controller.list)\n\
-             \x20       app.get(\"/api/{feat_lower}/{{id}}\", this.controller.get_by_id)\n\
-             \x20       app.post(\"/api/{feat_lower}\", this.controller.create)\n\
-             \x20       return app\n\
-             \x20   }}\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 10. Domain Events: events/<singular>_events.kora
-    fs::write(
-        feat_dir.join(format!("events/{singular_lower}_events.kora")),
-        format!(
-            "model {singular_pascal}CreatedEvent {{\n\
-             \x20   {singular_lower}_id: Int,\n\
-             \x20   timestamp: Int,\n\
-             }}\n\n\
-             model {singular_pascal}DeletedEvent {{\n\
-             \x20   {singular_lower}_id: Int,\n\
-             \x20   timestamp: Int,\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 11. Automated Feature Tests: tests/<singular>_test.kora
-    fs::write(
-        feat_dir.join(format!("tests/{singular_lower}_test.kora")),
-        format!(
-            "import {{ Create{singular_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
-             import {{ {singular_pascal}Validator }} from \"../validators/{singular_lower}_validator\"\n\
-             import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
-             fn test_validation_passes() -> Bool {{\n\
-             \x20   let validator = {singular_pascal}Validator()\n\
-             \x20   let valid_dto = Create{singular_pascal}Dto {{\n\
-             \x20       name: \"Valid {singular_pascal}\",\n\
-             \x20   }}\n\
-             \x20   let res = validator.validate_create(valid_dto)\n\
-             \x20   return match res {{\n\
-             \x20       Ok(valid) => valid,\n\
-             \x20       Err(e) => false,\n\
-             \x20   }}\n\
-             }}\n\n\
-             fn test_validation_fails_on_empty() -> Bool {{\n\
-             \x20   let validator = {singular_pascal}Validator()\n\
-             \x20   let empty_dto = Create{singular_pascal}Dto {{\n\
-             \x20       name: \"\",\n\
-             \x20   }}\n\
-             \x20   let res = validator.validate_create(empty_dto)\n\
-             \x20   return match res {{\n\
-             \x20       Ok(valid) => false,\n\
-             \x20       Err(e) => true,\n\
-             \x20   }}\n\
-             }}\n\n\
-             fn main() {{\n\
-             \x20   let p1 = test_validation_passes()\n\
-             \x20   let p2 = test_validation_fails_on_empty()\n\
-             \x20   if p1 && p2 {{\n\
-             \x20       print(\"✓ All {singular_pascal} feature tests passed!\")\n\
-             \x20   }} else {{\n\
-             \x20       print(\"✗ Feature tests failed\")\n\
-             \x20   }}\n\
-             }}\n"
-        ),
-    )
-    .unwrap();
-
-    // 12. Barrel index export: index.kora
-    fs::write(
-        feat_dir.join("index.kora"),
-        format!(
-            "import {{ {feat_pascal}Routes }} from \"./routes/{singular_lower}_routes\"\n\
-             import {{ {feat_pascal}Controller }} from \"./controllers/{singular_lower}_controller\"\n\
-             import {{ {feat_pascal}Service }} from \"./services/{singular_lower}_service\"\n\
-             import {{ {feat_pascal}Repository }} from \"./repositories/{singular_lower}_repository\"\n\
-             import {{ {singular_pascal}Validator }} from \"./validators/{singular_lower}_validator\"\n\
-             import {{ {singular_pascal}Error }} from \"./errors/{singular_lower}_errors\"\n\
-             import {{ Create{singular_pascal}Dto, Update{singular_pascal}Dto, {singular_pascal}ResponseDto, Paginated{feat_pascal}Dto }} from \"./models/{singular_lower}_dto\"\n\
-             import {{ {singular_pascal}Entity }} from \"./models/{singular_lower}_entity\"\n"
-        ),
-    )
-    .unwrap();
-
-    println!("✓ Generated Clean Architecture slice for `{feat_lower}`:");
-    println!(
-        "  ├── routes/{singular_lower}_routes.kora (HTTP Route Mapping & Controller Delegation)"
-    );
-    println!("  ├── controllers/{singular_lower}_controller.kora (HTTP Endpoints & DI)");
-    println!("  ├── services/{singular_lower}_service.kora (Business Logic & Transactions)");
-    println!("  ├── repositories/{singular_lower}_repository.kora (Database Data Access)");
-    println!("  ├── validators/{singular_lower}_validator.kora (Input Validation & RFC rules)");
-    println!("  ├── models/{singular_lower}_entity.kora (@entity Database Model)");
-    println!(
-        "  ├── models/{singular_lower}_dto.kora (Create / Update / Response / Paginated DTOs)"
-    );
-    println!("  ├── interfaces/{singular_lower}_service_interface.kora (Service Contract)");
-    println!("  ├── interfaces/{singular_lower}_repository_interface.kora (Repository Contract)");
-    println!("  ├── errors/{singular_lower}_errors.kora (Type-Safe Domain Errors)");
-    println!("  ├── events/{singular_lower}_events.kora (Domain Events)");
-    println!("  ├── tests/{singular_lower}_test.kora (Automated Unit Tests)");
-    println!("  └── index.kora (Barrel Module Export)");
-    println!("\nTo register routes in `src/main.kora` via Application container:");
-    println!(
-        "  import {{ {feat_pascal}Routes }} from \"./features/{feat_lower}/routes/{singular_lower}_routes\""
-    );
-    println!("  app.use({feat_pascal}Routes)");
-    println!(
-        "  get(\"/api/{feat_lower}/:id\", (app: Application, ctrl: {feat_pascal}Controller) => ctrl.get_by_id(1))"
-    );
-
-    ExitCode::SUCCESS
 }
 
 fn cmd_db(action: Option<&String>, path: Option<&String>) -> ExitCode {

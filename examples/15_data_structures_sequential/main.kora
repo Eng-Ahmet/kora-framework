@@ -1,0 +1,32 @@
+// ============================================================================
+// Example 15: Sequential Collections Clean Architecture — Main Entrypoint
+// Encapsulated within Application Class Container
+// ============================================================================
+
+import { SequentialService } from "./services/sequential.service"
+
+class Application {
+    service: SequentialService
+
+    init(service: SequentialService) {
+        this.service = service
+    }
+
+    fn runDemo() -> Unit {
+        let vectorSize = this.service.runVectorDemo()
+        let lastAction = this.service.runStackDemo()
+        let nextJob = this.service.runQueueDemo()
+        let bufferCount = this.service.runBufferDemo()
+        let task = this.service.createSampleTask()
+
+        print("=== Sequential Collections Clean Architecture ===")
+        print(task.title)
+        print(vectorSize)
+        print(lastAction)
+        print(nextJob)
+        print(bufferCount)
+    }
+}
+
+let app = Application(SequentialService())
+app.runDemo()

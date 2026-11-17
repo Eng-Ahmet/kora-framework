@@ -1,27 +1,19 @@
 // ============================================================================
-// Example 03: Full RESTful CRUD Products API — Main Entrypoint
+// Example 03: CRUD Products API — Main Entrypoint
+// Encapsulated within Application Class Container
 // ============================================================================
 
 import { ProductRouter } from "./routes/product.routes"
 
-let app = run()
+class Application {
+    init() {}
 
-get("/products", (routes: ProductRouter) => {
-    return routes.listProducts()
-})
+    fn bootstrap() -> Unit {
+        let app = run()
+        app.use(ProductRouter)
+        app.listen(3000)
+    }
+}
 
-get("/products/{id}", (id: Int, routes: ProductRouter) => {
-    return routes.getProduct(id)
-})
-
-post("/products", (request: Request, routes: ProductRouter) => {
-    return routes.createProduct(request.body)
-})
-
-put("/products/{id}", (id: Int, request: Request, routes: ProductRouter) => {
-    return routes.updateProduct(id, request.body)
-})
-
-delete("/products/{id}", (id: Int, routes: ProductRouter) => {
-    return routes.deleteProduct(id)
-})
+let app = Application()
+app.bootstrap()

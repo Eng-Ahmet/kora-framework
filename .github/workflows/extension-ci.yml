@@ -1,0 +1,82 @@
+name: Extension CI & Marketplace CD
+
+on:
+  push:
+    paths:
+      - 'integrations/vscode/**'
+      - '.github/workflows/extension-ci.yml'
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'integrations/vscode/**'
+  workflow_dispatch:
+    inputs:
+      publish_marketplace:
+        description: 'Publish to VS Code Marketplace & Open VSX'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-package:
+    name: Build, Validate & Package VS Code Extension
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Dependencies
+        run: |
+          cd integrations/vscode
+          npm install
+
+      - name: Read Extension Version
+        id: ext_version
+        run: |
+          cd integrations/vscode
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected extension version: ${VERSION}"
+
+      - name: Package .vsix
+        run: |
+          VERSION="${{ steps.ext_version.outputs.version }}"
+          mkdir -p dist
+          cd integrations/vscode
+          npx @vscode/vsce package --no-git-tag-version "${VERSION}" --out "../../dist/kora-vscode-${VERSION}.vsix" --allow-missing-repository
+          cp "../../dist/kora-vscode-${VERSION}.vsix" "../../dist/kora-vscode-latest.vsix"
+
+      - name: Upload .vsix Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kora-vscode-extension
+          path: dist/*
+
+      - name: Publish to Open VSX Registry (Eclipse Foundation)
+        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && (env.KORA_OVSX_TOKEN != '' || env.OVSX_PAT != '')
+        env:
+          KORA_OVSX_TOKEN: ${{ secrets.KORA_OVSX_TOKEN || secrets.OVSX_PAT }}
+        run: |
+          VERSION="${{ steps.ext_version.outputs.version }}"
+          echo "Publishing Kora Language Extension v${VERSION} to Open VSX Registry..."
+          npx ovsx publish "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_OVSX_TOKEN" || true
+
+      - name: Publish to Visual Studio Marketplace (Microsoft)
+        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && (env.KORA_VSCODE_MARKETPLACE_TOKEN != '' || env.VSCE_PAT != '')
+        env:
+          KORA_VSCODE_MARKETPLACE_TOKEN: ${{ secrets.KORA_VSCODE_MARKETPLACE_TOKEN || secrets.VSCE_PAT }}
+        run: |
+          VERSION="${{ steps.ext_version.outputs.version }}"
+          echo "Publishing Kora Language Extension v${VERSION} to Visual Studio Marketplace..."
+          npx @vscode/vsce publish --packagePath "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_VSCODE_MARKETPLACE_TOKEN" || true

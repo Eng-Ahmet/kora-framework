@@ -1,0 +1,15 @@
+// ============================================================================
+// Database Entity: User (@table("users"))
+// Placed in entities/ - Strictly segregated from DTOs
+// ============================================================================
+
+@table("users")
+model User {
+    @id
+    id: Int
+    @column("name")
+    name: String
+    @unique
+    email: String
+    active: Bool
+}
