@@ -109,7 +109,7 @@
         {
           "id": "kora-sidebar",
           "title": "Kora Framework",
-          "icon": "./icons/kora-file.svg"
+          "icon": "./icons/kora-activitybar.svg"
         }
       ]
     },

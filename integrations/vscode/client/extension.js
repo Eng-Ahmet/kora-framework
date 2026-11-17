@@ -1106,47 +1106,68 @@ class KoraAssistantViewProvider {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
         }
         .logo {
-            font-size: 15px;
+            font-size: 13px;
             font-weight: 700;
-            color: var(--vscode-textLink-foreground);
+            color: var(--vscode-foreground);
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            letter-spacing: 0.2px;
+        }
+        .logo-icon {
+            display: block;
+            flex-shrink: 0;
         }
         .engine-badge {
-            font-size: 9px;
+            font-size: 10px;
             background: rgba(16, 185, 129, 0.15);
-            color: #10B981;
-            border: 1px solid #10B981;
-            padding: 1px 5px;
-            border-radius: 10px;
+            color: #34D399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 2px 7px;
+            border-radius: 12px;
             font-weight: 600;
+            white-space: nowrap;
         }
         .tabs {
             display: flex;
-            gap: 4px;
+            gap: 2px;
             margin-bottom: 12px;
-            background: var(--vscode-editor-background);
+            background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
             padding: 3px;
-            border-radius: 4px;
+            border-radius: 6px;
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar {
+            display: none;
         }
         .tab-btn {
-            flex: 1;
+            flex: 1 0 auto;
             background: transparent;
             color: var(--vscode-foreground);
+            opacity: 0.75;
             border: none;
-            padding: 6px 4px;
+            padding: 6px 8px;
             font-size: 11px;
-            border-radius: 3px;
+            font-weight: 500;
+            border-radius: 4px;
             cursor: pointer;
             text-align: center;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .tab-btn:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.06);
         }
         .tab-btn.active {
+            opacity: 1;
             background: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
             font-weight: 600;
@@ -1158,10 +1179,10 @@ class KoraAssistantViewProvider {
             display: block;
         }
         .file-status-box {
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-widget-border);
-            border-radius: 6px;
-            padding: 10px;
+            background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+            border-radius: 8px;
+            padding: 12px;
             margin-bottom: 12px;
         }
         .file-title {
@@ -1171,17 +1192,21 @@ class KoraAssistantViewProvider {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 8px;
         }
         .pill {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 12px;
             font-size: 10px;
             font-weight: 600;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
         }
-        .pill.runnable { background: #10B981; color: #fff; }
-        .pill.library { background: #3B82F6; color: #fff; }
-        .pill.test { background: #8B5CF6; color: #fff; }
+        .pill.runnable { background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); }
+        .pill.library { background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.35); }
+        .pill.test { background: rgba(139, 92, 246, 0.2); color: #A78BFA; border: 1px solid rgba(139, 92, 246, 0.35); }
         .action-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -1189,25 +1214,35 @@ class KoraAssistantViewProvider {
             margin-top: 10px;
         }
         button.action-btn {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            border: 1px solid var(--vscode-button-border, transparent);
-            padding: 6px 8px;
-            border-radius: 4px;
+            background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+            color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+            border: 1px solid var(--vscode-button-border, rgba(255, 255, 255, 0.1));
+            padding: 7px 8px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 11px;
+            font-weight: 500;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
-        }
-        button.action-btn.primary {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            grid-column: span 2;
+            gap: 5px;
+            transition: all 0.15s ease;
+            white-space: nowrap;
         }
         button.action-btn:hover {
-            opacity: 0.9;
+            background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.14));
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        button.action-btn.primary {
+            grid-column: span 2;
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            font-weight: 600;
+            border: none;
+            padding: 8px 12px;
+        }
+        button.action-btn.primary:hover {
+            background: var(--vscode-button-hoverBackground);
         }
         .explanation-box {
             background: var(--vscode-editor-background);
@@ -1359,15 +1394,21 @@ class KoraAssistantViewProvider {
 </head>
 <body>
     <div class="header">
-        <span class="logo">⚡ Kora Copilot</span>
-        <span class="engine-badge" id="engine-indicator">Knowledge Core (.agent & docs)</span>
+        <div class="logo">
+            <svg class="logo-icon" viewBox="0 0 24 24" width="18" height="18">
+                <path d="M 4 3 C 4 2.45 4.45 2 5 2 L 7 2 C 7.55 2 8 2.45 8 3 L 8 21 C 8 21.55 7.55 22 7 22 L 5 22 C 4.45 22 4 21.55 4 21 Z" fill="#FFFFFF"/>
+                <path d="M 8 12.8 L 16.2 3.6 C 16.6 3.2 17.2 3 17.8 3 L 20 3 C 20.8 3 21.3 3.9 20.8 4.6 L 12.8 13.5 L 21.1 21.4 C 21.6 22.1 21.1 23 20.2 23 L 17.8 23 C 17.3 23 16.7 22.8 16.3 22.4 L 8 14.5 Z" fill="#38BDF8"/>
+            </svg>
+            <span>Kora Copilot</span>
+        </div>
+        <span class="engine-badge" id="engine-indicator">● Active</span>
     </div>
 
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('copilot')">Inspector</button>
         <button class="tab-btn" onclick="switchTab('arch')">Architecture</button>
         <button class="tab-btn" onclick="switchTab('learn')">Learning</button>
-        <button class="tab-btn" onclick="switchTab('ask')">Copilot Chat</button>
+        <button class="tab-btn" onclick="switchTab('ask')">AI Chat</button>
         <button class="tab-btn" onclick="switchTab('examples')">Examples (23)</button>
     </div>
 
@@ -1382,11 +1423,12 @@ class KoraAssistantViewProvider {
             
             <div class="action-grid">
                 <button class="action-btn primary" id="btn-run" onclick="smartRun()">▶ Smart Run / Test</button>
-                <button class="action-btn" onclick="auditFile()">🛡️ Audit .agent Rules</button>
+                <button class="action-btn" onclick="auditFile()">🛡️ Audit Rules</button>
                 <button class="action-btn" onclick="checkFile()">⚡ Check Types</button>
                 <button class="action-btn" onclick="runTests()">🧪 Test Suite</button>
                 <button class="action-btn" onclick="explainCode()">💡 Explain Code</button>
                 <button class="action-btn" onclick="generateTests()">✨ Scaffold Tests</button>
+                <button class="action-btn" onclick="switchTab('arch')">🏛️ Workspace Map</button>
             </div>
         </div>
 
