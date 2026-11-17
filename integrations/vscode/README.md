@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./icon.png" width="128" height="128" alt="Kora Logo" />
+  <img src="https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/icon.png" width="128" height="128" alt="Kora Logo" />
 </p>
 
 <h1 align="center">Kora Language Support for Visual Studio Code & Modern IDEs</h1>

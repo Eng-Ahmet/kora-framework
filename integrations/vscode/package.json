@@ -20,9 +20,9 @@
     "url": "https://github.com/Hwai-technology/kora-framework/issues"
   },
   "scripts": {
-    "package": "vsce package --no-git-tag-version",
-    "publish:vscode": "vsce publish",
-    "publish:ovsx": "ovsx publish",
+    "package": "vsce package --no-git-tag-version --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/",
+    "publish:vscode": "vsce publish --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/",
+    "publish:ovsx": "ovsx publish --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/",
     "publish:all": "npm run publish:vscode && npm run publish:ovsx"
   },
   "engines": {
