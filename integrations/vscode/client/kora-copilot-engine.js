@@ -363,12 +363,12 @@ class KoraCopilotEngine {
     async answerPrompt(prompt, activeDoc, config) {
         const provider = (config && config.provider) ? config.provider.toLowerCase() : 'embedded';
 
-        if (provider !== 'embedded' && config && config.endpoint) {
+        if (provider !== 'embedded') {
             try {
                 return await this._callExternalLlm(prompt, activeDoc, config);
             } catch (err) {
                 const fallbackResponse = this._generateEmbeddedResponse(prompt, activeDoc);
-                return `> ⚠️ **Note**: External LLM (${provider}) was unreachable (${err.message}). Showing response from **Kora Embedded Knowledge Engine**:\n\n` + fallbackResponse;
+                return `> ⚠️ **Provider Notice**: External LLM (${provider}) was unreachable: ${err.message}.\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
             }
         }
 
@@ -457,25 +457,74 @@ I understand the complete Kora Language specification, Clean Architecture invari
 
     _callExternalLlm(prompt, activeDoc, config) {
         return new Promise((resolve, reject) => {
-            const provider = config.provider.toLowerCase();
-            let endpointUrl = config.endpoint;
+            const provider = (config.provider || 'embedded').toLowerCase();
+            let endpointUrl = config.endpoint || '';
 
-            const systemPrompt = `You are the Official Kora Framework AI Copilot.
-You specialize in Kora programming language (clean, fast backend language inspired by Rust and TypeScript).
-Key Rules:
-1. Strict Single-Null design: use \`null\` or \`Option<T>\`. Never use \`undefined\`.
-2. Clean Architecture: Controllers and Services must use Dependency Injection via \`init(...)\`.
-3. Directory Segregation: @table entities in \`entities/\`, transport DTOs in \`models/\`.
-4. Testing: All load tests require an explicit \`teardown()\` method.
-5. Provide idiomatic, compilable Kora code.`;
+            // 1. Augment system prompt with matching Kora rules and knowledge
+            const query = prompt.toLowerCase();
+            let relevantContext = '';
+            for (const item of KORA_KNOWLEDGE_BASE) {
+                if (item.keywords.some(kw => query.includes(kw))) {
+                    relevantContext += `\n\n[Official Kora Rule Reference (${item.source})]:\n${item.content}\n`;
+                    break;
+                }
+            }
+
+            // 2. Augment with active file code if open in editor
+            let fileContext = '';
+            if (activeDoc) {
+                const fileName = path.basename(activeDoc.fileName);
+                const codeSnippet = activeDoc.getText().slice(0, 3500);
+                fileContext = `\n\n[Current Active File: ${fileName}]\n\`\`\`kora\n${codeSnippet}\n\`\`\``;
+            }
+
+            const systemPrompt = `You are the Official Kora Framework AI Copilot & Compiler Assistant.
+Kora is a high-performance backend language combining TypeScript-like DX with Rust-level memory safety and Go-inspired concurrency.
+
+CORE KORA INVARIANTS & ARCHITECTURAL RULES:
+1. Strict Single-Null Design: Kora supports \`null\` and \`Option<T>\`. The JavaScript/TypeScript concept of \`undefined\` is STRICTLY FORBIDDEN.
+2. Clean Architecture: All Services and Controllers MUST use constructor Dependency Injection via \`init(...)\`. Acyclic dependencies only.
+3. Layer Directory Segregation: Relational and NoSQL entities (@table, @collection) belong exclusively in \`entities/\`. DTO payloads belong in \`models/\`.
+4. Concurrency: Built-in actor model with mailboxes (\`tell\` for non-blocking send, \`ask\` for async request-reply), channels, and Tokio worker thread execution.
+5. Testing Standards: Load stress tests require an explicit \`teardown()\` method to release simulated resources.
+6. Provide idiomatic, clean, compile-ready Kora code with proper type annotations.${relevantContext}${fileContext}`;
 
             let postData = '';
             let headers = { 'Content-Type': 'application/json' };
 
-            if (provider === 'ollama') {
-                if (!endpointUrl.includes('/api/')) endpointUrl = endpointUrl.replace(/\/$/, '') + '/api/generate';
+            if (provider === 'github') {
+                // GitHub Models API (Azure AI / GitHub Marketplace free inference)
+                if (!endpointUrl || endpointUrl.includes('localhost') || !endpointUrl.startsWith('http')) {
+                    endpointUrl = 'https://models.inference.ai.azure.com/chat/completions';
+                } else if (!endpointUrl.includes('/chat/completions')) {
+                    endpointUrl = endpointUrl.replace(/\/$/, '') + '/chat/completions';
+                }
+
+                const token = config.githubToken || config.apiKey || process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+                if (!token) {
+                    return reject(new Error("GitHub Token required. Set 'kora.copilot.githubToken' in VS Code settings or paste your GitHub Personal Access Token."));
+                }
+                headers['Authorization'] = `Bearer ${token}`;
+
+                const model = config.model && config.model !== 'llama3' ? config.model : 'gpt-4o-mini';
                 postData = JSON.stringify({
-                    model: config.model || 'llama3',
+                    model: model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 0.2
+                });
+            } else if (provider === 'ollama') {
+                // Local small English models via Ollama (e.g. phi3:mini, llama3.2:1b, qwen2.5-coder)
+                if (!endpointUrl || endpointUrl.includes('models.inference.ai.azure.com')) {
+                    endpointUrl = 'http://localhost:11434/api/generate';
+                } else if (!endpointUrl.includes('/api/')) {
+                    endpointUrl = endpointUrl.replace(/\/$/, '') + '/api/generate';
+                }
+                const model = config.model && config.model !== 'gpt-4o-mini' ? config.model : 'phi3:mini';
+                postData = JSON.stringify({
+                    model: model,
                     system: systemPrompt,
                     prompt: prompt,
                     stream: false
@@ -490,9 +539,17 @@ Key Rules:
                         { role: 'user', content: prompt }
                     ]
                 });
+            } else {
+                return reject(new Error(`Unsupported provider: ${provider}`));
             }
 
-            const urlObj = new URL(endpointUrl);
+            let urlObj;
+            try {
+                urlObj = new URL(endpointUrl);
+            } catch (err) {
+                return reject(new Error(`Invalid API endpoint URL: ${endpointUrl}`));
+            }
+
             const client = urlObj.protocol === 'https:' ? https : http;
 
             const req = client.request(urlObj, {
@@ -508,19 +565,25 @@ Key Rules:
                             resolve(json.response);
                         } else if (json.choices && json.choices[0] && json.choices[0].message) {
                             resolve(json.choices[0].message.content);
+                        } else if (json.error) {
+                            reject(new Error(typeof json.error === 'string' ? json.error : (json.error.message || JSON.stringify(json.error))));
                         } else {
                             resolve(data);
                         }
                     } catch (e) {
-                        resolve(data);
+                        if (res.statusCode >= 400) {
+                            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                        } else {
+                            resolve(data);
+                        }
                     }
                 });
             });
 
             req.on('error', err => reject(err));
-            req.setTimeout(8000, () => {
+            req.setTimeout(15000, () => {
                 req.destroy();
-                reject(new Error("Request timed out (8s)"));
+                reject(new Error("Request timed out (15s)"));
             });
 
             req.write(postData);

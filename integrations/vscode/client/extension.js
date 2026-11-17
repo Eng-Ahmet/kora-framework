@@ -926,6 +926,47 @@ class KoraAssistantViewProvider {
                 case 'askQuestion':
                     await this.answerKoraPrompt(message.prompt);
                     break;
+                case 'updateProvider':
+                    if (message.provider) {
+                        const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                        await cfg.update('provider', message.provider, vscode.ConfigurationTarget.Global);
+                        this.syncProviderToWebview();
+                    }
+                    break;
+                case 'requestGitHubAuth':
+                    try {
+                        const session = await vscode.authentication.getSession('github', ['read:user'], { createIfNone: true });
+                        if (session && session.accessToken) {
+                            const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                            await cfg.update('githubToken', session.accessToken, vscode.ConfigurationTarget.Global);
+                            await cfg.update('provider', 'github', vscode.ConfigurationTarget.Global);
+                            vscode.window.showInformationMessage(`✅ GitHub Account linked for Kora Copilot (${session.account ? session.account.label : 'authenticated'})!`);
+                            this.syncProviderToWebview();
+                        }
+                    } catch (err) {
+                        vscode.window.showWarningMessage(`Could not link GitHub account: ${err.message}. You can manually paste a token.`);
+                    }
+                    break;
+                case 'updateGitHubConfig':
+                    {
+                        const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                        if (message.token) await cfg.update('githubToken', message.token, vscode.ConfigurationTarget.Global);
+                        if (message.model) await cfg.update('model', message.model, vscode.ConfigurationTarget.Global);
+                        await cfg.update('provider', 'github', vscode.ConfigurationTarget.Global);
+                        vscode.window.showInformationMessage(`✅ GitHub Models configured (${message.model || 'gpt-4o-mini'})!`);
+                        this.syncProviderToWebview();
+                    }
+                    break;
+                case 'updateOllamaConfig':
+                    {
+                        const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                        if (message.endpoint) await cfg.update('endpoint', message.endpoint, vscode.ConfigurationTarget.Global);
+                        if (message.model) await cfg.update('model', message.model, vscode.ConfigurationTarget.Global);
+                        await cfg.update('provider', 'ollama', vscode.ConfigurationTarget.Global);
+                        vscode.window.showInformationMessage(`✅ Local Ollama configured (${message.model || 'phi3:mini'})!`);
+                        this.syncProviderToWebview();
+                    }
+                    break;
             }
         });
 
@@ -1008,13 +1049,51 @@ class KoraAssistantViewProvider {
         const doc = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document : null;
         const config = vscode.workspace.getConfiguration('kora.copilot');
 
-        const answer = await this.engine.answerPrompt(prompt, doc, config);
+        let provider = config.get('provider', 'embedded');
+        let githubToken = config.get('githubToken', '');
+        let model = config.get('model', 'gpt-4o-mini');
+        let endpoint = config.get('endpoint', 'https://models.inference.ai.azure.com');
+        let apiKey = config.get('apiKey', '');
+
+        // If provider is GitHub and token isn't in settings or env, try silent session lookup
+        if (provider === 'github' && !githubToken && !apiKey && !process.env.GITHUB_TOKEN && !process.env.GH_TOKEN) {
+            try {
+                const session = await vscode.authentication.getSession('github', ['read:user'], { createIfNone: false });
+                if (session && session.accessToken) {
+                    githubToken = session.accessToken;
+                }
+            } catch (e) {}
+        }
+
+        const runtimeConfig = {
+            provider,
+            githubToken,
+            model,
+            endpoint,
+            apiKey
+        };
+
+        const answer = await this.engine.answerPrompt(prompt, doc, runtimeConfig);
 
         if (this.view) {
             this.view.webview.postMessage({
                 type: 'assistantAnswer',
                 answer: answer,
-                provider: config.get('provider', 'embedded')
+                provider: provider,
+                model: model
+            });
+        }
+    }
+
+    syncProviderToWebview() {
+        if (this.view) {
+            const config = vscode.workspace.getConfiguration('kora.copilot');
+            this.view.webview.postMessage({
+                type: 'syncConfig',
+                provider: config.get('provider', 'embedded'),
+                model: config.get('model', 'gpt-4o-mini'),
+                hasGitHubToken: Boolean(config.get('githubToken') || process.env.GITHUB_TOKEN),
+                endpoint: config.get('endpoint', 'http://localhost:11434')
             });
         }
     }
@@ -1324,6 +1403,51 @@ class KoraAssistantViewProvider {
             border-radius: 3px;
             cursor: pointer;
         }
+        .provider-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-widget-border);
+            border-radius: 4px;
+            padding: 4px 8px;
+            margin-bottom: 8px;
+        }
+        .provider-select-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+        }
+        .provider-select {
+            background: var(--vscode-dropdown-background);
+            color: var(--vscode-dropdown-foreground);
+            border: 1px solid var(--vscode-dropdown-border);
+            border-radius: 3px;
+            font-size: 11px;
+            padding: 3px 6px;
+            flex: 1;
+            cursor: pointer;
+        }
+        .btn-config-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 2px 4px;
+            opacity: 0.8;
+        }
+        .btn-config-toggle:hover {
+            opacity: 1.0;
+        }
+        .provider-config-box {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-widget-border);
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 10px;
+            font-size: 11px;
+        }
         .chat-input-row {
             display: flex;
             gap: 4px;
@@ -1528,6 +1652,56 @@ class KoraAssistantViewProvider {
 
     <!-- 2. Copilot Chat -->
     <div id="tab-ask" class="section">
+        <div class="provider-bar">
+            <div class="provider-select-group">
+                <span style="font-size: 10px; opacity: 0.8; font-weight: 600;">Engine:</span>
+                <select id="copilot-provider-select" class="provider-select" onchange="onProviderSelectChanged(this.value)">
+                    <option value="embedded">⚡ Embedded Core (Offline Rules)</option>
+                    <option value="github">🐙 GitHub Models (gpt-4o-mini)</option>
+                    <option value="ollama">🦙 Local Ollama (phi3 / llama3.2)</option>
+                </select>
+            </div>
+            <button class="btn-config-toggle" onclick="toggleConfigPanel()" title="Configure Engine Settings">⚙️</button>
+        </div>
+
+        <div id="provider-config-box" class="provider-config-box" style="display: none;">
+            <div id="cfg-github">
+                <div style="font-weight: 600; margin-bottom: 4px;">🐙 GitHub Models Setup</div>
+                <button class="action-btn primary" style="width: 100%; margin-bottom: 6px; padding: 4px;" onclick="requestGitHubLogin()">🔗 Auto-Link GitHub Account</button>
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Or paste Personal Access Token (PAT):</div>
+                <input type="password" id="cfg-gh-token" class="chat-input" placeholder="ghp_... or github_pat_..." style="width: 100%; margin-bottom: 6px; box-sizing: border-box;" />
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Model:</div>
+                <div style="display: flex; gap: 4px;">
+                    <select id="cfg-gh-model" class="provider-select" style="flex: 1;">
+                        <option value="gpt-4o-mini">gpt-4o-mini (Fast & Recommended)</option>
+                        <option value="Phi-3.5-mini-instruct">Phi-3.5-mini-instruct (Small)</option>
+                        <option value="Meta-Llama-3.1-8B-Instruct">Meta-Llama-3.1-8B-Instruct</option>
+                    </select>
+                    <button class="chat-btn" onclick="saveGitHubConfig()">Save</button>
+                </div>
+            </div>
+            <div id="cfg-ollama" style="display: none;">
+                <div style="font-weight: 600; margin-bottom: 4px;">🦙 Local Ollama Setup</div>
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Endpoint URL:</div>
+                <input type="text" id="cfg-ollama-endpoint" class="chat-input" value="http://localhost:11434" style="width: 100%; margin-bottom: 6px; box-sizing: border-box;" />
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Small Model Name:</div>
+                <div style="display: flex; gap: 4px;">
+                    <select id="cfg-ollama-model" class="provider-select" style="flex: 1;">
+                        <option value="phi3:mini">phi3:mini (Fast Microsoft Small Model)</option>
+                        <option value="llama3.2:1b">llama3.2:1b (Meta Ultralight 1B)</option>
+                        <option value="llama3.2:3b">llama3.2:3b (Meta Light 3B)</option>
+                        <option value="qwen2.5-coder:1.5b">qwen2.5-coder:1.5b (Coding Specialist)</option>
+                        <option value="llama3">llama3 (Standard 8B)</option>
+                    </select>
+                    <button class="chat-btn" onclick="saveOllamaConfig()">Save</button>
+                </div>
+            </div>
+            <div id="cfg-embedded" style="display: none;">
+                <div style="font-weight: 600; margin-bottom: 2px;">⚡ Embedded Knowledge Engine</div>
+                <div style="font-size: 10px; opacity: 0.8;">Instant offline inference powered by Kora AST analyzer, .agent/rules/ invariants, and the official language documentation.</div>
+            </div>
+        </div>
+
         <div class="suggestion-chips">
             <span class="chip" onclick="askChip('Audit active file against .agent rules')">🛡️ Audit Rules</span>
             <span class="chip" onclick="askChip('Explain Rule 04: Clean Architecture')">🏛️ Rule 04 Architecture</span>
@@ -1539,7 +1713,7 @@ class KoraAssistantViewProvider {
         <div class="chat-history" id="chat-history"></div>
 
         <div class="chat-input-row">
-            <input type="text" id="chat-input" class="chat-input" placeholder="Ask Kora Copilot (.agent & docs indexed)..." onkeydown="if(event.key==='Enter') sendPrompt()" />
+            <input type="text" id="chat-input" class="chat-input" placeholder="Ask Kora Copilot (or discuss active code)..." onkeydown="if(event.key==='Enter') sendPrompt()" />
             <button class="chat-btn" onclick="sendPrompt()">Send</button>
         </div>
     </div>
@@ -1577,6 +1751,53 @@ class KoraAssistantViewProvider {
         function askChip(text) {
             document.getElementById('chat-input').value = text;
             sendPrompt();
+        }
+
+        function onProviderSelectChanged(provider) {
+            vscode.postMessage({ type: 'updateProvider', provider: provider });
+            updateConfigBoxVisibility(provider);
+        }
+
+        function toggleConfigPanel() {
+            const box = document.getElementById('provider-config-box');
+            box.style.display = box.style.display === 'none' ? 'block' : 'none';
+            const current = document.getElementById('copilot-provider-select').value;
+            updateConfigBoxVisibility(current);
+        }
+
+        function updateConfigBoxVisibility(provider) {
+            const gh = document.getElementById('cfg-github');
+            const ol = document.getElementById('cfg-ollama');
+            const em = document.getElementById('cfg-embedded');
+            if (gh) gh.style.display = provider === 'github' ? 'block' : 'none';
+            if (ol) ol.style.display = provider === 'ollama' ? 'block' : 'none';
+            if (em) em.style.display = provider === 'embedded' ? 'block' : 'none';
+        }
+
+        function requestGitHubLogin() {
+            vscode.postMessage({ type: 'requestGitHubAuth' });
+        }
+
+        function saveGitHubConfig() {
+            const token = document.getElementById('cfg-gh-token').value.trim();
+            const model = document.getElementById('cfg-gh-model').value;
+            vscode.postMessage({
+                type: 'updateGitHubConfig',
+                token: token,
+                model: model
+            });
+            document.getElementById('provider-config-box').style.display = 'none';
+        }
+
+        function saveOllamaConfig() {
+            const endpoint = document.getElementById('cfg-ollama-endpoint').value.trim();
+            const model = document.getElementById('cfg-ollama-model').value;
+            vscode.postMessage({
+                type: 'updateOllamaConfig',
+                endpoint: endpoint,
+                model: model
+            });
+            document.getElementById('provider-config-box').style.display = 'none';
         }
 
         function sendPrompt() {
@@ -1674,6 +1895,24 @@ class KoraAssistantViewProvider {
                 appendMessage('assistant', msg.answer);
                 if (msg.provider && msg.provider !== 'embedded') {
                     document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
+                }
+            } else if (msg.type === 'syncConfig') {
+                const select = document.getElementById('copilot-provider-select');
+                if (select) select.value = msg.provider || 'embedded';
+                if (msg.provider && msg.provider !== 'embedded') {
+                    document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
+                } else {
+                    document.getElementById('engine-indicator').innerText = '● Active (Embedded)';
+                }
+                if (msg.model) {
+                    const ghModel = document.getElementById('cfg-gh-model');
+                    if (ghModel && msg.provider === 'github') ghModel.value = msg.model;
+                    const olModel = document.getElementById('cfg-ollama-model');
+                    if (olModel && msg.provider === 'ollama') olModel.value = msg.model;
+                }
+                if (msg.endpoint) {
+                    const olEnd = document.getElementById('cfg-ollama-endpoint');
+                    if (olEnd) olEnd.value = msg.endpoint;
                 }
             }
         });

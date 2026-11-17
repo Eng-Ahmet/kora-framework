@@ -299,6 +299,7 @@
           "type": "string",
           "enum": [
             "embedded",
+            "github",
             "ollama",
             "openai",
             "gemini",
@@ -306,17 +307,22 @@
             "custom"
           ],
           "default": "embedded",
-          "description": "AI provider used by Kora Copilot (defaults to the built-in offline knowledge engine indexing .agent/rules and docs)."
+          "description": "AI provider used by Kora Copilot: 'embedded' (offline rule engine), 'github' (GitHub Models API using PAT or GitHub session), 'ollama' (local small models like phi3:mini, llama3.2), or cloud APIs."
+        },
+        "kora.copilot.githubToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Personal Access Token (or fine-grained token) for GitHub Models API inference."
         },
         "kora.copilot.endpoint": {
           "type": "string",
-          "default": "http://localhost:11434",
-          "description": "Custom LLM API endpoint URL (e.g. http://localhost:11434 for Ollama)."
+          "default": "https://models.inference.ai.azure.com",
+          "description": "Custom LLM API endpoint URL (e.g. https://models.inference.ai.azure.com for GitHub Models, or http://localhost:11434 for Ollama)."
         },
         "kora.copilot.model": {
           "type": "string",
-          "default": "llama3",
-          "description": "Model name for external LLM provider."
+          "default": "gpt-4o-mini",
+          "description": "Model name for external LLM provider (e.g. 'gpt-4o-mini' or 'Phi-3.5-mini-instruct' for GitHub Models; 'phi3:mini' or 'llama3.2:1b' for Ollama)."
         },
         "kora.copilot.apiKey": {
           "type": "string",
