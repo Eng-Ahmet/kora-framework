@@ -366,6 +366,16 @@ class KoraCopilotEngine {
      * Answers a user prompt with authoritative knowledge from .agent/rules/ and docs/.
      */
     async answerPrompt(prompt, activeDoc, config) {
+        const query = (prompt || '').toLowerCase();
+
+        // 1. If prompt asks to audit rules or verify active file, perform deterministic compiler audit
+        if (query.includes('audit') || query.includes('check rules') || query.includes('verify file')) {
+            if (!activeDoc) {
+                return `### 🛡️ Kora Architecture & Rules Audit\n\n⚠️ **No active Kora file open in editor.**\nPlease open a \`.kora\` or \`.kr\` file in the editor to audit its code against official invariants in \`.agent/rules/\`.`;
+            }
+            return this._generateEmbeddedResponse(prompt, activeDoc);
+        }
+
         const provider = (config && config.provider) ? config.provider.toLowerCase() : 'embedded';
 
         if (provider === 'copilot') {
@@ -589,7 +599,11 @@ CORE KORA INVARIANTS & ARCHITECTURAL RULES:
 3. Layer Directory Segregation: Relational and NoSQL entities (@table, @collection) belong exclusively in \`entities/\`. DTO payloads belong in \`models/\`.
 4. Concurrency: Built-in actor model with mailboxes (\`tell\` for non-blocking send, \`ask\` for async request-reply), channels, and Tokio worker thread execution.
 5. Testing Standards: Load stress tests require an explicit \`teardown()\` method to release simulated resources.
-6. Provide idiomatic, clean, compile-ready Kora code with proper type annotations.${relevantContext}${fileContext}`;
+6. Provide idiomatic, clean, compile-ready Kora code with proper type annotations.
+
+STRICT INSTRUCTIONS:
+- NEVER output generic assistant introductions, boilerplate resumes, or self-descriptions.
+- Answer the user's specific technical question or code prompt directly, immediately, and concisely.${relevantContext}${fileContext}`;
     }
 
     async _callCopilotLm(prompt, activeDoc, config) {

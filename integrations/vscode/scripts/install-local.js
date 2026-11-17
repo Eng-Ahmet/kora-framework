@@ -91,3 +91,4 @@ if (fs.existsSync(vscodeExtDir)) {
 
 fs.rmSync(unpackDir, { recursive: true, force: true });
 console.log(`\n🎉 Kora Language Support v${version} built and locally installed successfully!`);
+

@@ -1356,6 +1356,15 @@ class KoraAssistantViewProvider {
         .section.active {
             display: block;
         }
+        #tab-ask.section.active {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 80px);
+            max-height: calc(100vh - 80px);
+            overflow: hidden;
+            box-sizing: border-box;
+            position: relative;
+        }
         .file-status-box {
             background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
             border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
@@ -1569,10 +1578,27 @@ class KoraAssistantViewProvider {
             margin-bottom: 10px;
             font-size: 11px;
         }
+        .chat-scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 2px;
+            margin-bottom: 4px;
+            min-height: 80px;
+        }
         .chat-input-row {
             display: flex;
             gap: 4px;
-            margin-bottom: 10px;
+            padding-top: 6px;
+            padding-bottom: 2px;
+            background: var(--vscode-sideBar-background);
+            border-top: 1px solid var(--vscode-widget-border);
+            margin-top: auto;
+            width: 100%;
+            z-index: 10;
         }
         .chat-input {
             flex: 1;
@@ -1595,7 +1621,7 @@ class KoraAssistantViewProvider {
             display: flex;
             flex-wrap: wrap;
             gap: 4px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
         .chip {
             background: var(--vscode-badge-background);
@@ -1612,9 +1638,7 @@ class KoraAssistantViewProvider {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            max-height: 380px;
-            overflow-y: auto;
-            margin-bottom: 10px;
+            width: 100%;
         }
         .msg-user {
             background: var(--vscode-button-secondaryBackground);
@@ -1634,6 +1658,32 @@ class KoraAssistantViewProvider {
             line-height: 1.4;
             max-width: 98%;
             white-space: pre-wrap;
+        }
+        .typing-cursor {
+            display: inline-block;
+            width: 6px;
+            height: 12px;
+            background: var(--vscode-textLink-foreground);
+            margin-left: 2px;
+            vertical-align: middle;
+            animation: blink 0.8s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .typing-indicator {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding: 6px 10px;
+            font-size: 11px;
+            opacity: 0.85;
+            color: var(--vscode-textLink-foreground);
+            background: var(--vscode-editor-background);
+            border-radius: 4px;
+            border-left: 3px solid var(--vscode-textLink-foreground);
+            font-style: italic;
         }
     </style>
 </head>
@@ -1828,15 +1878,17 @@ class KoraAssistantViewProvider {
             </div>
         </div>
 
-        <div class="suggestion-chips">
-            <span class="chip" onclick="askChip('Audit active file against .agent rules')">🛡️ Audit Rules</span>
-            <span class="chip" onclick="askChip('Explain Rule 04: Clean Architecture')">🏛️ Rule 04 Architecture</span>
-            <span class="chip" onclick="askChip('Show Rule 07: Multi-Engine Database ORM')">🗄️ Rule 07 Database</span>
-            <span class="chip" onclick="askChip('Show Rule 08: Actors & Mailboxes')">⚡ Rule 08 Concurrency</span>
-            <span class="chip" onclick="askChip('Explain Single-Null Design vs undefined')">🎯 Single-Null vs Undefined</span>
-        </div>
+        <div class="chat-scroll-area" id="chat-scroll-area">
+            <div class="suggestion-chips">
+                <span class="chip" onclick="askChip('Audit active file against .agent rules')">🛡️ Audit Rules</span>
+                <span class="chip" onclick="askChip('Explain Rule 04: Clean Architecture')">🏛️ Rule 04 Architecture</span>
+                <span class="chip" onclick="askChip('Show Rule 07: Multi-Engine Database ORM')">🗄️ Rule 07 Database</span>
+                <span class="chip" onclick="askChip('Show Rule 08: Actors & Mailboxes')">⚡ Rule 08 Concurrency</span>
+                <span class="chip" onclick="askChip('Explain Single-Null Design vs undefined')">🎯 Single-Null vs Undefined</span>
+            </div>
 
-        <div class="chat-history" id="chat-history"></div>
+            <div class="chat-history" id="chat-history"></div>
+        </div>
 
         <div class="chat-input-row">
             <input type="text" id="chat-input" class="chat-input" placeholder="Ask Kora Copilot (or discuss active code)..." onkeydown="if(event.key==='Enter') sendPrompt()" />
@@ -2119,17 +2171,78 @@ class KoraAssistantViewProvider {
             if (!prompt) return;
 
             appendMessage('user', prompt);
+            showTypingIndicator();
             vscode.postMessage({ type: 'askQuestion', prompt: prompt });
             input.value = '';
         }
 
         function appendMessage(role, text) {
             const history = document.getElementById('chat-history');
+            const scrollArea = document.getElementById('chat-scroll-area');
             const msg = document.createElement('div');
             msg.className = role === 'user' ? 'msg-user' : 'msg-assistant';
             msg.innerText = text;
             history.appendChild(msg);
-            history.scrollTop = history.scrollHeight;
+            if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            removeTypingIndicator();
+            const history = document.getElementById('chat-history');
+            const scrollArea = document.getElementById('chat-scroll-area');
+            const ind = document.createElement('div');
+            ind.id = 'active-typing-indicator';
+            ind.className = 'typing-indicator';
+            ind.innerHTML = '<span>⚡ Kora Copilot is responding</span><span class="typing-cursor"></span>';
+            history.appendChild(ind);
+            if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const ind = document.getElementById('active-typing-indicator');
+            if (ind) ind.remove();
+        }
+
+        function streamAssistantMessage(fullText, onDone) {
+            removeTypingIndicator();
+            const history = document.getElementById('chat-history');
+            const scrollArea = document.getElementById('chat-scroll-area');
+            const msg = document.createElement('div');
+            msg.className = 'msg-assistant';
+
+            const textSpan = document.createElement('span');
+            const cursor = document.createElement('span');
+            cursor.className = 'typing-cursor';
+
+            msg.appendChild(textSpan);
+            msg.appendChild(cursor);
+            history.appendChild(msg);
+
+            function scrollToBottom() {
+                if (scrollArea) {
+                    scrollArea.scrollTop = scrollArea.scrollHeight;
+                }
+            }
+            scrollToBottom();
+
+            let index = 0;
+            const len = fullText.length;
+            const step = len > 1500 ? 12 : (len > 500 ? 6 : (len > 150 ? 3 : 1));
+            const interval = 16;
+
+            const timer = setInterval(() => {
+                index += step;
+                if (index >= len) {
+                    textSpan.innerText = fullText;
+                    if (cursor.parentNode) cursor.remove();
+                    clearInterval(timer);
+                    scrollToBottom();
+                    if (onDone) onDone();
+                } else {
+                    textSpan.innerText = fullText.slice(0, index);
+                    scrollToBottom();
+                }
+            }, interval);
         }
 
         window.addEventListener('message', event => {
@@ -2205,7 +2318,7 @@ class KoraAssistantViewProvider {
                 container.style.display = 'block';
                 text.innerText = msg.walkthrough;
             } else if (msg.type === 'assistantAnswer') {
-                appendMessage('assistant', msg.answer);
+                streamAssistantMessage(msg.answer);
                 if (msg.provider && msg.provider !== 'embedded') {
                     document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
                 }
