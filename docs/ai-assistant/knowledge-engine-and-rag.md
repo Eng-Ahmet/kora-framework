@@ -21,3 +21,4 @@ Configured via VS Code settings:
 - `kora.copilot.endpoint`: e.g. `http://localhost:11434` for local Ollama
 - `kora.copilot.model`: e.g. `llama3`, `codellama`, `gpt-4o`
 - `kora.copilot.apiKey`: API key for cloud providers
+

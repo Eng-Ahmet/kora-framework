@@ -30,3 +30,4 @@ Commands:
 - `kora run <file>`: Full pipeline to native execution
 - `kora build <file>`: Compiles native release artifact into `.kora-build/`
 - `kora lsp`: Starts JSON-RPC 2.0 Language Server on stdio
+

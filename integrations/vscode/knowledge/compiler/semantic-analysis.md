@@ -20,3 +20,4 @@ Semantic analysis in Kora operates over the HIR (High-Level Intermediate Represe
      - Data Access / Repositories (`src/repositories/`)
      - Core Entities (`src/entities/`)
    - Emits compile-time diagnostics when inversion of control or encapsulation is broken.
+

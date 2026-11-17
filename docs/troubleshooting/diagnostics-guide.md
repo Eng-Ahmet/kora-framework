@@ -13,3 +13,4 @@
 | `E5002` | Error | Service directly depending on concrete database driver | Depend on interface abstraction rather than concrete class. |
 | `E5003` | Error | Domain entity leaking into API transport layer | Map `@table` entity to pure DTO model before returning to client. |
 | `E5004` | Error | Missing load test teardown | Implement explicit `teardown()` method in load test suite. |
+

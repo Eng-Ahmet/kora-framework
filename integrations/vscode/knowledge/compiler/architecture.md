@@ -18,3 +18,4 @@ The Kora compiler is implemented entirely in Rust with zero unsafe blocks in use
    Translates verified HIR into optimized, memory-safe Rust native code, compiled via `rustc` with LLVM backends.
 7. **Runtime Support (`kora-runtime`)**:
    Async reactor loop (Tokio), actor mailboxes, WebSocket hubs, and database connection pooling.
+

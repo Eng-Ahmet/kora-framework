@@ -14,3 +14,4 @@
 - Never mask missing values with arbitrary fallback defaults (`|| ''`, `|| 0`).
 - Always validate existence explicitly or return typed `Result` or `Option`.
 - Corrupt or missing required data must throw a domain error or return an error state.
+

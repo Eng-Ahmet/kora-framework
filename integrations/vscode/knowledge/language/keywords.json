@@ -35,3 +35,4 @@
     { "word": "any", "reason": "Kora requires strict static typing without unsafe dynamic type escape hatches." }
   ]
 }
+

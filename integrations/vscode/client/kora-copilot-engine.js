@@ -97,6 +97,27 @@ All Kora projects and generated features must provide automated test coverage:
 - \`kora example search <query>\`: Searches official examples catalog.
 - \`kora doctor\`: Verifies compiler, runtime, environment, and extension health.
 - \`kora fmt [path]\`: Canonical code formatter.`
+    },
+    {
+        topic: "VS Code Extension & Tooling (Rule 11)",
+        source: ".agent/rules/11-vscode-extension-and-tooling.md",
+        keywords: ["vscode", "extension", "ide", "lsp", "copilot", "hover", "autocomplete", "definition", "symbols", "quick fix", "audit", "learning center", "architecture explorer"],
+        content: `### 💻 VS Code Extension & IDE Tooling (Rule 11)
+The official Kora VS Code Extension (\`integrations/vscode/\`) provides:
+- **Native Language Providers**:
+  - \`CompletionItemProvider\`: Context-aware keywords, decorators, types, and dot-member autocompletion (\`user.\`).
+  - \`HoverProvider\`: Rich Markdown documentation explaining signatures, types, and Clean Architecture roles.
+  - \`DefinitionProvider\` (F12): Jump to declaration for models, classes, functions, and bindings.
+  - \`DocumentSymbolProvider\`: Full Outline View and Breadcrumb hierarchy.
+  - \`DocumentFormattingEditProvider\` (Shift+Alt+F): Canonical 4-space code formatting.
+  - \`FoldingRangeProvider\`: Multi-line block folding.
+  - \`CodeActionProvider\`: 1-click Quick Fixes for \`E2005\` (replace \`undefined\` with \`null\`), \`E5001\` (add \`init(...)\`), test scaffolding, and rules auditing.
+- **Kora Assistant Sidebar Panel**:
+  - **Inspector**: Real-time file analysis, entrypoint/test classification, live compiler diagnostics.
+  - **Architecture Explorer**: Live layer counters (Controllers, Services, Repositories, Entities, Models, Tests) & Clean Architecture data flow.
+  - **Learning Center**: 4 hands-on lessons with runnable code and 1-click editor insertion.
+  - **Copilot Chat**: Context-aware AI assistant querying \`.agent/rules/\`, \`docs/\`, and \`knowledge/\`.
+  - **Examples Browser**: 23 official production examples with 1-click scaffolding via \`kora example init\`.`
     }
 ];
 

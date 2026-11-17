@@ -16,3 +16,4 @@
     { "name": "swagger", "args": "[file]", "description": "Auto-generate OpenAPI 3.1 & Swagger UI docs from models & routes" }
   ]
 }
+

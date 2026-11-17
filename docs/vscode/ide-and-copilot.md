@@ -26,3 +26,4 @@ The official Kora VS Code extension (`kora-vscode`) provides language tooling, a
    - **Learning Center**: Hands-on lessons with runnable code examples.
    - **Copilot Chat**: RAG-augmented AI chat answering questions with authoritative citations.
    - **Examples Catalog**: Browse all 23 production examples with 1-click cloning.
+

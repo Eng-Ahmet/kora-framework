@@ -18,3 +18,4 @@
    - `@table` database entities must strictly reside in `src/entities/`.
    - Database entities MUST NEVER leak directly into public API responses (`error[E5003]`).
    - Controllers must return pure DTO models declared with `model`.
+

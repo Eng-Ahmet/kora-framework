@@ -78,3 +78,4 @@ This persistent document tracks engineering iterations, discoveries, architectur
   - Add native incremental semantic tokens highlighting via LSP (`textDocument/semanticTokens/full`).
   - Add debugger adapter protocol (DAP) stub for stepping through Kora expressions.
   - Expand `kora test` output with percentile latency graphs (P50, P95, P99) for load tests.
+

@@ -47,3 +47,4 @@ Relational database entities (`@table`) and NoSQL document models (`@collection`
 
 ### 4. E5004: Missing Load Test Teardown
 Load tests (`tests/*_load.test.kora`) must implement an explicit `teardown()` method to ensure zero resource leakage in test pipelines.
+
