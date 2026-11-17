@@ -74,6 +74,9 @@ jobs:
             exit 0
           fi
           VERSION="${{ steps.ext_version.outputs.version }}"
+          PUBLISHER=$(node -p "require('./integrations/vscode/package.json').publisher")
+          echo "Ensuring namespace '${PUBLISHER}' exists on Open VSX Registry..."
+          npx ovsx create-namespace "${PUBLISHER}" -p "$KORA_OVSX_TOKEN" || true
           echo "Publishing Kora Language Extension v${VERSION} to Open VSX Registry..."
           npx ovsx publish "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_OVSX_TOKEN"
 
