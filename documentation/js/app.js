@@ -33,18 +33,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
   updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'dark');
 
-  // 2. Active Sidebar Link Highlighting
-  const currentPath = window.location.pathname;
+  // 2. Mobile Sidebar Drawer Logic
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.querySelector('.sidebar');
+  let overlay = document.querySelector('.sidebar-overlay');
+
+  if (!overlay && sidebar) {
+    overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  function openSidebar() {
+    if (sidebar) sidebar.classList.add('open');
+    if (overlay) overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSidebar() {
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (sidebar && sidebar.classList.contains('open')) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+    });
+  }
+
+  if (overlay) {
+    overlay.addEventListener('click', closeSidebar);
+  }
+
+  // 3. Active Sidebar Link Highlighting
+  const currentPath = window.location.pathname.replace(/\/$/, '/index.html');
+  const filename = currentPath.substring(currentPath.lastIndexOf('/') + 1) || 'index.html';
   const navLinks = document.querySelectorAll('.nav-link');
+
   navLinks.forEach(link => {
+    link.classList.remove('active');
     const href = link.getAttribute('href');
-    if (currentPath.endsWith(href) || (href === 'index.html' && (currentPath.endsWith('/') || currentPath.endsWith('index.html')))) {
+    if (!href) return;
+    const linkFile = href.substring(href.lastIndexOf('/') + 1);
+
+    if (linkFile === filename) {
       link.classList.add('active');
     }
+
+    // Close mobile drawer when a link is clicked
+    link.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        closeSidebar();
+      }
+    });
   });
 
-  // 3. Table of Contents Scroll Spy
-  const headings = document.querySelectorAll('.main-content h2, .main-content h3');
+  // 4. Table of Contents Scroll Spy
+  const headings = document.querySelectorAll('.main-content h2, .main-content h3, .content-area h2, .content-area h3');
   const tocLinks = document.querySelectorAll('.toc-link');
 
   if (headings.length > 0 && tocLinks.length > 0) {

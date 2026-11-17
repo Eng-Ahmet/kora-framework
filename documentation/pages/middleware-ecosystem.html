@@ -17,6 +17,7 @@
 
   <!-- Top Header Navigation -->
   <header class="top-header">
+    <button class="sidebar-toggle-btn" id="sidebar-toggle" aria-label="Toggle Sidebar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
     <a href="../index.html" class="brand">
       <img src="../assets/logo.svg" alt="Kora Logo">
       <span>Kora Docs</span>
@@ -43,19 +44,18 @@
 
   <!-- Shell Container -->
   <div class="docs-container">
-
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="nav-group">
         <div class="nav-title">Getting Started</div>
         <ul class="nav-list">
           <li><a href="../index.html" class="nav-link">Overview & Quickstart</a></li>
-          <li><a href="language-tour.html" class="nav-link">Language Tour</a></li>
+          <li><a href="language-tour.html" class="nav-link">Language Tour & Fundamentals</a></li>
         </ul>
       </div>
 
       <div class="nav-group">
-        <div class="nav-title">Architecture & OOP</div>
+        <div class="nav-title">Architecture & Design</div>
         <ul class="nav-list">
           <li><a href="oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
           <li><a href="project-feature-templates.html" class="nav-link">Project & Feature Templates</a></li>
@@ -64,10 +64,10 @@
       </div>
 
       <div class="nav-group">
-        <div class="nav-title">Core Systems</div>
+        <div class="nav-title">Core Systems & Runtime</div>
         <ul class="nav-list">
-          <li><a href="database-orm.html" class="nav-link">Multi-Engine Database ORM</a></li>
-          <li><a href="middleware-ecosystem.html" class="nav-link active">Middleware Ecosystem</a></li>
+          <li><a href="database-orm.html" class="nav-link">Multi-Engine DB & ORM</a></li>
+          <li><a href="middleware-ecosystem.html" class="nav-link">Middleware Ecosystem</a></li>
           <li><a href="libraries-integrations.html" class="nav-link">Essential Backend Libraries</a></li>
           <li><a href="concurrency-streams.html" class="nav-link">Concurrency & Streams</a></li>
         </ul>
@@ -84,14 +84,14 @@
         <div class="nav-title">Language Engineering</div>
         <ul class="nav-list">
           <li><a href="language-gap-analysis.html" class="nav-link">Language Gap Analysis & Roadmap</a></li>
-          <li><a href="crates-reference.html" class="nav-link">Crates Reference (23 Crates)</a></li>
+          <li><a href="crates-reference.html" class="nav-link">23 Crates Deep Dive</a></li>
         </ul>
       </div>
 
       <div class="nav-group">
         <div class="nav-title">Tooling & Ecosystem</div>
         <ul class="nav-list">
-          <li><a href="cli-tooling.html" class="nav-link">CLI Toolchain (`kora`)</a></li>
+          <li><a href="cli-tooling.html" class="nav-link">CLI Toolchain Reference (kora)</a></li>
           <li><a href="vscode-extension.html" class="nav-link">VS Code Extension & LSP</a></li>
         </ul>
       </div>

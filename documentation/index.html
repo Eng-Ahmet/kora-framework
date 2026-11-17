@@ -17,6 +17,7 @@
 
   <!-- Top Header Navigation -->
   <header class="top-header">
+    <button class="sidebar-toggle-btn" id="sidebar-toggle" aria-label="Toggle Sidebar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
     <a href="index.html" class="brand">
       <img src="assets/logo.svg" alt="Kora Logo">
       <span>Kora Docs</span>
@@ -43,19 +44,18 @@
 
   <!-- Shell Container -->
   <div class="docs-container">
-
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="nav-group">
         <div class="nav-title">Getting Started</div>
         <ul class="nav-list">
-          <li><a href="index.html" class="nav-link active">Overview & Quickstart</a></li>
-          <li><a href="pages/language-tour.html" class="nav-link">Language Tour</a></li>
+          <li><a href="index.html" class="nav-link">Overview & Quickstart</a></li>
+          <li><a href="pages/language-tour.html" class="nav-link">Language Tour & Fundamentals</a></li>
         </ul>
       </div>
 
       <div class="nav-group">
-        <div class="nav-title">Architecture & OOP</div>
+        <div class="nav-title">Architecture & Design</div>
         <ul class="nav-list">
           <li><a href="pages/oop-clean-arch.html" class="nav-link">Clean Architecture & OOP</a></li>
           <li><a href="pages/project-feature-templates.html" class="nav-link">Project & Feature Templates</a></li>
@@ -64,7 +64,7 @@
       </div>
 
       <div class="nav-group">
-        <div class="nav-title">Core Systems</div>
+        <div class="nav-title">Core Systems & Runtime</div>
         <ul class="nav-list">
           <li><a href="pages/database-orm.html" class="nav-link">Multi-Engine DB & ORM</a></li>
           <li><a href="pages/middleware-ecosystem.html" class="nav-link">Middleware Ecosystem</a></li>
@@ -83,7 +83,7 @@
       <div class="nav-group">
         <div class="nav-title">Language Engineering</div>
         <ul class="nav-list">
-          <li><a href="pages/language-gap-analysis.html" class="nav-link">Language Gap Analysis</a></li>
+          <li><a href="pages/language-gap-analysis.html" class="nav-link">Language Gap Analysis & Roadmap</a></li>
           <li><a href="pages/crates-reference.html" class="nav-link">23 Crates Deep Dive</a></li>
         </ul>
       </div>
@@ -91,8 +91,8 @@
       <div class="nav-group">
         <div class="nav-title">Tooling & Ecosystem</div>
         <ul class="nav-list">
-          <li><a href="pages/cli-tooling.html" class="nav-link">CLI & Tooling Reference</a></li>
-          <li><a href="pages/vscode-extension.html" class="nav-link">VS Code IDE Extension</a></li>
+          <li><a href="pages/cli-tooling.html" class="nav-link">CLI Toolchain Reference (kora)</a></li>
+          <li><a href="pages/vscode-extension.html" class="nav-link">VS Code Extension & LSP</a></li>
         </ul>
       </div>
     </aside>
