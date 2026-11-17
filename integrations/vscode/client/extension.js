@@ -142,7 +142,7 @@ function activate(context) {
     context.subscriptions.push(diagnosticCollection);
 
     // 0. Initialize Kora Copilot Engine & Index Workspace Knowledge
-    copilotEngine = new KoraCopilotEngine();
+    copilotEngine = new KoraCopilotEngine(vscode);
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
         const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
         copilotEngine.indexWorkspace(root);
@@ -971,11 +971,29 @@ class KoraAssistantViewProvider {
                 case 'updateOllamaConfig':
                     {
                         const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                        const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : '';
+                        const effectiveModel = message.model || envModel || 'gemma:2b';
                         if (message.endpoint) await cfg.update('endpoint', message.endpoint, vscode.ConfigurationTarget.Global);
-                        if (message.model) await cfg.update('model', message.model, vscode.ConfigurationTarget.Global);
+                        await cfg.update('model', effectiveModel, vscode.ConfigurationTarget.Global);
                         await cfg.update('provider', 'ollama', vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage(`✅ Local Ollama configured (${message.model || 'phi3:mini'})!`);
+                        vscode.window.showInformationMessage(`✅ Local Ollama configured (${effectiveModel})!`);
                         this.syncProviderToWebview();
+                    }
+                    break;
+                case 'fetchOllamaModels':
+                    {
+                        const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                        const endpoint = message.endpoint || cfg.get('endpoint', 'http://localhost:11434');
+                        const models = await this.engine.listOllamaModels(endpoint);
+                        const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : '';
+                        if (this.view) {
+                            this.view.webview.postMessage({
+                                type: 'ollamaModelsLoaded',
+                                models: models,
+                                envModel: envModel,
+                                activeModel: cfg.get('model', 'gemma:2b')
+                            });
+                        }
                     }
                     break;
                 case 'saveAllSettings':
@@ -1143,19 +1161,21 @@ class KoraAssistantViewProvider {
     syncProviderToWebview() {
         if (this.view) {
             const config = vscode.workspace.getConfiguration('kora.copilot');
+            const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : '';
             this.view.webview.postMessage({
                 type: 'syncConfig',
                 provider: config.get('provider', 'embedded'),
-                model: config.get('model', 'gpt-4o-mini'),
+                model: config.get('model', envModel || 'gemma:2b'),
                 hasGitHubToken: Boolean(config.get('githubToken') || process.env.GITHUB_TOKEN),
                 endpoint: config.get('endpoint', ''),
+                envModel: envModel,
                 settings: {
                     provider: config.get('provider', 'embedded'),
                     githubToken: config.get('githubToken', ''),
                     openaiKey: config.get('openaiKey', ''),
                     geminiKey: config.get('geminiKey', ''),
                     anthropicKey: config.get('anthropicKey', ''),
-                    model: config.get('model', 'gpt-4o-mini'),
+                    model: config.get('model', envModel || 'gemma:2b'),
                     endpoint: config.get('endpoint', '')
                 }
             });
@@ -1756,15 +1776,21 @@ class KoraAssistantViewProvider {
                 <span style="font-size: 10px; opacity: 0.8; font-weight: 600;">Engine:</span>
                 <select id="copilot-provider-select" class="provider-select" onchange="onProviderSelectChanged(this.value)">
                     <option value="embedded">⚡ Embedded Core (Offline Rules)</option>
-                    <option value="github">🐙 GitHub Models (gpt-4o-mini)</option>
-                    <option value="ollama">🦙 Local Ollama (phi3 / llama3.2)</option>
+                    <option value="copilot">🤖 GitHub Copilot (Native IDE)</option>
+                    <option value="ollama">🦙 Local Ollama (gemma:2b / local)</option>
+                    <option value="github">🐙 GitHub Models API (PAT)</option>
                 </select>
             </div>
             <button class="btn-config-toggle" onclick="toggleConfigPanel()" title="Configure Engine Settings">⚙️</button>
         </div>
 
         <div id="provider-config-box" class="provider-config-box" style="display: none;">
-            <div id="cfg-github">
+            <div id="cfg-copilot" style="display: none;">
+                <div style="font-weight: 600; margin-bottom: 4px; color: #60A5FA;">🤖 Native GitHub Copilot</div>
+                <div style="font-size: 10.5px; opacity: 0.85; margin-bottom: 6px;">Zero token setup: Queries the Language Model API provided by your authenticated GitHub Copilot IDE session.</div>
+                <div style="font-size: 10px; color: #10B981; font-weight: 600;">✓ Ready to chat without manual API keys or endpoints.</div>
+            </div>
+            <div id="cfg-github" style="display: none;">
                 <div style="font-weight: 600; margin-bottom: 4px;">🐙 GitHub Models Setup</div>
                 <button class="action-btn primary" style="width: 100%; margin-bottom: 6px; padding: 4px;" onclick="requestGitHubLogin()">🔗 Auto-Link GitHub Account</button>
                 <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Or paste Personal Access Token (PAT):</div>
@@ -1780,20 +1806,21 @@ class KoraAssistantViewProvider {
                 </div>
             </div>
             <div id="cfg-ollama" style="display: none;">
-                <div style="font-weight: 600; margin-bottom: 4px;">🦙 Local Ollama Setup</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-weight: 600; color: #34D399;">🦙 Local Ollama Models</span>
+                    <button class="chat-btn" style="padding: 2px 6px; font-size: 10px;" onclick="refreshOllamaModels()" title="Refresh models from local Ollama">🔄 Refresh</button>
+                </div>
                 <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Endpoint URL:</div>
-                <input type="text" id="cfg-ollama-endpoint" class="chat-input" value="http://localhost:11434" style="width: 100%; margin-bottom: 6px; box-sizing: border-box;" />
-                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Small Model Name:</div>
-                <div style="display: flex; gap: 4px;">
-                    <select id="cfg-ollama-model" class="provider-select" style="flex: 1;">
-                        <option value="phi3:mini">phi3:mini (Fast Microsoft Small Model)</option>
-                        <option value="llama3.2:1b">llama3.2:1b (Meta Ultralight 1B)</option>
-                        <option value="llama3.2:3b">llama3.2:3b (Meta Light 3B)</option>
-                        <option value="qwen2.5-coder:1.5b">qwen2.5-coder:1.5b (Coding Specialist)</option>
-                        <option value="llama3">llama3 (Standard 8B)</option>
+                <input type="text" id="cfg-ollama-endpoint" class="chat-input" value="http://localhost:11434" style="width: 100%; margin-bottom: 6px; box-sizing: border-box;" onchange="refreshOllamaModels()" />
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Installed / Custom Model:</div>
+                <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                    <select id="cfg-ollama-model" class="provider-select" style="flex: 1;" onchange="onOllamaSelectChange(this.value)">
+                        <option value="gemma:2b">gemma:2b (Installed)</option>
+                        <option value="custom">✏️ Enter custom model name...</option>
                     </select>
                     <button class="chat-btn" onclick="saveOllamaConfig()">Save</button>
                 </div>
+                <input type="text" id="cfg-ollama-custom" class="chat-input" placeholder="Type custom model (e.g. gemma:2b)..." style="width: 100%; display: none; margin-bottom: 4px; box-sizing: border-box;" />
             </div>
             <div id="cfg-embedded" style="display: none;">
                 <div style="font-weight: 600; margin-bottom: 2px;">⚡ Embedded Knowledge Engine</div>
@@ -1834,13 +1861,27 @@ class KoraAssistantViewProvider {
             <label class="settings-label">Active Engine Provider:</label>
             <select id="cfg-active-provider" class="provider-select" onchange="onSettingsProviderChange(this.value)">
                 <option value="embedded">⚡ Embedded Core (Offline Rules & Docs)</option>
-                <option value="github">🐙 GitHub Models (gpt-4o-mini / Phi-3.5)</option>
-                <option value="ollama">🦙 Local Ollama (phi3:mini / llama3.2:1b)</option>
+                <option value="copilot">🤖 GitHub Copilot (Native IDE - Zero Config)</option>
+                <option value="ollama">🦙 Local Ollama (gemma:2b / local models)</option>
+                <option value="github">🐙 GitHub Models API (PAT / Azure)</option>
                 <option value="openai">🤖 OpenAI (gpt-4o / gpt-4o-mini)</option>
                 <option value="gemini">✨ Google Gemini (gemini-1.5-flash)</option>
                 <option value="anthropic">🧠 Anthropic Claude (claude-3-5-sonnet)</option>
                 <option value="custom">🌐 Custom OpenAI-compatible Endpoint</option>
             </select>
+        </div>
+
+        <div class="settings-group" id="cfg-field-copilot" style="display: none; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+            <div style="font-weight: 600; color: #60A5FA; margin-bottom: 4px;">🤖 Native GitHub Copilot Mode</div>
+            <div style="font-size: 10.5px; opacity: 0.85; line-height: 1.4;">Zero tokens required: Directly connects to GitHub Copilot's Language Model in your IDE. No external PAT or setup needed!</div>
+        </div>
+
+        <div class="settings-group" id="cfg-field-ollama" style="display: none; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-weight: 600; color: #34D399;">🦙 Local Ollama Integration</span>
+                <button class="chat-btn" style="padding: 2px 6px; font-size: 10px;" onclick="refreshOllamaModels()">🔄 Scan Models</button>
+            </div>
+            <div style="font-size: 10.5px; opacity: 0.85; line-height: 1.4;">Private offline execution on your machine. Auto-detects local models (<b>gemma:2b</b>, etc.).</div>
         </div>
 
         <div class="settings-group" id="cfg-field-github">
@@ -1934,12 +1975,34 @@ class KoraAssistantViewProvider {
         }
 
         function updateConfigBoxVisibility(provider) {
+            const cp = document.getElementById('cfg-copilot');
             const gh = document.getElementById('cfg-github');
             const ol = document.getElementById('cfg-ollama');
             const em = document.getElementById('cfg-embedded');
+            if (cp) cp.style.display = provider === 'copilot' ? 'block' : 'none';
             if (gh) gh.style.display = provider === 'github' ? 'block' : 'none';
-            if (ol) ol.style.display = provider === 'ollama' ? 'block' : 'none';
+            if (ol) {
+                ol.style.display = provider === 'ollama' ? 'block' : 'none';
+                if (provider === 'ollama') refreshOllamaModels();
+            }
             if (em) em.style.display = provider === 'embedded' ? 'block' : 'none';
+        }
+
+        function refreshOllamaModels() {
+            const endInput = document.getElementById('cfg-ollama-endpoint') || document.getElementById('cfg-input-endpoint');
+            const endpoint = (endInput && endInput.value.trim()) ? endInput.value.trim() : 'http://localhost:11434';
+            vscode.postMessage({ type: 'fetchOllamaModels', endpoint: endpoint });
+        }
+
+        function onOllamaSelectChange(val) {
+            const customInput = document.getElementById('cfg-ollama-custom');
+            if (val === 'custom') {
+                if (customInput) customInput.style.display = 'block';
+            } else {
+                if (customInput) customInput.style.display = 'none';
+                const modelInput = document.getElementById('cfg-input-model');
+                if (modelInput) modelInput.value = val;
+            }
         }
 
         function requestGitHubLogin() {
@@ -1959,7 +2022,10 @@ class KoraAssistantViewProvider {
 
         function saveOllamaConfig() {
             const endpoint = document.getElementById('cfg-ollama-endpoint').value.trim();
-            const model = document.getElementById('cfg-ollama-model').value;
+            const selectVal = document.getElementById('cfg-ollama-model').value;
+            const customInput = document.getElementById('cfg-ollama-custom');
+            const customVal = customInput ? customInput.value.trim() : '';
+            const model = (selectVal === 'custom' && customVal) ? customVal : (selectVal !== 'custom' ? selectVal : 'gemma:2b');
             vscode.postMessage({
                 type: 'updateOllamaConfig',
                 endpoint: endpoint,
@@ -1976,15 +2042,35 @@ class KoraAssistantViewProvider {
         function onSettingsProviderChange(val) {
             const modelInput = document.getElementById('cfg-input-model');
             const endInput = document.getElementById('cfg-input-endpoint');
-            if (val === 'github') {
-                if (modelInput && !modelInput.value) modelInput.value = 'gpt-4o-mini';
+            const cpGroup = document.getElementById('cfg-field-copilot');
+            const olGroup = document.getElementById('cfg-field-ollama');
+            const ghGroup = document.getElementById('cfg-field-github');
+            const oaGroup = document.getElementById('cfg-field-openai');
+            const geGroup = document.getElementById('cfg-field-gemini');
+            const anGroup = document.getElementById('cfg-field-anthropic');
+
+            if (cpGroup) cpGroup.style.display = val === 'copilot' ? 'block' : 'none';
+            if (olGroup) olGroup.style.display = val === 'ollama' ? 'block' : 'none';
+            if (ghGroup) ghGroup.style.display = val === 'github' ? 'block' : 'none';
+            if (oaGroup) oaGroup.style.display = (val === 'openai' || val === 'custom') ? 'block' : 'none';
+            if (geGroup) geGroup.style.display = val === 'gemini' ? 'block' : 'none';
+            if (anGroup) anGroup.style.display = val === 'anthropic' ? 'block' : 'none';
+
+            if (val === 'copilot') {
+                if (modelInput) modelInput.value = 'default';
+                if (endInput) endInput.value = '';
+            } else if (val === 'github') {
+                if (modelInput && (!modelInput.value || modelInput.value === 'default' || modelInput.value.includes('gemma'))) modelInput.value = 'gpt-4o-mini';
             } else if (val === 'ollama') {
-                if (modelInput && (!modelInput.value || modelInput.value.includes('gpt'))) modelInput.value = 'phi3:mini';
+                if (modelInput && (!modelInput.value || modelInput.value === 'default' || modelInput.value.includes('gpt'))) {
+                    modelInput.value = window.koraEnvModel || 'gemma:2b';
+                }
                 if (endInput && !endInput.value) endInput.value = 'http://localhost:11434';
+                refreshOllamaModels();
             } else if (val === 'gemini') {
-                if (modelInput && (!modelInput.value || modelInput.value.includes('phi'))) modelInput.value = 'gemini-1.5-flash';
+                if (modelInput && (!modelInput.value || modelInput.value === 'default')) modelInput.value = 'gemini-1.5-flash';
             } else if (val === 'anthropic') {
-                if (modelInput && (!modelInput.value || modelInput.value.includes('phi'))) modelInput.value = 'claude-3-5-sonnet-20241022';
+                if (modelInput && (!modelInput.value || modelInput.value === 'default')) modelInput.value = 'claude-3-5-sonnet-20241022';
             }
         }
 
@@ -2160,6 +2246,7 @@ class KoraAssistantViewProvider {
                     const s = msg.settings;
                     const actProv = document.getElementById('cfg-active-provider');
                     if (actProv && s.provider) actProv.value = s.provider;
+                    onSettingsProviderChange(s.provider || msg.provider || 'embedded');
                     const inpGh = document.getElementById('cfg-input-github');
                     if (inpGh && s.githubToken) inpGh.value = s.githubToken;
                     const inpOa = document.getElementById('cfg-input-openai');
@@ -2172,6 +2259,39 @@ class KoraAssistantViewProvider {
                     if (inpMo && s.model) inpMo.value = s.model;
                     const inpEnd = document.getElementById('cfg-input-endpoint');
                     if (inpEnd && s.endpoint) inpEnd.value = s.endpoint;
+                }
+                if (msg.provider === 'ollama') {
+                    refreshOllamaModels();
+                }
+            } else if (msg.type === 'ollamaModelsLoaded') {
+                const olModelSelect = document.getElementById('cfg-ollama-model');
+                if (olModelSelect) {
+                    olModelSelect.innerHTML = '';
+                    const models = msg.models || [];
+                    const defaultModel = msg.envModel || msg.activeModel || (models.length > 0 ? models[0] : 'gemma:2b');
+                    if (models.length === 0) {
+                        const opt = document.createElement('option');
+                        opt.value = defaultModel;
+                        opt.innerText = defaultModel + ' (Default)';
+                        olModelSelect.appendChild(opt);
+                    } else {
+                        models.forEach(m => {
+                            const opt = document.createElement('option');
+                            opt.value = m;
+                            opt.innerText = m + ' (Installed)';
+                            if (m === defaultModel || (msg.envModel && m === msg.envModel)) {
+                                opt.selected = true;
+                            }
+                            olModelSelect.appendChild(opt);
+                        });
+                    }
+                    const optCustom = document.createElement('option');
+                    optCustom.value = 'custom';
+                    optCustom.innerText = '✏️ Enter custom model name...';
+                    olModelSelect.appendChild(optCustom);
+                }
+                if (msg.envModel) {
+                    window.koraEnvModel = msg.envModel;
                 }
             }
         });

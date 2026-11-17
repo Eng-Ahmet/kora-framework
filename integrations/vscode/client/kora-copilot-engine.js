@@ -122,7 +122,8 @@ The official Kora VS Code Extension (\`integrations/vscode/\`) provides:
 ];
 
 class KoraCopilotEngine {
-    constructor() {
+    constructor(vscodeInstance = null) {
+        this.vscode = vscodeInstance;
         this.workspaceDocs = [];
         this.knowledgeFiles = [];
         this.workspaceRoot = null;
@@ -132,6 +133,10 @@ class KoraCopilotEngine {
         if (fs.existsSync(builtInKnowledge)) {
             this._scanKnowledgeDir(builtInKnowledge);
         }
+    }
+
+    setVsCode(vscodeInstance) {
+        this.vscode = vscodeInstance;
     }
 
     /**
@@ -363,6 +368,15 @@ class KoraCopilotEngine {
     async answerPrompt(prompt, activeDoc, config) {
         const provider = (config && config.provider) ? config.provider.toLowerCase() : 'embedded';
 
+        if (provider === 'copilot') {
+            try {
+                return await this._callCopilotLm(prompt, activeDoc, config);
+            } catch (err) {
+                const fallbackResponse = this._generateEmbeddedResponse(prompt, activeDoc);
+                return `> ⚠️ **Copilot Notice**: Native GitHub Copilot request failed (${err.message}).\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
+            }
+        }
+
         if (provider !== 'embedded') {
             try {
                 return await this._callExternalLlm(prompt, activeDoc, config);
@@ -508,6 +522,132 @@ I understand the complete Kora Language specification, Clean Architecture invari
         return customEndpoint || '';
     }
 
+    /**
+     * Lists models installed locally in Ollama via GET /api/tags
+     */
+    async listOllamaModels(endpoint = 'http://localhost:11434') {
+        return new Promise((resolve) => {
+            let urlObj;
+            try {
+                let base = endpoint || 'http://localhost:11434';
+                if (!base.startsWith('http://') && !base.startsWith('https://')) {
+                    base = 'http://' + base;
+                }
+                urlObj = new URL(base);
+                urlObj.pathname = '/api/tags';
+            } catch {
+                urlObj = new URL('http://localhost:11434/api/tags');
+            }
+
+            const client = urlObj.protocol === 'https:' ? https : http;
+            const req = client.get(urlObj, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const json = JSON.parse(data);
+                        if (json && Array.isArray(json.models)) {
+                            const names = json.models.map(m => m.name || m.model).filter(Boolean);
+                            return resolve(names);
+                        }
+                    } catch {}
+                    resolve([]);
+                });
+            });
+
+            req.on('error', () => resolve([]));
+            req.setTimeout(4000, () => {
+                req.destroy();
+                resolve([]);
+            });
+        });
+    }
+
+    _buildSystemPrompt(prompt, activeDoc) {
+        const query = prompt.toLowerCase();
+        let relevantContext = '';
+        for (const item of KORA_KNOWLEDGE_BASE) {
+            if (item.keywords.some(kw => query.includes(kw))) {
+                relevantContext += `\n\n[Official Kora Rule Reference (${item.source})]:\n${item.content}\n`;
+                break;
+            }
+        }
+
+        let fileContext = '';
+        if (activeDoc) {
+            const fileName = path.basename(activeDoc.fileName);
+            const codeSnippet = activeDoc.getText().slice(0, 3500);
+            fileContext = `\n\n[Current Active File: ${fileName}]\n\`\`\`kora\n${codeSnippet}\n\`\`\``;
+        }
+
+        return `You are the Official Kora Framework AI Copilot & Compiler Assistant.
+Kora is a high-performance backend language combining TypeScript-like DX with Rust-level memory safety and Go-inspired concurrency.
+
+CORE KORA INVARIANTS & ARCHITECTURAL RULES:
+1. Strict Single-Null Design: Kora supports \`null\` and \`Option<T>\`. The JavaScript/TypeScript concept of \`undefined\` is STRICTLY FORBIDDEN.
+2. Clean Architecture: All Services and Controllers MUST use constructor Dependency Injection via \`init(...)\`. Acyclic dependencies only.
+3. Layer Directory Segregation: Relational and NoSQL entities (@table, @collection) belong exclusively in \`entities/\`. DTO payloads belong in \`models/\`.
+4. Concurrency: Built-in actor model with mailboxes (\`tell\` for non-blocking send, \`ask\` for async request-reply), channels, and Tokio worker thread execution.
+5. Testing Standards: Load stress tests require an explicit \`teardown()\` method to release simulated resources.
+6. Provide idiomatic, clean, compile-ready Kora code with proper type annotations.${relevantContext}${fileContext}`;
+    }
+
+    async _callCopilotLm(prompt, activeDoc, config) {
+        if (!this.vscode || !this.vscode.lm) {
+            throw new Error("VS Code Language Model API (vscode.lm) is not available in this editor environment.");
+        }
+
+        // 1. Select Copilot chat models
+        let models = [];
+        try {
+            models = await this.vscode.lm.selectChatModels({ vendor: 'copilot' });
+        } catch (e) {}
+
+        if (!models || models.length === 0) {
+            try {
+                models = await this.vscode.lm.selectChatModels();
+            } catch (e) {}
+        }
+
+        if (!models || models.length === 0) {
+            throw new Error("No active GitHub Copilot Language Model found. Please ensure GitHub Copilot is installed and signed in.");
+        }
+
+        // 2. Pick appropriate model
+        let selectedModel = models[0];
+        if (config && config.model && config.model !== 'default') {
+            const found = models.find(m => m.name === config.model || m.id === config.model || m.family === config.model);
+            if (found) selectedModel = found;
+        }
+
+        // 3. Formulate prompt
+        const systemPrompt = this._buildSystemPrompt(prompt, activeDoc);
+        const fullUserMessage = `${systemPrompt}\n\nUser Request:\n${prompt}`;
+
+        let chatMessages;
+        if (this.vscode.LanguageModelChatMessage && typeof this.vscode.LanguageModelChatMessage.User === 'function') {
+            chatMessages = [this.vscode.LanguageModelChatMessage.User(fullUserMessage)];
+        } else {
+            chatMessages = [{ role: 1, content: fullUserMessage }];
+        }
+
+        const cts = new this.vscode.CancellationTokenSource();
+        const timeout = setTimeout(() => cts.cancel(), 30000);
+
+        try {
+            const response = await selectedModel.sendRequest(chatMessages, {}, cts.token);
+            let fullText = '';
+            for await (const chunk of response.text) {
+                fullText += chunk;
+            }
+            clearTimeout(timeout);
+            return fullText || 'No response returned from GitHub Copilot.';
+        } catch (err) {
+            clearTimeout(timeout);
+            throw err;
+        }
+    }
+
     async testConnection(config) {
         const start = Date.now();
         const provider = (config.provider || 'embedded').toLowerCase();
@@ -518,6 +658,53 @@ I understand the complete Kora Language specification, Clean Architecture invari
                 provider: 'embedded',
                 message: 'Embedded Knowledge Engine is active and indexed (offline).'
             };
+        }
+        if (provider === 'copilot') {
+            try {
+                await this._callCopilotLm('Respond with OK.', null, config);
+                const latencyMs = Date.now() - start;
+                return {
+                    success: true,
+                    latencyMs,
+                    provider: 'copilot',
+                    model: config.model || 'copilot-default',
+                    message: `Successfully connected to native GitHub Copilot in ${latencyMs}ms!`
+                };
+            } catch (err) {
+                return {
+                    success: false,
+                    latencyMs: Date.now() - start,
+                    provider: 'copilot',
+                    error: err.message
+                };
+            }
+        }
+        if (provider === 'ollama') {
+            try {
+                const models = await this.listOllamaModels(config.endpoint);
+                const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : null;
+                const actualModel = (config.model && config.model !== 'gpt-4o-mini' && config.model !== 'default')
+                    ? config.model
+                    : (envModel || (models.length > 0 ? models[0] : 'gemma:2b'));
+                const testCfg = Object.assign({}, config, { model: actualModel });
+                await this._callExternalLlm('Respond with OK.', null, testCfg);
+                const latencyMs = Date.now() - start;
+                const modelListStr = models.length > 0 ? ` [Available: ${models.join(', ')}]` : '';
+                return {
+                    success: true,
+                    latencyMs,
+                    provider: 'ollama',
+                    model: actualModel,
+                    message: `Successfully connected to local Ollama (${actualModel}) in ${latencyMs}ms!${modelListStr}`
+                };
+            } catch (err) {
+                return {
+                    success: false,
+                    latencyMs: Date.now() - start,
+                    provider: 'ollama',
+                    error: err.message
+                };
+            }
         }
         try {
             await this._callExternalLlm('Respond with the word OK.', null, config);
@@ -543,35 +730,7 @@ I understand the complete Kora Language specification, Clean Architecture invari
         return new Promise((resolve, reject) => {
             const provider = (config.provider || 'embedded').toLowerCase();
             const endpointUrl = this._resolveEndpoint(provider, config.endpoint);
-
-            // 1. Augment system prompt with matching Kora rules and knowledge
-            const query = prompt.toLowerCase();
-            let relevantContext = '';
-            for (const item of KORA_KNOWLEDGE_BASE) {
-                if (item.keywords.some(kw => query.includes(kw))) {
-                    relevantContext += `\n\n[Official Kora Rule Reference (${item.source})]:\n${item.content}\n`;
-                    break;
-                }
-            }
-
-            // 2. Augment with active file code if open in editor
-            let fileContext = '';
-            if (activeDoc) {
-                const fileName = path.basename(activeDoc.fileName);
-                const codeSnippet = activeDoc.getText().slice(0, 3500);
-                fileContext = `\n\n[Current Active File: ${fileName}]\n\`\`\`kora\n${codeSnippet}\n\`\`\``;
-            }
-
-            const systemPrompt = `You are the Official Kora Framework AI Copilot & Compiler Assistant.
-Kora is a high-performance backend language combining TypeScript-like DX with Rust-level memory safety and Go-inspired concurrency.
-
-CORE KORA INVARIANTS & ARCHITECTURAL RULES:
-1. Strict Single-Null Design: Kora supports \`null\` and \`Option<T>\`. The JavaScript/TypeScript concept of \`undefined\` is STRICTLY FORBIDDEN.
-2. Clean Architecture: All Services and Controllers MUST use constructor Dependency Injection via \`init(...)\`. Acyclic dependencies only.
-3. Layer Directory Segregation: Relational and NoSQL entities (@table, @collection) belong exclusively in \`entities/\`. DTO payloads belong in \`models/\`.
-4. Concurrency: Built-in actor model with mailboxes (\`tell\` for non-blocking send, \`ask\` for async request-reply), channels, and Tokio worker thread execution.
-5. Testing Standards: Load stress tests require an explicit \`teardown()\` method to release simulated resources.
-6. Provide idiomatic, clean, compile-ready Kora code with proper type annotations.${relevantContext}${fileContext}`;
+            const systemPrompt = this._buildSystemPrompt(prompt, activeDoc);
 
             let postData = '';
             let headers = { 'Content-Type': 'application/json' };
@@ -593,7 +752,10 @@ CORE KORA INVARIANTS & ARCHITECTURAL RULES:
                     temperature: 0.2
                 });
             } else if (provider === 'ollama') {
-                const model = config.model && config.model !== 'gpt-4o-mini' ? config.model : 'phi3:mini';
+                const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : null;
+                const model = (config.model && config.model !== 'gpt-4o-mini' && config.model !== 'default')
+                    ? config.model
+                    : (envModel || 'gemma:2b');
                 postData = JSON.stringify({
                     model: model,
                     system: systemPrompt,
@@ -658,6 +820,8 @@ CORE KORA INVARIANTS & ARCHITECTURAL RULES:
                         const json = JSON.parse(data);
                         if (provider === 'ollama' && json.response) {
                             resolve(json.response);
+                        } else if (provider === 'ollama' && json.message && json.message.content) {
+                            resolve(json.message.content);
                         } else if (json.choices && json.choices[0] && json.choices[0].message) {
                             resolve(json.choices[0].message.content);
                         } else if (json.error) {
@@ -676,9 +840,9 @@ CORE KORA INVARIANTS & ARCHITECTURAL RULES:
             });
 
             req.on('error', err => reject(err));
-            req.setTimeout(15000, () => {
+            req.setTimeout(35000, () => {
                 req.destroy();
-                reject(new Error("Request timed out (15s)"));
+                reject(new Error("Request timed out (35s)"));
             });
 
             req.write(postData);

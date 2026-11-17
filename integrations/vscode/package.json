@@ -2,7 +2,7 @@
   "name": "kora-vscode",
   "displayName": "Kora Language Support",
   "description": "Official syntax highlighting, rich language configuration, snippets, and real-time compiler diagnostics for the Kora programming language and framework.",
-  "version": "0.9.2",
+  "version": "0.10.2",
   "publisher": "kora-framework",
   "license": "AGPL-3.0-or-later",
   "author": {
@@ -299,6 +299,7 @@
           "type": "string",
           "enum": [
             "embedded",
+            "copilot",
             "github",
             "ollama",
             "openai",
@@ -307,7 +308,7 @@
             "custom"
           ],
           "default": "embedded",
-          "description": "AI provider used by Kora Copilot: 'embedded' (offline rule engine), 'github' (GitHub Models API using PAT or GitHub session), 'ollama' (local small models like phi3:mini, llama3.2), or cloud APIs."
+          "description": "AI provider used by Kora Copilot: 'embedded' (offline rule engine), 'copilot' (native GitHub Copilot in IDE via vscode.lm), 'github' (GitHub Models API using PAT), 'ollama' (local models such as gemma:2b, llama3.2), or cloud APIs."
         },
         "kora.copilot.githubToken": {
           "type": "string",
@@ -321,8 +322,8 @@
         },
         "kora.copilot.model": {
           "type": "string",
-          "default": "gpt-4o-mini",
-          "description": "Model name for external LLM provider (e.g. 'gpt-4o-mini' or 'Phi-3.5-mini-instruct' for GitHub Models; 'phi3:mini' or 'llama3.2:1b' for Ollama)."
+          "default": "gemma:2b",
+          "description": "Model name for external LLM provider (e.g. 'gpt-4o-mini' for GitHub / Copilot; 'gemma:2b' or 'llama3.2:1b' for Ollama)."
         },
         "kora.copilot.apiKey": {
           "type": "string",
