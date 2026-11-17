@@ -1034,6 +1034,93 @@ class KoraAssistantViewProvider {
                         }
                     }
                     break;
+                case 'requestAiFix':
+                    {
+                        const editor = vscode.window.activeTextEditor;
+                        if (!editor) {
+                            vscode.window.showWarningMessage('Please open a .kora or .kr file to fix.');
+                            break;
+                        }
+                        const doc = editor.document;
+                        const fileName = path.basename(doc.fileName);
+                        const originalCode = doc.getText();
+                        const diags = (this.currentDiagnostics || []).map(d => ({
+                            line: d.line || 1,
+                            message: d.message || ''
+                        }));
+                        const audit = this.engine.auditDocument(doc);
+                        const cfg = vscode.workspace.getConfiguration('kora.copilot');
+                        const config = {
+                            provider: cfg.get('provider', 'embedded'),
+                            model: cfg.get('model', 'gemma:2b'),
+                            endpoint: cfg.get('endpoint', ''),
+                            githubToken: cfg.get('githubToken', '')
+                        };
+
+                        await vscode.window.withProgress({
+                            location: vscode.ProgressLocation.Notification,
+                            title: `Kora AI: Analyzing and fixing ${fileName}...`,
+                            cancellable: false
+                        }, async () => {
+                            const fix = await this.engine.generateCodeFix(fileName, originalCode, diags, audit, config);
+                            if (this.view) {
+                                this.view.webview.postMessage({
+                                    type: 'aiFixProposed',
+                                    fix: fix,
+                                    filePath: doc.fileName
+                                });
+                            }
+                        });
+                    }
+                    break;
+                case 'applyFix':
+                    {
+                        let editor = vscode.window.activeTextEditor;
+                        if (message.filePath && (!editor || editor.document.fileName !== message.filePath)) {
+                            try {
+                                const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(message.filePath));
+                                editor = await vscode.window.showTextDocument(doc);
+                            } catch (e) {}
+                        }
+                        if (editor && message.code) {
+                            const doc = editor.document;
+                            const fullRange = new vscode.Range(
+                                doc.positionAt(0),
+                                doc.positionAt(doc.getText().length)
+                            );
+                            await editor.edit(editBuilder => {
+                                editBuilder.replace(fullRange, message.code);
+                            });
+                            await doc.save();
+                            vscode.window.showInformationMessage(`✅ AI fix successfully applied to ${path.basename(doc.fileName)}!`);
+                            vscode.commands.executeCommand('kora.checkFile', doc.fileName);
+                        }
+                    }
+                    break;
+                case 'previewDiff':
+                    {
+                        const editor = vscode.window.activeTextEditor;
+                        if (editor && message.code) {
+                            const origDoc = editor.document;
+                            const fileName = path.basename(origDoc.fileName);
+                            const tmpDir = path.join(path.dirname(origDoc.fileName), '.kora_tmp');
+                            try {
+                                if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+                                const tmpFilePath = path.join(tmpDir, `proposed_${fileName}`);
+                                fs.writeFileSync(tmpFilePath, message.code, 'utf8');
+                                const tmpUri = vscode.Uri.file(tmpFilePath);
+                                await vscode.commands.executeCommand(
+                                    'vscode.diff',
+                                    origDoc.uri,
+                                    tmpUri,
+                                    `${fileName} (Current) ↔ ${fileName} (AI Proposed Fix)`
+                                );
+                            } catch (e) {
+                                vscode.window.showErrorMessage(`Failed to open diff: ${e.message}`);
+                            }
+                        }
+                    }
+                    break;
             }
         });
 
@@ -1722,6 +1809,25 @@ class KoraAssistantViewProvider {
                 <button class="action-btn" onclick="explainCode()" title="Explain code architecture">💡 Explain Code</button>
                 <button class="action-btn" onclick="generateTests()" title="Scaffold tests for active symbols">✨ Scaffold Tests</button>
                 <button class="action-btn" onclick="switchTab('arch')" title="Inspect clean architecture layers">🏛️ Architecture</button>
+                <button class="action-btn" onclick="requestAiFix()" style="grid-column: span 2; background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 600;" title="AI analyzes errors, audits rules and proposes code fixes with Accept / Reject">🪄 AI Auto-Fix & Refactor File</button>
+            </div>
+        </div>
+
+        <div id="ai-fix-container" style="display: none; margin-top: 10px; border: 1px solid var(--vscode-editorBracketMatch-border, #3b82f6); border-radius: 6px; padding: 10px; background: var(--vscode-editor-background);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <span style="font-weight: 600; color: #38bdf8;">🪄 AI Proposed Fix</span>
+                <span id="ai-fix-status" style="font-size: 10px; padding: 2px 6px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); color: #38bdf8;">Ready to Review</span>
+            </div>
+            <div id="ai-fix-summary" style="font-size: 11px; margin-bottom: 8px; opacity: 0.9; line-height: 1.4;"></div>
+            <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">Proposed Code:</div>
+            <pre id="ai-fix-code" style="max-height: 180px; overflow: auto; background: var(--vscode-terminal-background, #1e1e1e); padding: 8px; border-radius: 4px; font-size: 11px; font-family: monospace; border: 1px solid rgba(255,255,255,0.1); margin: 0 0 10px 0; white-space: pre;"></pre>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                <button class="action-btn primary" style="background: #10b981; color: white;" onclick="acceptAiFix()">✅ Accept & Apply</button>
+                <button class="action-btn" style="background: #ef4444; color: white;" onclick="rejectAiFix()">❌ Reject</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <button class="action-btn" onclick="previewDiffEditor()">👁️ Side-by-Side Diff</button>
+                <button class="action-btn" onclick="smartRun()">▶ Run & Verify</button>
             </div>
         </div>
 
@@ -1999,6 +2105,42 @@ class KoraAssistantViewProvider {
             if (targetSec) targetSec.classList.add('active');
         }
 
+        let currentProposedFixCode = null;
+        let currentProposedFixPath = null;
+
+        function requestAiFix() {
+            vscode.postMessage({ type: 'requestAiFix' });
+        }
+
+        function acceptAiFix() {
+            if (!currentProposedFixCode) return;
+            vscode.postMessage({
+                type: 'applyFix',
+                code: currentProposedFixCode,
+                filePath: currentProposedFixPath
+            });
+            const status = document.getElementById('ai-fix-status');
+            if (status) {
+                status.innerText = 'Applied ✅';
+                status.style.color = '#10B981';
+                status.style.background = 'rgba(16, 185, 129, 0.2)';
+            }
+        }
+
+        function rejectAiFix() {
+            currentProposedFixCode = null;
+            const container = document.getElementById('ai-fix-container');
+            if (container) container.style.display = 'none';
+        }
+
+        function previewDiffEditor() {
+            if (!currentProposedFixCode) return;
+            vscode.postMessage({
+                type: 'previewDiff',
+                code: currentProposedFixCode
+            });
+        }
+
         function smartRun() { vscode.postMessage({ type: 'smartRun' }); }
         function checkFile() { vscode.postMessage({ type: 'checkFile' }); }
         function runTests() { vscode.postMessage({ type: 'runTests' }); }
@@ -2203,6 +2345,108 @@ class KoraAssistantViewProvider {
             if (ind) ind.remove();
         }
 
+        function renderMarkdownWithCodeActions(text, container) {
+            container.innerHTML = '';
+            const codeBlockRegex = new RegExp('\\x60{3}([a-zA-Z0-9_-]*)\\n([\\s\\S]*?)\\x60{3}', 'g');
+            let lastIndex = 0;
+            let match;
+
+            while ((match = codeBlockRegex.exec(text)) !== null) {
+                const preText = text.substring(lastIndex, match.index);
+                if (preText.trim()) {
+                    const p = document.createElement('div');
+                    p.style.whiteSpace = 'pre-wrap';
+                    p.innerText = preText;
+                    container.appendChild(p);
+                }
+
+                const lang = match[1] || 'kora';
+                const code = match[2];
+
+                const card = document.createElement('div');
+                card.style.margin = '8px 0';
+                card.style.background = 'var(--vscode-terminal-background, #181818)';
+                card.style.border = '1px solid rgba(255,255,255,0.12)';
+                card.style.borderRadius = '6px';
+                card.style.overflow = 'hidden';
+
+                const header = document.createElement('div');
+                header.style.display = 'flex';
+                header.style.justifyContent = 'space-between';
+                header.style.alignItems = 'center';
+                header.style.padding = '4px 8px';
+                header.style.background = 'rgba(255,255,255,0.05)';
+                header.style.fontSize = '10px';
+                header.style.opacity = '0.85';
+                header.innerHTML = '<span>' + lang.toUpperCase() + '</span>';
+
+                const pre = document.createElement('pre');
+                pre.style.margin = '0';
+                pre.style.padding = '8px';
+                pre.style.fontSize = '11px';
+                pre.style.fontFamily = 'monospace';
+                pre.style.overflowX = 'auto';
+                pre.style.whiteSpace = 'pre';
+                pre.innerText = code;
+
+                const bar = document.createElement('div');
+                bar.style.display = 'flex';
+                bar.style.gap = '6px';
+                bar.style.padding = '6px 8px';
+                bar.style.background = 'rgba(0,0,0,0.2)';
+                bar.style.borderTop = '1px solid rgba(255,255,255,0.08)';
+
+                const btnApply = document.createElement('button');
+                btnApply.className = 'chat-btn';
+                btnApply.style.padding = '3px 8px';
+                btnApply.style.fontSize = '10.5px';
+                btnApply.style.background = '#10B981';
+                btnApply.innerText = '✅ Apply to File';
+                btnApply.onclick = () => {
+                    vscode.postMessage({ type: 'applyFix', code: code });
+                };
+
+                const btnDiff = document.createElement('button');
+                btnDiff.className = 'chat-btn';
+                btnDiff.style.padding = '3px 8px';
+                btnDiff.style.fontSize = '10.5px';
+                btnDiff.innerText = '👁️ Diff';
+                btnDiff.onclick = () => {
+                    vscode.postMessage({ type: 'previewDiff', code: code });
+                };
+
+                const btnCopy = document.createElement('button');
+                btnCopy.className = 'chat-btn';
+                btnCopy.style.padding = '3px 8px';
+                btnCopy.style.fontSize = '10.5px';
+                btnCopy.innerText = '📋 Copy';
+                btnCopy.onclick = () => {
+                    navigator.clipboard.writeText(code);
+                    btnCopy.innerText = '✓ Copied';
+                    setTimeout(() => { btnCopy.innerText = '📋 Copy'; }, 1500);
+                };
+
+                bar.appendChild(btnApply);
+                bar.appendChild(btnDiff);
+                bar.appendChild(btnCopy);
+
+                card.appendChild(header);
+                card.appendChild(pre);
+                card.appendChild(bar);
+                container.appendChild(card);
+
+                lastIndex = match.index + match[0].length;
+            }
+
+            const remainingText = text.substring(lastIndex);
+            if (remainingText.trim()) {
+                const p = document.createElement('div');
+                p.style.whiteSpace = 'pre-wrap';
+                p.innerText = remainingText;
+                container.appendChild(p);
+            }
+        }
+
         function streamAssistantMessage(fullText, onDone) {
             removeTypingIndicator();
             const history = document.getElementById('chat-history');
@@ -2233,9 +2477,13 @@ class KoraAssistantViewProvider {
             const timer = setInterval(() => {
                 index += step;
                 if (index >= len) {
-                    textSpan.innerText = fullText;
-                    if (cursor.parentNode) cursor.remove();
                     clearInterval(timer);
+                    if (cursor.parentNode) cursor.remove();
+                    if (new RegExp('\\x60{3}[a-zA-Z0-9_-]*\\n[\\s\\S]*?\\x60{3}').test(fullText)) {
+                        renderMarkdownWithCodeActions(fullText, msg);
+                    } else {
+                        textSpan.innerText = fullText;
+                    }
                     scrollToBottom();
                     if (onDone) onDone();
                 } else {
@@ -2317,6 +2565,24 @@ class KoraAssistantViewProvider {
                 const text = document.getElementById('explanation-text');
                 container.style.display = 'block';
                 text.innerText = msg.walkthrough;
+            } else if (msg.type === 'aiFixProposed') {
+                switchTab('copilot');
+                const fix = msg.fix;
+                currentProposedFixCode = fix.fixedCode;
+                currentProposedFixPath = msg.filePath;
+                const container = document.getElementById('ai-fix-container');
+                if (container) {
+                    container.style.display = 'block';
+                    document.getElementById('ai-fix-summary').innerText = fix.summary || 'AI proposed refactoring to resolve diagnostics and satisfy compiler invariants.';
+                    document.getElementById('ai-fix-code').innerText = fix.fixedCode;
+                    const status = document.getElementById('ai-fix-status');
+                    if (status) {
+                        status.innerText = fix.hasChanges ? 'Changes Ready' : 'No Changes Needed';
+                        status.style.color = fix.hasChanges ? '#38bdf8' : '#10B981';
+                        status.style.background = fix.hasChanges ? 'rgba(56, 189, 248, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+                    }
+                    container.scrollIntoView({ behavior: 'smooth' });
+                }
             } else if (msg.type === 'assistantAnswer') {
                 streamAssistantMessage(msg.answer);
                 if (msg.provider && msg.provider !== 'embedded') {
