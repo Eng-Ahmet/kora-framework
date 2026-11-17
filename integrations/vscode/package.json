@@ -21,6 +21,7 @@
   },
   "scripts": {
     "package": "vsce package --no-git-tag-version --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/",
+    "install:local": "node ./scripts/install-local.js",
     "publish:vscode": "vsce publish --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/",
     "publish:ovsx": "ovsx publish --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/",
     "publish:all": "npm run publish:vscode && npm run publish:ovsx"
