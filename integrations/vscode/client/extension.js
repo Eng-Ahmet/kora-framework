@@ -1152,6 +1152,7 @@ class KoraAssistantViewProvider {
     }
 
     getHtmlForWebview(webview) {
+        const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'icon.png'));
         const catalogHtml = EXAMPLES_CATALOG.map(ex => `
             <div class="example-card" onclick="cloneExample('${ex.slug}')">
                 <div class="example-header">
@@ -1173,21 +1174,28 @@ class KoraAssistantViewProvider {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kora AI Assistant</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: var(--vscode-font-family);
             color: var(--vscode-foreground);
             background-color: var(--vscode-sideBar-background);
-            padding: 10px;
+            padding: 8px;
             margin: 0;
-            font-size: 12px;
+            font-size: 11.5px;
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
         }
         .header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 12px;
-            padding-bottom: 10px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
             border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+            width: 100%;
         }
         .logo {
             font-size: 13px;
@@ -1197,31 +1205,37 @@ class KoraAssistantViewProvider {
             align-items: center;
             gap: 8px;
             letter-spacing: 0.2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .logo-icon {
+        .logo-img {
             display: block;
             flex-shrink: 0;
+            border-radius: 4px;
         }
         .engine-badge {
-            font-size: 10px;
+            font-size: 9.5px;
             background: rgba(16, 185, 129, 0.15);
             color: #34D399;
             border: 1px solid rgba(16, 185, 129, 0.3);
-            padding: 2px 7px;
+            padding: 2px 6px;
             border-radius: 12px;
             font-weight: 600;
             white-space: nowrap;
+            flex-shrink: 0;
         }
         .tabs {
             display: flex;
             gap: 2px;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
-            padding: 3px;
+            padding: 2px;
             border-radius: 6px;
             border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
             overflow-x: auto;
             scrollbar-width: none;
+            width: 100%;
         }
         .tabs::-webkit-scrollbar {
             display: none;
@@ -1232,8 +1246,8 @@ class KoraAssistantViewProvider {
             color: var(--vscode-foreground);
             opacity: 0.75;
             border: none;
-            padding: 6px 8px;
-            font-size: 11px;
+            padding: 5px 6px;
+            font-size: 10.5px;
             font-weight: 500;
             border-radius: 4px;
             cursor: pointer;
@@ -1253,6 +1267,7 @@ class KoraAssistantViewProvider {
         }
         .section {
             display: none;
+            width: 100%;
         }
         .section.active {
             display: block;
@@ -1260,53 +1275,60 @@ class KoraAssistantViewProvider {
         .file-status-box {
             background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
             border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 12px;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            width: 100%;
         }
         .file-title {
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12px;
             margin-bottom: 4px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 8px;
+            gap: 6px;
         }
         .pill {
             display: inline-flex;
             align-items: center;
-            padding: 2px 8px;
+            padding: 2px 7px;
             border-radius: 12px;
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 600;
             letter-spacing: 0.3px;
             white-space: nowrap;
+            flex-shrink: 0;
         }
         .pill.runnable { background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); }
         .pill.library { background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.35); }
         .pill.test { background: rgba(139, 92, 246, 0.2); color: #A78BFA; border: 1px solid rgba(139, 92, 246, 0.35); }
         .action-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-            margin-top: 10px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 5px;
+            margin-top: 8px;
+            width: 100%;
         }
         button.action-btn {
+            width: 100%;
+            min-width: 0;
             background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
             color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
             border: 1px solid var(--vscode-button-border, rgba(255, 255, 255, 0.1));
-            padding: 7px 8px;
-            border-radius: 6px;
+            padding: 6px 4px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 500;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 5px;
+            gap: 4px;
             transition: all 0.15s ease;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         button.action-btn:hover {
             background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.14));
@@ -1318,7 +1340,8 @@ class KoraAssistantViewProvider {
             color: var(--vscode-button-foreground);
             font-weight: 600;
             border: none;
-            padding: 8px 12px;
+            padding: 7px 10px;
+            font-size: 11px;
         }
         button.action-btn.primary:hover {
             background: var(--vscode-button-hoverBackground);
@@ -1334,6 +1357,7 @@ class KoraAssistantViewProvider {
             overflow-y: auto;
             border-left: 3px solid var(--vscode-textLink-foreground);
             white-space: pre-wrap;
+            width: 100%;
         }
         .audit-box {
             background: var(--vscode-editor-background);
@@ -1342,6 +1366,7 @@ class KoraAssistantViewProvider {
             padding: 10px;
             margin-top: 10px;
             font-size: 11px;
+            width: 100%;
         }
         .diag-item {
             background: rgba(239, 68, 68, 0.1);
@@ -1350,6 +1375,7 @@ class KoraAssistantViewProvider {
             border-radius: 4px;
             margin-bottom: 6px;
             font-size: 11px;
+            width: 100%;
         }
         .example-card {
             background: var(--vscode-editor-background);
@@ -1359,6 +1385,7 @@ class KoraAssistantViewProvider {
             margin-bottom: 8px;
             cursor: pointer;
             transition: transform 0.1s;
+            width: 100%;
         }
         .example-card:hover {
             border-color: var(--vscode-focusBorder);
@@ -1519,17 +1546,7 @@ class KoraAssistantViewProvider {
 <body>
     <div class="header">
         <div class="logo">
-            <svg class="logo-icon" viewBox="0 0 128 128" width="20" height="20" style="border-radius: 4px; overflow: hidden;">
-                <defs>
-                    <linearGradient id="koraGradHdr" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#00D2FF"/>
-                        <stop offset="100%" stop-color="#0047FF"/>
-                    </linearGradient>
-                </defs>
-                <rect x="0" y="0" width="128" height="128" rx="28" fill="url(#koraGradHdr)"/>
-                <path d="M 40 32 L 52 32 L 52 96 L 40 96 Z" fill="#FFFFFF"/>
-                <path d="M 52 64 L 80 32 L 95 32 L 64 67 L 96 96 L 80 96 L 52 70 Z" fill="#FFFFFF"/>
-            </svg>
+            <img src="${logoUri}" width="20" height="20" class="logo-img" alt="Kora Logo" />
             <span>Kora Copilot</span>
         </div>
         <span class="engine-badge" id="engine-indicator">● Active</span>
@@ -1554,12 +1571,12 @@ class KoraAssistantViewProvider {
             
             <div class="action-grid">
                 <button class="action-btn primary" id="btn-run" onclick="smartRun()">▶ Smart Run / Test</button>
-                <button class="action-btn" onclick="auditFile()">🛡️ Audit Rules</button>
-                <button class="action-btn" onclick="checkFile()">⚡ Check Types</button>
-                <button class="action-btn" onclick="runTests()">🧪 Test Suite</button>
-                <button class="action-btn" onclick="explainCode()">💡 Explain Code</button>
-                <button class="action-btn" onclick="generateTests()">✨ Scaffold Tests</button>
-                <button class="action-btn" onclick="switchTab('arch')">🏛️ Workspace Map</button>
+                <button class="action-btn" onclick="auditFile()" title="Audit file against .agent rules">🛡️ Audit Rules</button>
+                <button class="action-btn" onclick="checkFile()" title="Run type checks and linter">⚡ Check Types</button>
+                <button class="action-btn" onclick="runTests()" title="Execute test suites">🧪 Test Suite</button>
+                <button class="action-btn" onclick="explainCode()" title="Explain code architecture">💡 Explain Code</button>
+                <button class="action-btn" onclick="generateTests()" title="Scaffold tests for active symbols">✨ Scaffold Tests</button>
+                <button class="action-btn" onclick="switchTab('arch')" title="Inspect clean architecture layers">🏛️ Architecture</button>
             </div>
         </div>
 

@@ -2,7 +2,7 @@
   "name": "kora-vscode",
   "displayName": "Kora Language Support",
   "description": "Official syntax highlighting, rich language configuration, snippets, and real-time compiler diagnostics for the Kora programming language and framework.",
-  "version": "0.8.0",
+  "version": "0.9.2",
   "publisher": "kora-framework",
   "license": "AGPL-3.0-or-later",
   "author": {

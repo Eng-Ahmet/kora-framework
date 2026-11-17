@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="24" height="24">
-  <!-- Official Kora emblem for VS Code Activity Bar (Transparent background, monochrome currentColor) -->
-  <path d="M 40 32 L 52 32 L 52 96 L 40 96 Z" fill="currentColor"/>
-  <path d="M 52 64 L 80 32 L 95 32 L 64 67 L 96 96 L 80 96 L 52 70 Z" fill="currentColor"/>
+  <!-- Official Kora Activity Bar Icon: Perfectly centered, transparent background, monochrome currentColor -->
+  <path d="M 36 32 L 48 32 L 48 96 L 36 96 Z" fill="currentColor"/>
+  <path d="M 48 64 L 76 32 L 91 32 L 60 67 L 92 96 L 76 96 L 48 70 Z" fill="currentColor"/>
 </svg>
-
