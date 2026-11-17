@@ -31,3 +31,4 @@ class ConcurrencyTestSuite {
 let service = StreamPipelineService()
 let suite = ConcurrencyTestSuite(service)
 suite.runAllTests()
+

@@ -3,11 +3,21 @@
   "displayName": "Kora Language Support",
   "description": "Official syntax highlighting, rich language configuration, snippets, and real-time compiler diagnostics for the Kora programming language and framework.",
   "version": "0.4.1",
-  "publisher": "Kora-Language-Support",
+  "publisher": "Eng-Ahmet",
+  "license": "AGPL-3.0-or-later",
+  "author": {
+    "name": "Eng. Ahmet Asaad Hammoud",
+    "email": "eng.ahmet@uma.es",
+    "url": "https://github.com/Eng-Ahmet"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Hwai-technology/kora-framework.git",
     "directory": "integrations/vscode"
+  },
+  "homepage": "https://kora-lang.dev",
+  "bugs": {
+    "url": "https://github.com/Hwai-technology/kora-framework/issues"
   },
   "scripts": {
     "package": "vsce package --no-git-tag-version",

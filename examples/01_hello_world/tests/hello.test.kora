@@ -37,3 +37,4 @@ class HelloTestSuite {
 
 let suite = HelloTestSuite(OrderProcessor())
 suite.runAllTests()
+

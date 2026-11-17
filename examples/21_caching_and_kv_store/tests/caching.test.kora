@@ -42,3 +42,4 @@ let db = Database()
 let cacheService = RedisCacheService(db)
 let suite = CachingTestSuite(cacheService)
 suite.runAllTests()
+

@@ -63,3 +63,4 @@ let mock = MockArticleRepo()
 let service = ArticleService(mock)
 let suite = SwaggerTestSuite(service)
 suite.runAllTests()
+

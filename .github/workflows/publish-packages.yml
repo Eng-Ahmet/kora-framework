@@ -192,22 +192,22 @@ jobs:
           cp "../../dist/kora-vscode-${VERSION}.vsix" "../../dist/kora-vscode-latest.vsix"
 
       - name: Publish to Open VSX Registry (Eclipse Foundation)
-        if: env.KORA_OVSX_TOKEN != '' || env.OVSX_PAT != ''
+        if: secrets.KORA_OVSXAP != '' || secrets.KORA_OVSX_TOKEN != '' || secrets.OVSX_PAT != ''
         env:
-          KORA_OVSX_TOKEN: ${{ secrets.KORA_OVSX_TOKEN || secrets.OVSX_PAT }}
+          KORA_OVSX_TOKEN: ${{ secrets.KORA_OVSXAP || secrets.KORA_OVSX_TOKEN || secrets.OVSX_PAT }}
         run: |
           VERSION="${{ needs.prepare-release.outputs.version }}"
           echo "Publishing Kora Language Extension v${VERSION} to Open VSX Registry..."
-          npx ovsx publish "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_OVSX_TOKEN" || true
+          npx ovsx publish "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_OVSX_TOKEN"
 
       - name: Publish to Visual Studio Marketplace (Microsoft)
-        if: env.KORA_VSCODE_MARKETPLACE_TOKEN != '' || env.VSCE_PAT != ''
+        if: secrets.KORA_VSCODE_MARKETPLACE_TOKEN != '' || secrets.VSCE_PAT != ''
         env:
           KORA_VSCODE_MARKETPLACE_TOKEN: ${{ secrets.KORA_VSCODE_MARKETPLACE_TOKEN || secrets.VSCE_PAT }}
         run: |
           VERSION="${{ needs.prepare-release.outputs.version }}"
           echo "Publishing Kora Language Extension v${VERSION} to Visual Studio Marketplace..."
-          npx @vscode/vsce publish --packagePath "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_VSCODE_MARKETPLACE_TOKEN" || true
+          npx @vscode/vsce publish --packagePath "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_VSCODE_MARKETPLACE_TOKEN"
 
       - name: Upload VS Code Extension Artifact
         uses: actions/upload-artifact@v4

@@ -47,3 +47,4 @@ let mock = MockWorker()
 let service = CounterActorService(mock)
 let suite = ActorsTestSuite(service)
 suite.runAllTests()
+

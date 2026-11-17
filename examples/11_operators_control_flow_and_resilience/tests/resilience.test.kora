@@ -51,3 +51,4 @@ class ResilienceTestSuite {
 let pipeline = ResilientPipelineService()
 let suite = ResilienceTestSuite(pipeline)
 suite.runAllTests()
+

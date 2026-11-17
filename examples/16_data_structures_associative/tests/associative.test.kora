@@ -34,3 +34,4 @@ class AssociativeTestSuite {
 let service = AssociativeService()
 let suite = AssociativeTestSuite(service)
 suite.runAllTests()
+

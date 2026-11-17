@@ -42,3 +42,4 @@ class SequentialTestSuite {
 let service = SequentialService()
 let suite = SequentialTestSuite(service)
 suite.runAllTests()
+

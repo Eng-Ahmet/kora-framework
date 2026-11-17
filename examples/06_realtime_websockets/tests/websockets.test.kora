@@ -33,3 +33,4 @@ let repo = ChatRepository(db)
 let service = ChatService(repo)
 let suite = WebSocketsTestSuite(service)
 suite.runAllTests()
+

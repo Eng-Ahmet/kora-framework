@@ -47,3 +47,4 @@ let db = Database()
 let authService = AuthService(db)
 let suite = AuthTestSuite(authService)
 suite.runAllTests()
+

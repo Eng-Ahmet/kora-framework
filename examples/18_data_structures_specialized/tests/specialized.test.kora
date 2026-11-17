@@ -39,3 +39,4 @@ class SpecializedTestSuite {
 let service = SpecializedService()
 let suite = SpecializedTestSuite(service)
 suite.runAllTests()
+

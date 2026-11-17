@@ -54,3 +54,4 @@ let repo = MySqlCustomerRepository(db)
 let router = CustomerRouter(repo)
 let suite = MySqlOrmTestSuite(router)
 suite.runAllTests()
+

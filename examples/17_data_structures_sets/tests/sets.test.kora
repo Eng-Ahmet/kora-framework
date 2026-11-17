@@ -37,3 +37,4 @@ class SetsTestSuite {
 let service = SetAlgebraService()
 let suite = SetsTestSuite(service)
 suite.runAllTests()
+

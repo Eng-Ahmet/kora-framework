@@ -39,3 +39,4 @@ let repo = TelemetryRepository(db)
 let service = TelemetryService(repo)
 let suite = TelemetryTestSuite(service)
 suite.runAllTests()
+

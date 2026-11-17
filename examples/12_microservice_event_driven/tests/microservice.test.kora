@@ -39,3 +39,4 @@ let repo = EventStoreRepository(db)
 let service = EventPublisherService(repo)
 let suite = MicroserviceTestSuite(service)
 suite.runAllTests()
+

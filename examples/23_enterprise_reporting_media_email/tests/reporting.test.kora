@@ -40,3 +40,4 @@ class ReportingTestSuite {
 let service = ReportingService()
 let suite = ReportingTestSuite(service)
 suite.runAllTests()
+

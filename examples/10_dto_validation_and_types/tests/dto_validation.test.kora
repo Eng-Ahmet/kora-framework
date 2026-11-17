@@ -77,3 +77,4 @@ class DtoValidationTestSuite {
 let validator = DtoValidatorService()
 let suite = DtoValidationTestSuite(validator)
 suite.runAllTests()
+

@@ -45,3 +45,4 @@ let db = Database()
 let repo = MongoAuditRepository(db)
 let suite = DocumentStoreTestSuite(repo)
 suite.runAllTests()
+
