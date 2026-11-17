@@ -3,7 +3,7 @@
   "displayName": "Kora Language Support",
   "description": "Official syntax highlighting, rich language configuration, snippets, and real-time compiler diagnostics for the Kora programming language and framework.",
   "version": "0.8.0",
-  "publisher": "Eng-Ahmet",
+  "publisher": "kora-framework",
   "license": "AGPL-3.0-or-later",
   "author": {
     "name": "Eng. Ahmet Asaad Hammoud",
