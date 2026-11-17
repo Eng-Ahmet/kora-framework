@@ -195,6 +195,7 @@ jobs:
         env:
           KORA_OVSX_TOKEN: ${{ secrets.KORA_OVSXAP || secrets.KORA_OVSX_TOKEN || secrets.OVSX_PAT }}
         run: |
+          KORA_OVSX_TOKEN="$(echo -n "$KORA_OVSX_TOKEN" | tr -d '\r\n ')"
           if [ -z "$KORA_OVSX_TOKEN" ]; then
             echo "::warning::KORA_OVSXAP / OVSX token is not set. Skipping Open VSX publishing."
             exit 0
@@ -207,6 +208,7 @@ jobs:
         env:
           KORA_VSCODE_MARKETPLACE_TOKEN: ${{ secrets.KORA_VSCODE_MARKETPLACE_TOKEN || secrets.VSCE_PAT }}
         run: |
+          KORA_VSCODE_MARKETPLACE_TOKEN="$(echo -n "$KORA_VSCODE_MARKETPLACE_TOKEN" | tr -d '\r\n ')"
           if [ -z "$KORA_VSCODE_MARKETPLACE_TOKEN" ]; then
             echo "::warning::KORA_VSCODE_MARKETPLACE_TOKEN / VSCE_PAT is not set. Skipping Visual Studio Marketplace publishing."
             exit 0
