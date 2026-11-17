@@ -36,3 +36,4 @@ This document establishes standards for developer tooling, the command-line inte
    - **Learning Center**: Hands-on interactive lessons with 1-click editor insertion.
    - **Copilot Chat**: RAG-augmented AI chat with `.agent/rules/` and `docs/` indexed.
    - **Examples Browser**: 23 catalog examples with 1-click scaffolding.
+

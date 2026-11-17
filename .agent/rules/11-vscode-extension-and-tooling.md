@@ -80,3 +80,4 @@ The extension sidebar contains 5 specialized modules:
    rm -f kora-vscode-0.8.0.vsix
    ```
 3. The `.vsix` binary MUST NOT be tracked in git (ignored via `dist/` in `.gitignore`).
+
