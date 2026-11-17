@@ -1,31 +1,17 @@
-name: Extension CI & Marketplace CD
+name: Extension CI
 
 on:
-  push:
-    paths:
-      - 'integrations/vscode/**'
-      - '.github/workflows/extension-ci.yml'
-    branches:
-      - main
-    tags:
-      - 'v*'
   pull_request:
     paths:
       - 'integrations/vscode/**'
   workflow_dispatch:
-    inputs:
-      publish_marketplace:
-        description: 'Publish to VS Code Marketplace & Open VSX'
-        required: true
-        type: boolean
-        default: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-and-package:
-    name: Build, Validate & Package VS Code Extension
+  validate-extension:
+    name: Validate VS Code Extension
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -41,55 +27,7 @@ jobs:
           cd integrations/vscode
           npm install
 
-      - name: Read Extension Version
-        id: ext_version
+      - name: Verify Extension Package Build
         run: |
           cd integrations/vscode
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Detected extension version: ${VERSION}"
-
-      - name: Package .vsix
-        run: |
-          VERSION="${{ steps.ext_version.outputs.version }}"
-          mkdir -p dist
-          cd integrations/vscode
-          npx @vscode/vsce package --no-git-tag-version "${VERSION}" --out "../../dist/kora-vscode-${VERSION}.vsix" --allow-missing-repository
-          cp "../../dist/kora-vscode-${VERSION}.vsix" "../../dist/kora-vscode-latest.vsix"
-
-      - name: Upload .vsix Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: kora-vscode-extension
-          path: dist/*
-
-      - name: Publish to Open VSX Registry (Eclipse Foundation)
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_marketplace == true
-        env:
-          KORA_OVSX_TOKEN: ${{ secrets.KORA_OVSXAP || secrets.KORA_OVSX_TOKEN || secrets.OVSX_PAT }}
-        run: |
-          KORA_OVSX_TOKEN="$(echo -n "$KORA_OVSX_TOKEN" | tr -d '\r\n ')"
-          if [ -z "$KORA_OVSX_TOKEN" ]; then
-            echo "::warning::KORA_OVSXAP / OVSX token is not set. Skipping Open VSX publishing."
-            exit 0
-          fi
-          VERSION="${{ steps.ext_version.outputs.version }}"
-          PUBLISHER=$(node -p "require('./integrations/vscode/package.json').publisher")
-          echo "Ensuring namespace '${PUBLISHER}' exists on Open VSX Registry..."
-          npx ovsx create-namespace "${PUBLISHER}" -p "$KORA_OVSX_TOKEN" || true
-          echo "Publishing Kora Language Extension v${VERSION} to Open VSX Registry..."
-          npx ovsx publish "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_OVSX_TOKEN" --skip-duplicate
-
-      - name: Publish to Visual Studio Marketplace (Microsoft)
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_marketplace == true
-        env:
-          KORA_VSCODE_MARKETPLACE_TOKEN: ${{ secrets.KORA_VSCODE_MARKETPLACE_TOKEN || secrets.VSCE_PAT }}
-        run: |
-          KORA_VSCODE_MARKETPLACE_TOKEN="$(echo -n "$KORA_VSCODE_MARKETPLACE_TOKEN" | tr -d '\r\n ')"
-          if [ -z "$KORA_VSCODE_MARKETPLACE_TOKEN" ]; then
-            echo "::warning::KORA_VSCODE_MARKETPLACE_TOKEN / VSCE_PAT is not set. Skipping Visual Studio Marketplace publishing."
-            exit 0
-          fi
-          VERSION="${{ steps.ext_version.outputs.version }}"
-          echo "Publishing Kora Language Extension v${VERSION} to Visual Studio Marketplace..."
-          npx @vscode/vsce publish --packagePath "dist/kora-vscode-${VERSION}.vsix" -p "$KORA_VSCODE_MARKETPLACE_TOKEN"
+          npx @vscode/vsce package --no-git-tag-version --allow-missing-repository

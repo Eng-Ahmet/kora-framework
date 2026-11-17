@@ -284,10 +284,10 @@ fi
 # 5. Install / Update Antigravity IDE, VS Code, and Cursor Extensions
 echo -e "\n${COLOR_BLUE}[5/5] Installing & Synchronizing editor extensions for VS Code, Cursor, and Antigravity IDE...${COLOR_RESET}"
 
-VSIX_PATH="$(find "$ROOT_DIR/integrations/vscode" -maxdepth 1 -name "kora-vscode-*.vsix" | sort -V | tail -n1)"
-if [[ -z "$VSIX_PATH" ]]; then
-    VSIX_PATH="$ROOT_DIR/integrations/vscode/kora-vscode-0.4.1.vsix"
-fi
+mkdir -p "$ROOT_DIR/dist"
+EXT_VERSION="$(python3 -c "import json; print(json.load(open('$ROOT_DIR/integrations/vscode/package.json'))['version'])" 2>/dev/null || echo "0.8.0")"
+EXT_PUBLISHER="$(python3 -c "import json; print(json.load(open('$ROOT_DIR/integrations/vscode/package.json'))['publisher'])" 2>/dev/null || echo "kora-framework")"
+VSIX_PATH="$ROOT_DIR/dist/kora-vscode-${EXT_VERSION}.vsix"
 
 # Always refresh and package VSIX with all current icons and assets
 if [[ -d "$ROOT_DIR/integrations/vscode" ]]; then
@@ -299,7 +299,7 @@ base_dir = '$ROOT_DIR/integrations/vscode'
 manifest = '''<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <PackageManifest Version=\"2.0.0\" xmlns=\"http://schemas.microsoft.com/developer/vsx-schema/2011\" xmlns:d=\"http://schemas.microsoft.com/developer/vsx-schema-design/2011\">
   <Metadata>
-    <Identity Language=\"en-US\" Id=\"kora-vscode\" Version=\"0.4.1\" Publisher=\"kora-lang\"/>
+    <Identity Language=\"en-US\" Id=\"kora-vscode\" Version=\"$EXT_VERSION\" Publisher=\"$EXT_PUBLISHER\"/>
     <DisplayName>Kora Language Support</DisplayName>
     <Description xml:space=\"preserve\">Official syntax highlighting, rich language configuration, snippets, and real-time compiler diagnostics for the Kora programming language and framework.</Description>
     <Tags>kora,rust,backend,syntax,framework</Tags>

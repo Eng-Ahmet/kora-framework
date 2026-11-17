@@ -11,6 +11,7 @@
 /RELEASE_NOTES.md
 
 # OS & Editor files
+*.vsix
 .DS_Store
 Thumbs.db
 .vscode/*
