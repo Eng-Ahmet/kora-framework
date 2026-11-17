@@ -1,0 +1,39 @@
+// ============================================================================
+// Unit Test Suite: 20_concurrency_and_streams
+// Tests async stream pipeline processing, batch aggregation, and record format
+// ============================================================================
+
+import { StreamRecord } from "../models/stream_record.model"
+import { StreamPipelineService } from "../services/stream_pipeline.service"
+
+class ConcurrencyUnitTestSuite {
+    service: StreamPipelineService
+
+    init(service: StreamPipelineService) {
+        this.service = service
+    }
+
+    fn test_batch_processing() -> Bool {
+        return this.service.processBatch() == 2
+    }
+
+    fn test_describe_record() -> Bool {
+        let rec = StreamRecord { id: 101, topic: "telemetry.cpu", payload: "load=42" }
+        let desc = this.service.describeRecord(rec)
+        return desc == "Record [101] on topic 'telemetry.cpu': load=42"
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_batch_processing()
+        let p2 = this.test_describe_record()
+        if p1 && p2 {
+            print("  ✓ Concurrency & Streams Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ Concurrency & Streams Unit Tests: failed")
+        }
+    }
+}
+
+let service = StreamPipelineService()
+let suite = ConcurrencyUnitTestSuite(service)
+suite.run()

@@ -1,0 +1,42 @@
+// ============================================================================
+// Unit Test Suite: 16_data_structures_associative
+// Tests HashMap insertion, key retrieval, map literals, and routing counts
+// ============================================================================
+
+import { User } from "../models/user.model"
+import { AssociativeService } from "../services/associative.service"
+
+class AssociativeUnitTestSuite {
+    service: AssociativeService
+
+    init(service: AssociativeService) {
+        this.service = service
+    }
+
+    fn test_count_users() -> Bool {
+        return this.service.countUsers() == 2
+    }
+
+    fn test_map_literal_total() -> Bool {
+        return this.service.getMapLiteralTotal() == 2
+    }
+
+    fn test_routes_count() -> Bool {
+        return this.service.getRoutesCount() == 3
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_count_users()
+        let p2 = this.test_map_literal_total()
+        let p3 = this.test_routes_count()
+        if p1 && p2 && p3 {
+            print("  ✓ Associative Data Structures Unit Tests: 3/3 passed")
+        } else {
+            print("  ✗ Associative Data Structures Unit Tests: failed")
+        }
+    }
+}
+
+let service = AssociativeService()
+let suite = AssociativeUnitTestSuite(service)
+suite.run()

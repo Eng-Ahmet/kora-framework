@@ -32,9 +32,19 @@
   "main": "./client/extension.js",
   "activationEvents": [
     "onLanguage:kora",
+    "workspaceContains:**/*.kora",
+    "workspaceContains:**/*.kr",
+    "onStartupFinished",
+    "onView:kora.assistantView",
     "onCommand:kora.runFile",
     "onCommand:kora.checkFile",
-    "onCommand:kora.formatFile"
+    "onCommand:kora.formatFile",
+    "onCommand:kora.smartRun",
+    "onCommand:kora.runTests",
+    "onCommand:kora.explainCode",
+    "onCommand:kora.generateTests",
+    "onCommand:kora.openExamplesExplorer",
+    "onCommand:kora.fixDiagnostic"
   ],
   "categories": [
     "Programming Languages",
@@ -87,44 +97,121 @@
         "path": "./snippets/kora.snippets.json"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kora-sidebar",
+          "title": "Kora Framework",
+          "icon": "./icons/kora-file.svg"
+        }
+      ]
+    },
+    "views": {
+      "kora-sidebar": [
+        {
+          "type": "webview",
+          "id": "kora.assistantView",
+          "name": "Kora AI Copilot & Architecture Assistant"
+        }
+      ]
+    },
     "commands": [
+      {
+        "command": "kora.smartRun",
+        "title": "Kora: Smart Run (Entrypoint / Test Suite)",
+        "category": "Kora",
+        "icon": "$(play)"
+      },
       {
         "command": "kora.runFile",
         "title": "Kora: Run File",
-        "category": "Kora"
+        "category": "Kora",
+        "icon": "$(play)"
       },
       {
         "command": "kora.checkFile",
         "title": "Kora: Check File",
-        "category": "Kora"
+        "category": "Kora",
+        "icon": "$(check)"
+      },
+      {
+        "command": "kora.runTests",
+        "title": "Kora: Run Test Suite (kora test)",
+        "category": "Kora",
+        "icon": "$(beaker)"
       },
       {
         "command": "kora.formatFile",
         "title": "Kora: Format Document",
+        "category": "Kora"
+      },
+      {
+        "command": "kora.explainCode",
+        "title": "Kora AI: Explain Current Code & Architecture",
+        "category": "Kora",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "kora.generateTests",
+        "title": "Kora AI: Scaffold Unit & Load Tests",
+        "category": "Kora",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "kora.openExamplesExplorer",
+        "title": "Kora: Browse & Clone GitHub Examples",
+        "category": "Kora",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "kora.fixDiagnostic",
+        "title": "Kora AI: Auto-Fix Compiler Diagnostic",
         "category": "Kora"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "kora.runFile",
+          "command": "kora.smartRun",
           "when": "editorLangId == kora",
           "group": "1_kora@1"
         },
         {
-          "command": "kora.checkFile",
+          "command": "kora.explainCode",
           "when": "editorLangId == kora",
           "group": "1_kora@2"
         },
         {
-          "command": "kora.formatFile",
+          "command": "kora.generateTests",
           "when": "editorLangId == kora",
           "group": "1_kora@3"
+        },
+        {
+          "command": "kora.checkFile",
+          "when": "editorLangId == kora",
+          "group": "1_kora@4"
+        },
+        {
+          "command": "kora.formatFile",
+          "when": "editorLangId == kora",
+          "group": "1_kora@5"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "kora.smartRun",
+          "when": "editorLangId == kora",
+          "group": "navigation@1"
+        },
+        {
+          "command": "kora.explainCode",
+          "when": "editorLangId == kora",
+          "group": "navigation@2"
         }
       ],
       "editor/title/run": [
         {
-          "command": "kora.runFile",
+          "command": "kora.smartRun",
           "when": "editorLangId == kora",
           "group": "navigation"
         }

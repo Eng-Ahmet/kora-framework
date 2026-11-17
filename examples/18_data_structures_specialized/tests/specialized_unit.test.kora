@@ -1,0 +1,41 @@
+// ============================================================================
+// Unit Test Suite: 18_data_structures_specialized
+// Tests PriorityQueue (Heap), Prefix Trie, LRU Cache eviction, and Graph topology
+// ============================================================================
+
+import { SpecializedService } from "../services/specialized.service"
+
+class SpecializedUnitTestSuite {
+    service: SpecializedService
+
+    init(service: SpecializedService) {
+        this.service = service
+    }
+
+    fn test_priority_queue() -> Bool {
+        return this.service.testPriorityQueue() == 2
+    }
+
+    fn test_trie_prefix() -> Bool {
+        return this.service.testTrie()
+    }
+
+    fn test_lru_cache() -> Bool {
+        return this.service.testLruCache() == 2
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_priority_queue()
+        let p2 = this.test_trie_prefix()
+        let p3 = this.test_lru_cache()
+        if p1 && p2 && p3 {
+            print("  ✓ Specialized Data Structures Unit Tests: 3/3 passed")
+        } else {
+            print("  ✗ Specialized Data Structures Unit Tests: failed")
+        }
+    }
+}
+
+let service = SpecializedService()
+let suite = SpecializedUnitTestSuite(service)
+suite.run()

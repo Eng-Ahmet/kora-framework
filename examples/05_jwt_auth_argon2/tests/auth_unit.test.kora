@@ -1,0 +1,58 @@
+// ============================================================================
+// Unit Test Suite: 05_jwt_auth_argon2
+// Verifies Argon2 password validation, login auth errors, and JWT token issuance
+// ============================================================================
+
+import { RegisterRequest, LoginRequest, AuthTokenResponse } from "../models/auth.dto"
+import { AuthService } from "../services/auth.service"
+
+class AuthUnitTestSuite {
+    authService: AuthService
+
+    init(authService: AuthService) {
+        this.authService = authService
+    }
+
+    fn test_valid_registration() -> Bool {
+        let req = RegisterRequest { username: "alice", plainPassword: "secret_password_123" }
+        let res = this.authService.register(req)
+        return match res {
+            Ok(user) => user.username == "alice",
+            Err(e) => false,
+        }
+    }
+
+    fn test_valid_login() -> Bool {
+        let loginReq = LoginRequest { username: "admin", plainPassword: "super_secret_argon2_password" }
+        let res = this.authService.login(loginReq)
+        return match res {
+            Ok(auth) => auth.tokenType == "Bearer" && auth.expiresInSeconds == 3600,
+            Err(e) => false,
+        }
+    }
+
+    fn test_invalid_password() -> Bool {
+        let loginReq = LoginRequest { username: "admin", plainPassword: "wrong_password" }
+        let res = this.authService.login(loginReq)
+        return match res {
+            Ok(auth) => false,
+            Err(e) => e == "Invalid credentials",
+        }
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_valid_registration()
+        let p2 = this.test_valid_login()
+        let p3 = this.test_invalid_password()
+        if p1 && p2 && p3 {
+            print("  ✓ JWT Argon2 Auth Unit Tests: 3/3 passed")
+        } else {
+            print("  ✗ JWT Argon2 Auth Unit Tests: failed")
+        }
+    }
+}
+
+let db = Database()
+let authService = AuthService(db)
+let suite = AuthUnitTestSuite(authService)
+suite.run()

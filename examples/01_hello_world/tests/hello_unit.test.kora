@@ -1,0 +1,45 @@
+// ============================================================================
+// Unit Test Suite: 01_hello_world
+// Verifies OrderProcessor calculation, zero-tax edge cases, and status formatting
+// ============================================================================
+
+import { Coordinates } from "../models/coordinates.model"
+import { OrderStatus } from "../enums/order_status.enum"
+import { OrderProcessor } from "../services/order_processor.service"
+
+class HelloUnitTestSuite {
+    processor: OrderProcessor
+
+    init(processor: OrderProcessor) {
+        this.processor = processor
+    }
+
+    fn test_calculate_total() -> Bool {
+        let total = this.processor.calculateTotal(1000, 18)
+        return total == 1180
+    }
+
+    fn test_zero_tax() -> Bool {
+        let total = this.processor.calculateTotal(500, 0)
+        return total == 500
+    }
+
+    fn test_describe_paid() -> Bool {
+        let desc = this.processor.describeOrder(OrderStatus.Paid(1180))
+        return desc == "Order #1180 is confirmed and paid."
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_calculate_total()
+        let p2 = this.test_zero_tax()
+        let p3 = this.test_describe_paid()
+        if p1 && p2 && p3 {
+            print("  ✓ Hello World Unit Tests: 3/3 passed")
+        } else {
+            print("  ✗ Hello World Unit Tests: failed")
+        }
+    }
+}
+
+let suite = HelloUnitTestSuite(OrderProcessor())
+suite.run()

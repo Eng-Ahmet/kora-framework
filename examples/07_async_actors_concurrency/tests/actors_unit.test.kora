@@ -1,0 +1,49 @@
+// ============================================================================
+// Unit Test Suite: 07_async_actors_concurrency
+// Tests actor message processing, worker dispatch, and status queries
+// ============================================================================
+
+import { JobTask, ActorStats } from "../models/task.models"
+import { TaskWorker } from "../interfaces/task_worker.interface"
+import { CounterActorService } from "../services/counter_actor.service"
+
+class MockWorker implements TaskWorker {
+    init() {}
+    fn enqueue(task: JobTask) -> Bool { return task.priority >= 0 }
+    fn getStats() -> ActorStats {
+        return ActorStats { totalProcessed: 10, activeWorkers: 2, status: "idle" }
+    }
+}
+
+class ActorsUnitTestSuite {
+    actorService: CounterActorService
+
+    init(actorService: CounterActorService) {
+        this.actorService = actorService
+    }
+
+    fn test_enqueue_task() -> Bool {
+        let task = JobTask { id: 1, payload: "render_task", priority: 1 }
+        return this.actorService.enqueue(task)
+    }
+
+    fn test_get_stats() -> Bool {
+        let stats = this.actorService.getStats()
+        return stats.totalProcessed == 10420 && stats.status == "healthy"
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_enqueue_task()
+        let p2 = this.test_get_stats()
+        if p1 && p2 {
+            print("  ✓ Actors Concurrency Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ Actors Concurrency Unit Tests: failed")
+        }
+    }
+}
+
+let mock = MockWorker()
+let service = CounterActorService(mock)
+let suite = ActorsUnitTestSuite(service)
+suite.run()

@@ -1,0 +1,48 @@
+// ============================================================================
+// Unit Test Suite: 12_microservice_event_driven
+// Tests domain event publication, payload serialization, and event log queries
+// ============================================================================
+
+import { DomainEventEntity } from "../entities/domain_event.entity"
+import { EventStoreRepository } from "../repositories/event_store.repository"
+import { EventPublisherService } from "../services/event_publisher.service"
+
+class MicroserviceUnitTestSuite {
+    service: EventPublisherService
+
+    init(service: EventPublisherService) {
+        this.service = service
+    }
+
+    fn test_publish_event() -> Bool {
+        let res = this.service.publish("USER_REGISTERED", "{\"id\": 10}")
+        return match res {
+            Ok(evt) => evt.eventType == "USER_REGISTERED",
+            Err(e) => false,
+        }
+    }
+
+    fn test_list_recent() -> Bool {
+        let res = this.service.listRecent()
+        return match res {
+            Ok(count) => count >= 0,
+            Err(e) => false,
+        }
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_publish_event()
+        let p2 = this.test_list_recent()
+        if p1 && p2 {
+            print("  ✓ Microservice Event-Driven Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ Microservice Event-Driven Unit Tests: failed")
+        }
+    }
+}
+
+let db = Database()
+let repo = EventStoreRepository(db)
+let service = EventPublisherService(repo)
+let suite = MicroserviceUnitTestSuite(service)
+suite.run()

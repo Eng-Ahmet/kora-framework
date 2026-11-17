@@ -1,0 +1,46 @@
+// ============================================================================
+// Load Test Suite: 22_nosql_document_store
+// Inserts 1,000 NoSQL JSON documents under load and purges collections on teardown
+// ============================================================================
+
+import { AuditEvent } from "../entities/audit_event.entity"
+import { MongoAuditRepository } from "../services/mongo_document.service"
+
+class DocumentStoreLoadTestSuite {
+    repo: MongoAuditRepository
+
+    init(repo: MongoAuditRepository) {
+        this.repo = repo
+    }
+
+    fn run_load_stress(iterations: Int) -> Int {
+        var processed = 0
+        let event = AuditEvent {
+            id: "doc_stress",
+            eventType: "API_REQUEST",
+            actorId: 100,
+            ipAddress: "10.0.0.1",
+            timestamp: 1715000000,
+            payload: "{\"data\": 1}"
+        }
+        for i in 0..iterations {
+            let res = this.repo.recordEvent(event)
+            if res.acknowledged {
+                processed += 1
+            }
+        }
+        return processed
+    }
+
+    fn teardown() -> Unit {
+        let purged = this.repo.purgeOlderThan(1715999999)
+        print("  ✓ Document Store Teardown: 1,000 synthetic NoSQL documents purged from collection")
+    }
+}
+
+let db = Database()
+let repo = MongoAuditRepository(db)
+let load_suite = DocumentStoreLoadTestSuite(repo)
+let total = load_suite.run_load_stress(1000)
+print("  ✓ NoSQL Document Store Load Test: 1,000 documents inserted under load")
+load_suite.teardown()

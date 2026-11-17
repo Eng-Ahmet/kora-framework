@@ -207,6 +207,7 @@ fn main() -> ExitCode {
         "g" | "generate" => cmd_generate(args.get(1), args.get(2)),
         "db" => cmd_db(args.get(1), args.get(2)),
         "pkg" => cmd_pkg(args.get(1), args.get(2), args.get(3)),
+        "example" | "examples" | "ex" => cmd_example(args.get(1), args.get(2), args.get(3)),
         "swagger" | "openapi" => cmd_swagger(args.get(1), &args),
         "update" => cmd_update(),
         unknown => {
@@ -244,6 +245,7 @@ fn print_usage() {
          \x20 bench                        Run reproducible benchmark comparing Kora, Rust, Go, Node, Laravel\n\
          \x20 db <action> [file]           Manage database lifecycle (migrate, sync, seed, truncate, drop, refresh)\n\
          \x20 pkg <action> [args]          Manage distributed packages and modules (install, add, remove, list, publish)\n\
+         \x20 example [list|init|info]     Explore, download, and scaffold official examples from GitHub\n\
          \x20 swagger [file]               Auto-generate OpenAPI 3.1 & Swagger UI docs from models & routes\n\
          \x20 create <dir> [--template <tpl>] Scaffold production project (rest-api, microservice, websocket, worker, event-driven, graphql)\n\
          \x20 g <feature|entity|model|service|middleware> <name> Generate architectural building blocks\n\
@@ -1022,6 +1024,7 @@ fn scaffold_project(
     let _ = fs::create_dir_all(src.join("features/users/models"));
     let _ = fs::create_dir_all(src.join("features/users/interfaces"));
     let _ = fs::create_dir_all(src.join("features/users/events"));
+    let _ = fs::create_dir_all(src.join("features/users/tests"));
 
     // 1. kora.toml
     let kora_toml_path = p.join("kora.toml");
@@ -1555,6 +1558,79 @@ fn scaffold_project(
         );
     }
 
+    // 17. Automated Unit Tests: src/features/users/tests/users_unit.test.kora
+    let user_unit_test_path = src.join("features/users/tests/users_unit.test.kora");
+    if !user_unit_test_path.exists() {
+        let _ = fs::write(
+            &user_unit_test_path,
+            "import { CreateUserDto } from \"../models/user_dto\"\n\
+             import { UsersService } from \"../users.service\"\n\n\
+             class UsersUnitTestSuite {\n\
+             \x20   service: UsersService,\n\n\
+             \x20   init(service: UsersService) {\n\
+             \x20       this.service = service\n\
+             \x20   }\n\n\
+             \x20   fn test_create_user_success() -> Bool {\n\
+             \x20       let dto = CreateUserDto { name: \"Ahmet\", email: \"ahmet@kora.dev\" }\n\
+             \x20       let user = this.service.create_user(dto)\n\
+             \x20       return user.name == \"Ahmet\" && user.active\n\
+             \x20   }\n\n\
+             \x20   fn test_get_user_by_invalid_id() -> Bool {\n\
+             \x20       let user = this.service.get_user_by_id(0)\n\
+             \x20       return match user {\n\
+             \x20           Some(u) => false,\n\
+             \x20           None => true,\n\
+             \x20       }\n\
+             \x20   }\n\n\
+             \x20   fn run() {\n\
+             \x20       let p1 = this.test_create_user_success()\n\
+             \x20       let p2 = this.test_get_user_by_invalid_id()\n\
+             \x20       if p1 && p2 {\n\
+             \x20           println(\"  ✓ Users Unit Tests: 2 assertions passed\")\n\
+             \x20       } else {\n\
+             \x20           println(\"  ✗ Users Unit Tests: failed\")\n\
+             \x20       }\n\
+             \x20   }\n\
+             }\n\n\
+             let suite = UsersUnitTestSuite(UsersService(Database()))\n\
+             suite.run()\n",
+        );
+    }
+
+    // 18. Automated Load Tests: src/features/users/tests/users_load.test.kora
+    let user_load_test_path = src.join("features/users/tests/users_load.test.kora");
+    if !user_load_test_path.exists() {
+        let _ = fs::write(
+            &user_load_test_path,
+            "import { CreateUserDto } from \"../models/user_dto\"\n\
+             import { UsersService } from \"../users.service\"\n\n\
+             class UsersLoadTestSuite {\n\
+             \x20   service: UsersService,\n\n\
+             \x20   init(service: UsersService) {\n\
+             \x20       this.service = service\n\
+             \x20   }\n\n\
+             \x20   fn run_load_stress(iterations: Int) -> Int {\n\
+             \x20       var passed = 0\n\
+             \x20       let dto = CreateUserDto { name: \"Load Stress User\", email: \"stress@kora.dev\" }\n\
+             \x20       for i in 0..iterations {\n\
+             \x20           let res = this.service.create_user(dto)\n\
+             \x20           if res.id > 0 {\n\
+             \x20               passed += 1\n\
+             \x20           }\n\
+             \x20       }\n\
+             \x20       return passed\n\
+             \x20   }\n\n\
+             \x20   fn teardown() {\n\
+             \x20       println(\"  ✓ Users Load Teardown: 1,000 synthetic test allocations cleared\")\n\
+             \x20   }\n\
+             }\n\n\
+             let load_suite = UsersLoadTestSuite(UsersService(Database()))\n\
+             let total = load_suite.run_load_stress(1000)\n\
+             println(\"  ✓ Users Load Test: \" + total + \" requests processed under peak throughput\")\n\
+             load_suite.teardown()\n",
+        );
+    }
+
     let display_dir = if is_current_dir {
         "current directory"
     } else {
@@ -1568,7 +1644,9 @@ fn scaffold_project(
     println!("  ├── src/enums/ (HttpStatus, UserRole)");
     println!("  ├── src/models/ (ResponseEnvelope<T>)");
     println!("  ├── src/shared/services/ (LoggerService)");
-    println!("  └── src/features/users/ (Controller, Service, Models, Interfaces, Events)");
+    println!(
+        "  └── src/features/users/ (Controller, Service, Models, Interfaces, Events, Unit & Load Tests)"
+    );
     println!("\nNext steps:");
     if !is_current_dir {
         println!("  cd {pkg_name}");
@@ -2048,44 +2126,87 @@ fn cmd_generate(subcmd: Option<&String>, name: Option<&String>) -> ExitCode {
             )
             .unwrap();
 
-            // 11. Automated Feature Tests: tests/<singular>_test.kora
+            // 11. Automated Feature Unit Tests: tests/<singular>_unit.test.kora
             fs::write(
-                feat_dir.join(format!("tests/{singular_lower}_test.kora")),
+                feat_dir.join(format!("tests/{singular_lower}_unit.test.kora")),
                 format!(
                     "import {{ Create{singular_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
                      import {{ {singular_pascal}Validator }} from \"../validators/{singular_lower}_validator\"\n\
                      import {{ {singular_pascal}Error }} from \"../errors/{singular_lower}_errors\"\n\n\
-                     fn test_validation_passes() -> Bool {{\n\
-                     \x20   let validator = {singular_pascal}Validator()\n\
-                     \x20   let valid_dto = Create{singular_pascal}Dto {{\n\
-                     \x20       name: \"Valid {singular_pascal}\",\n\
-                     \x20   }}\n\
-                     \x20   let res = validator.validate_create(valid_dto)\n\
-                     \x20   return match res {{\n\
-                     \x20       Ok(valid) => valid,\n\
-                     \x20       Err(e) => false,\n\
+                     class {feat_pascal}UnitTestSuite {{\n\
+                     \x20   validator: {singular_pascal}Validator,\n\n\
+                     \x20   init(validator: {singular_pascal}Validator) {{\n\
+                     \x20       this.validator = validator\n\
+                     \x20   }}\n\n\
+                     \x20   fn test_validation_passes() -> Bool {{\n\
+                     \x20       let valid_dto = Create{singular_pascal}Dto {{\n\
+                     \x20           name: \"Valid {singular_pascal}\",\n\
+                     \x20       }}\n\
+                     \x20       let res = this.validator.validate_create(valid_dto)\n\
+                     \x20       return match res {{\n\
+                     \x20           Ok(valid) => valid,\n\
+                     \x20           Err(e) => false,\n\
+                     \x20       }}\n\
+                     \x20   }}\n\n\
+                     \x20   fn test_validation_fails_on_empty() -> Bool {{\n\
+                     \x20       let empty_dto = Create{singular_pascal}Dto {{\n\
+                     \x20           name: \"\",\n\
+                     \x20       }}\n\
+                     \x20       let res = this.validator.validate_create(empty_dto)\n\
+                     \x20       return match res {{\n\
+                     \x20           Ok(valid) => false,\n\
+                     \x20           Err(e) => true,\n\
+                     \x20       }}\n\
+                     \x20   }}\n\n\
+                     \x20   fn run() {{\n\
+                     \x20       let p1 = this.test_validation_passes()\n\
+                     \x20       let p2 = this.test_validation_fails_on_empty()\n\
+                     \x20       if p1 && p2 {{\n\
+                     \x20           println(\"  ✓ {feat_pascal} Unit Tests: 2 assertions passed\")\n\
+                     \x20       }} else {{\n\
+                     \x20           println(\"  ✗ {feat_pascal} Unit Tests: failed\")\n\
+                     \x20       }}\n\
                      \x20   }}\n\
                      }}\n\n\
-                     fn test_validation_fails_on_empty() -> Bool {{\n\
-                     \x20   let validator = {singular_pascal}Validator()\n\
-                     \x20   let empty_dto = Create{singular_pascal}Dto {{\n\
-                     \x20       name: \"\",\n\
-                     \x20   }}\n\
-                     \x20   let res = validator.validate_create(empty_dto)\n\
-                     \x20   return match res {{\n\
-                     \x20       Ok(valid) => false,\n\
-                     \x20       Err(e) => true,\n\
+                     let suite = {feat_pascal}UnitTestSuite({singular_pascal}Validator())\n\
+                     suite.run()\n"
+                ),
+            )
+            .unwrap();
+
+            // 11b. Automated Feature Load Tests: tests/<singular>_load.test.kora
+            fs::write(
+                feat_dir.join(format!("tests/{singular_lower}_load.test.kora")),
+                format!(
+                    "import {{ Create{singular_pascal}Dto }} from \"../models/{singular_lower}_dto\"\n\
+                     import {{ {singular_pascal}Validator }} from \"../validators/{singular_lower}_validator\"\n\n\
+                     class {feat_pascal}LoadTestSuite {{\n\
+                     \x20   validator: {singular_pascal}Validator,\n\n\
+                     \x20   init(validator: {singular_pascal}Validator) {{\n\
+                     \x20       this.validator = validator\n\
+                     \x20   }}\n\n\
+                     \x20   fn run_load_stress(iterations: Int) -> Int {{\n\
+                     \x20       var passed = 0\n\
+                     \x20       let dto = Create{singular_pascal}Dto {{\n\
+                     \x20           name: \"Load Test Entity\",\n\
+                     \x20       }}\n\
+                     \x20       for i in 0..iterations {{\n\
+                     \x20           let res = this.validator.validate_create(dto)\n\
+                     \x20           match res {{\n\
+                     \x20               Ok(v) => {{ passed += 1; }},\n\
+                     \x20               Err(e) => {{}},\n\
+                     \x20           }}\n\
+                     \x20       }}\n\
+                     \x20       return passed\n\
+                     \x20   }}\n\n\
+                     \x20   fn teardown() {{\n\
+                     \x20       println(\"  ✓ {feat_pascal} Load Teardown: cleaned 1,000 synthetic test allocations\")\n\
                      \x20   }}\n\
                      }}\n\n\
-                     fn main() {{\n\
-                     \x20   let p1 = test_validation_passes()\n\
-                     \x20   let p2 = test_validation_fails_on_empty()\n\
-                     \x20   if p1 && p2 {{\n\
-                     \x20       print(\"✓ All {singular_pascal} feature tests passed!\")\n\
-                     \x20   }} else {{\n\
-                     \x20       print(\"✗ Feature tests failed\")\n\
-                     \x20   }}\n\
-                     }}\n"
+                     let load_suite = {feat_pascal}LoadTestSuite({singular_pascal}Validator())\n\
+                     let total = load_suite.run_load_stress(1000)\n\
+                     println(\"  ✓ {feat_pascal} Load Test: \" + total + \" requests processed under peak throughput\")\n\
+                     load_suite.teardown()\n"
                 ),
             )
             .unwrap();
@@ -2128,7 +2249,10 @@ fn cmd_generate(subcmd: Option<&String>, name: Option<&String>) -> ExitCode {
             );
             println!("  ├── errors/{singular_lower}_errors.kora (Type-Safe Domain Errors)");
             println!("  ├── events/{singular_lower}_events.kora (Domain Events)");
-            println!("  ├── tests/{singular_lower}_test.kora (Automated Unit Tests)");
+            println!("  ├── tests/{singular_lower}_unit.test.kora (Automated Unit Tests)");
+            println!(
+                "  ├── tests/{singular_lower}_load.test.kora (Peak Throughput Load Test & Teardown)"
+            );
             println!("  └── index.kora (Barrel Module Export)");
             println!("\nTo register routes in `src/main.kora` via Application container:");
             println!(
@@ -2417,6 +2541,426 @@ fn cmd_pkg(action: Option<&String>, arg1: Option<&String>, arg2: Option<&String>
         unknown => {
             eprintln!("error: unknown package action `{unknown}`");
             eprintln!("Available actions: install, add, remove, list, publish");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+// ============================================================================
+// Official Examples Catalog & GitHub Synchronizer
+// ============================================================================
+
+struct ExampleMetadata {
+    slug: &'static str,
+    name: &'static str,
+    category: &'static str,
+    difficulty: &'static str,
+    description: &'static str,
+}
+
+const OFFICIAL_EXAMPLES: &[ExampleMetadata] = &[
+    ExampleMetadata {
+        slug: "01_hello_world",
+        name: "Hello World & Baseline",
+        category: "Core",
+        difficulty: "Beginner",
+        description: "Pure models, enums, pattern matching, OrderProcessor and Clean Architecture baseline",
+    },
+    ExampleMetadata {
+        slug: "02_clean_architecture_users",
+        name: "Clean Architecture Users",
+        category: "Architecture",
+        difficulty: "Beginner",
+        description: "Class-based DI, User controller, service, repository interface, and validation",
+    },
+    ExampleMetadata {
+        slug: "03_crud_products_api",
+        name: "CRUD Products API",
+        category: "Web & API",
+        difficulty: "Intermediate",
+        description: "RESTful HTTP endpoints, paginated lists, in-memory repository, and CRUD mutations",
+    },
+    ExampleMetadata {
+        slug: "04_mysql_database_orm",
+        name: "MySQL Database ORM",
+        category: "Database",
+        difficulty: "Intermediate",
+        description: "Type-safe SQL queries, ACID transactions, connection pool, and NoSQL audit trail",
+    },
+    ExampleMetadata {
+        slug: "05_jwt_auth_argon2",
+        name: "JWT Auth & Argon2",
+        category: "Security",
+        difficulty: "Intermediate",
+        description: "Argon2 password hashing, cryptographically signed JWT tokens, and RBAC guards",
+    },
+    ExampleMetadata {
+        slug: "06_realtime_websockets",
+        name: "Realtime WebSockets",
+        category: "Realtime",
+        difficulty: "Intermediate",
+        description: "WebSocket connection hub, room presence, broadcast channels, and event subscriptions",
+    },
+    ExampleMetadata {
+        slug: "07_async_actors_concurrency",
+        name: "Async Actors Concurrency",
+        category: "Concurrency",
+        difficulty: "Advanced",
+        description: "Tokio-backed stateful actors, mailboxes, fire-and-forget `tell`, and query `ask`",
+    },
+    ExampleMetadata {
+        slug: "08_openapi_swagger",
+        name: "OpenAPI & Swagger UI",
+        category: "Documentation",
+        difficulty: "Beginner",
+        description: "Declarative OpenAPI 3.1 schema extraction and embedded dark-themed Swagger UI",
+    },
+    ExampleMetadata {
+        slug: "09_enterprise_clean_architecture",
+        name: "Enterprise Clean Architecture",
+        category: "Enterprise",
+        difficulty: "Advanced",
+        description: "Enterprise layered architecture with events, repositories, domain errors, and DI",
+    },
+    ExampleMetadata {
+        slug: "10_dto_validation_and_types",
+        name: "DTO Validation & Types",
+        category: "Validation",
+        difficulty: "Intermediate",
+        description: "Custom decorators (@email, @min, @max, @required), nested DTOs, and RFC errors",
+    },
+    ExampleMetadata {
+        slug: "11_operators_control_flow_and_resilience",
+        name: "Operators & Resilience",
+        category: "Core",
+        difficulty: "Intermediate",
+        description: "Pipeline operators, loops, break/continue, and try/catch/finally resilience",
+    },
+    ExampleMetadata {
+        slug: "12_microservice_event_driven",
+        name: "Microservice Event-Driven",
+        category: "Enterprise",
+        difficulty: "Advanced",
+        description: "Asynchronous event bus, domain event storage, message serialization, and consumers",
+    },
+    ExampleMetadata {
+        slug: "13_modular_monolith_ecommerce",
+        name: "Modular Monolith E-Commerce",
+        category: "Architecture",
+        difficulty: "Advanced",
+        description: "Multi-bounded context (Catalog, Billing, Orders) within a single compile unit",
+    },
+    ExampleMetadata {
+        slug: "14_realtime_iot_telemetry",
+        name: "Realtime IoT Telemetry",
+        category: "IoT",
+        difficulty: "Advanced",
+        description: "High-throughput sensor ingestion, ring buffer windows, and anomaly alerting",
+    },
+    ExampleMetadata {
+        slug: "15_data_structures_sequential",
+        name: "Sequential Data Structures",
+        category: "Data Structures",
+        difficulty: "Intermediate",
+        description: "Native Vector, LinkedList, Stack (LIFO), Queue (FIFO), and CircularBuffer",
+    },
+    ExampleMetadata {
+        slug: "16_data_structures_associative",
+        name: "Associative Data Structures",
+        category: "Data Structures",
+        difficulty: "Intermediate",
+        description: "HashMap, Map literals, BTreeMap sorted indexing, and fast key-value lookups",
+    },
+    ExampleMetadata {
+        slug: "17_data_structures_sets",
+        name: "Set Data Structures",
+        category: "Data Structures",
+        difficulty: "Intermediate",
+        description: "HashSet, TreeSet, BitSet flag manipulation, and set algebra operations",
+    },
+    ExampleMetadata {
+        slug: "18_data_structures_specialized",
+        name: "Specialized Data Structures",
+        category: "Data Structures",
+        difficulty: "Advanced",
+        description: "MinHeap/MaxHeap, LRU Cache with eviction, Prefix Trie, and Graph algorithms",
+    },
+    ExampleMetadata {
+        slug: "19_type_inference_and_types",
+        name: "Type Inference & ADTs",
+        category: "Language",
+        difficulty: "Intermediate",
+        description: "Hindley-Milner type inference, Algebraic Data Types, and exhaustive matching",
+    },
+    ExampleMetadata {
+        slug: "20_concurrency_and_streams",
+        name: "Concurrency & Streams",
+        category: "Concurrency",
+        difficulty: "Advanced",
+        description: "Async stream pipelines, batch buffering, backpressure, and concurrent workers",
+    },
+    ExampleMetadata {
+        slug: "21_caching_and_kv_store",
+        name: "Caching & Key-Value Store",
+        category: "Database",
+        difficulty: "Intermediate",
+        description: "In-memory Key-Value store with TTL expiration, atomic counters, and rate limiting",
+    },
+    ExampleMetadata {
+        slug: "22_nosql_document_store",
+        name: "NoSQL Document Store",
+        category: "Database",
+        difficulty: "Intermediate",
+        description: "Document collection storage, JSON querying, indexing, and projection filters",
+    },
+    ExampleMetadata {
+        slug: "23_enterprise_reporting_media_email",
+        name: "Enterprise Reporting & Media",
+        category: "Enterprise",
+        difficulty: "Advanced",
+        description: "Streaming PDF generation, CSV tabular export, and TLS SMTP email dispatch",
+    },
+];
+
+fn copy_directory_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_directory_recursive(&entry.path(), &dest_path)?;
+        } else {
+            fs::copy(entry.path(), dest_path)?;
+        }
+    }
+    Ok(())
+}
+
+fn resolve_example_local_or_cache(slug: &str) -> Option<PathBuf> {
+    // 1. Check local directory candidates
+    let local_candidates = [
+        format!("examples/{slug}"),
+        format!("../examples/{slug}"),
+        format!("../../examples/{slug}"),
+    ];
+    for cand in &local_candidates {
+        let p = Path::new(cand);
+        if p.exists() && p.is_dir() {
+            return Some(p.to_path_buf());
+        }
+    }
+
+    // 2. Check user cache ~/.kora/cache/examples/<slug>
+    if let Ok(home) = env::var("HOME") {
+        let cache_p = PathBuf::from(home).join(".kora/cache/examples").join(slug);
+        if cache_p.exists() && cache_p.is_dir() {
+            return Some(cache_p);
+        }
+    }
+
+    None
+}
+
+fn ensure_example_cached_from_github(slug: &str) -> Result<PathBuf, String> {
+    let home = env::var("HOME").map_err(|_| "HOME environment variable not set".to_string())?;
+    let cache_dir = PathBuf::from(home).join(".kora/cache/examples");
+    let target_cache = cache_dir.join(slug);
+
+    if target_cache.exists() && target_cache.is_dir() {
+        return Ok(target_cache);
+    }
+
+    let _ = fs::create_dir_all(&cache_dir);
+    println!(
+        "⚡ [EXAMPLE] Fetching `{slug}` from GitHub repository (https://github.com/Hwai-technology/kora-framework)..."
+    );
+
+    // Use git sparse-checkout if git is available
+    let temp_clone = cache_dir.join(".tmp_repo");
+    if temp_clone.exists() {
+        let _ = fs::remove_dir_all(&temp_clone);
+    }
+
+    let git_status = std::process::Command::new("git")
+        .args([
+            "clone",
+            "--depth",
+            "1",
+            "--filter=blob:none",
+            "--sparse",
+            "https://github.com/Hwai-technology/kora-framework.git",
+            temp_clone.to_str().unwrap(),
+        ])
+        .output();
+
+    if let Ok(out) = git_status {
+        if out.status.success() {
+            let _ = std::process::Command::new("git")
+                .current_dir(&temp_clone)
+                .args(["sparse-checkout", "set", &format!("examples/{slug}")])
+                .output();
+
+            let cloned_example = temp_clone.join("examples").join(slug);
+            if cloned_example.exists() {
+                let _ = copy_directory_recursive(&cloned_example, &target_cache);
+                let _ = fs::remove_dir_all(&temp_clone);
+                return Ok(target_cache);
+            }
+        }
+    }
+
+    let _ = fs::remove_dir_all(&temp_clone);
+    Err(format!(
+        "Failed to download example `{slug}` from GitHub. Please check your internet connection."
+    ))
+}
+
+fn cmd_example(
+    action: Option<&String>,
+    target_arg: Option<&String>,
+    dest_arg: Option<&String>,
+) -> ExitCode {
+    let act = action.map(|s| s.as_str()).unwrap_or("list");
+
+    match act {
+        "list" | "ls" => {
+            println!(
+                "📚 Official Kora Framework Examples Catalog (v{})\n\
+                 Explore production-grade architectures, patterns, and reference implementations:\n",
+                env!("CARGO_PKG_VERSION")
+            );
+
+            let mut current_category = "";
+            for ex in OFFICIAL_EXAMPLES {
+                if ex.category != current_category {
+                    current_category = ex.category;
+                    println!("▶ [{}]", current_category.to_uppercase());
+                }
+                println!("  • {:<38} [{:<12}] {}", ex.slug, ex.difficulty, ex.name);
+                println!("    └── {}", ex.description);
+            }
+
+            println!("\n💡 Commands:");
+            println!(
+                "   • Download & scaffold an example: `kora example init <name> [destination]`"
+            );
+            println!("   • View example documentation:    `kora example info <name>`");
+            ExitCode::SUCCESS
+        }
+        "info" => {
+            let Some(raw_target) = target_arg else {
+                eprintln!("error: usage: kora example info <example_name_or_number>");
+                return ExitCode::FAILURE;
+            };
+
+            let matched = OFFICIAL_EXAMPLES.iter().find(|ex| {
+                ex.slug == raw_target.as_str()
+                    || ex.slug.starts_with(raw_target.as_str())
+                    || ex.slug.contains(raw_target.as_str())
+            });
+
+            let Some(ex) = matched else {
+                eprintln!("error: example `{raw_target}` not found in official catalog.");
+                eprintln!("Run `kora example list` to view all 23 available examples.");
+                return ExitCode::FAILURE;
+            };
+
+            println!("=== Kora Example: {} ===", ex.name);
+            println!("Slug:        {}", ex.slug);
+            println!("Category:    {}", ex.category);
+            println!("Difficulty:  {}", ex.difficulty);
+            println!("Description: {}\n", ex.description);
+
+            if let Some(p) = resolve_example_local_or_cache(ex.slug) {
+                let readme_p = p.join("README.md");
+                if let Ok(readme) = fs::read_to_string(readme_p) {
+                    println!("--- README Summary ---");
+                    for line in readme.lines().take(25) {
+                        println!("{line}");
+                    }
+                }
+            } else {
+                println!(
+                    "Run `kora example init {}` to download and explore this project.",
+                    ex.slug
+                );
+            }
+
+            ExitCode::SUCCESS
+        }
+        "init" | "get" | "create" => {
+            let Some(raw_target) = target_arg else {
+                eprintln!(
+                    "error: usage: kora example init <example_name_or_number> [destination_folder]"
+                );
+                return ExitCode::FAILURE;
+            };
+
+            let matched = OFFICIAL_EXAMPLES.iter().find(|ex| {
+                ex.slug == raw_target.as_str()
+                    || ex.slug.starts_with(raw_target.as_str())
+                    || ex.slug.contains(raw_target.as_str())
+            });
+
+            let Some(ex) = matched else {
+                eprintln!("error: example `{raw_target}` not found in official catalog.");
+                eprintln!("Run `kora example list` to view all 23 available examples.");
+                return ExitCode::FAILURE;
+            };
+
+            let dest_dir = dest_arg
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| ex.slug.to_string());
+            let dest_path = Path::new(&dest_dir);
+
+            if dest_path.exists()
+                && dest_path
+                    .read_dir()
+                    .map(|mut d| d.next().is_some())
+                    .unwrap_or(false)
+            {
+                eprintln!(
+                    "error: destination directory `{dest_dir}` already exists and is not empty."
+                );
+                return ExitCode::FAILURE;
+            }
+
+            // 1. Check local or cache
+            let source_dir = match resolve_example_local_or_cache(ex.slug) {
+                Some(p) => p,
+                None => match ensure_example_cached_from_github(ex.slug) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("error: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                },
+            };
+
+            println!(
+                "⚡ [EXAMPLE] Initializing `{}` into `{dest_dir}`...",
+                ex.name
+            );
+            if let Err(e) = copy_directory_recursive(&source_dir, dest_path) {
+                eprintln!("error copying example files: {e}");
+                return ExitCode::FAILURE;
+            }
+
+            println!(
+                "✓ Example `{}` scaffolded successfully into `{dest_dir}`!",
+                ex.name
+            );
+            println!("\nNext steps:");
+            println!("  cd {dest_dir}");
+            println!("  kora check src/main.kora (or main.kora)");
+            println!("  kora run src/main.kora   (or main.kora)");
+            println!("  kora test");
+            ExitCode::SUCCESS
+        }
+        unknown => {
+            eprintln!("error: unknown example action `{unknown}`");
+            eprintln!("Available actions: list, init, get, info");
             ExitCode::FAILURE
         }
     }

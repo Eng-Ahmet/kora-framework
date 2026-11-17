@@ -1,0 +1,44 @@
+// ============================================================================
+// Unit Test Suite: 23_enterprise_reporting_media_email
+// Tests PDF invoice generation, CSV tabular reporting, and SMTP email dispatch
+// ============================================================================
+
+import { ReportSummaryDto } from "../models/invoice.dto"
+import { ReportingService } from "../services/reporting.service"
+
+class ReportingUnitTestSuite {
+    reporting: ReportingService
+
+    init(reporting: ReportingService) {
+        this.reporting = reporting
+    }
+
+    fn test_generate_pdf() -> Bool {
+        let pdf = this.reporting.generate_invoice_pdf("Acme Corp", 1500.0)
+        return pdf.len() > 0
+    }
+
+    fn test_export_csv() -> Bool {
+        let csv = this.reporting.export_csv_report()
+        return csv.len() > 0
+    }
+
+    fn test_send_email() -> Bool {
+        return this.reporting.dispatch_invoice_email("finance@kora.dev", 101)
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_generate_pdf()
+        let p2 = this.test_export_csv()
+        let p3 = this.test_send_email()
+        if p1 && p2 && p3 {
+            print("  ✓ Enterprise Reporting Unit Tests: 3/3 passed")
+        } else {
+            print("  ✗ Enterprise Reporting Unit Tests: failed")
+        }
+    }
+}
+
+let service = ReportingService()
+let suite = ReportingUnitTestSuite(service)
+suite.run()

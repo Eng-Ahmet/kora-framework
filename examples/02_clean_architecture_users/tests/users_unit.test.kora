@@ -1,0 +1,77 @@
+// ============================================================================
+// Unit Test Suite: 02_clean_architecture_users
+// Tests domain entity creation, user validation, and repository boundaries
+// ============================================================================
+
+import { User } from "../entities/user.entity"
+import { UserRepository } from "../interfaces/user.repository.interface"
+import { UserService } from "../services/user.service"
+
+class MockUserRepo implements UserRepository {
+    init() {}
+
+    fn findById(id: Int) -> Option<User> {
+        if id == 42 {
+            return Some(User { id: 42, name: "Test User", email: "test@kora.dev", active: true })
+        }
+        return None
+    }
+
+    fn save(user: User) -> Result<User, String> {
+        if user.name == "" {
+            return Err("User name cannot be empty")
+        }
+        return Ok(user)
+    }
+
+    fn deleteById(id: Int) -> Result<Bool, String> {
+        return Ok(id > 0)
+    }
+}
+
+class UsersUnitTestSuite {
+    service: UserService
+
+    init(service: UserService) {
+        this.service = service
+    }
+
+    fn test_find_existing_user() -> Bool {
+        let userOpt = this.service.findById(42)
+        return match userOpt {
+            Some(u) => u.name == "Test User" && u.active,
+            None => false,
+        }
+    }
+
+    fn test_find_nonexistent_user() -> Bool {
+        let userOpt = this.service.findById(999)
+        return match userOpt {
+            Some(u) => false,
+            None => true,
+        }
+    }
+
+    fn test_validate_new_user() -> Bool {
+        let user = User { id: 1, name: "Sara", email: "sara@kora.dev", active: true }
+        let res = this.service.validateNewUser(user)
+        return match res {
+            Ok(u) => u.name == "Sara",
+            Err(e) => false,
+        }
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_find_existing_user()
+        let p2 = this.test_find_nonexistent_user()
+        let p3 = this.test_validate_new_user()
+        if p1 && p2 && p3 {
+            print("  ✓ Users Clean Architecture Unit Tests: 3/3 passed")
+        } else {
+            print("  ✗ Users Clean Architecture Unit Tests: failed")
+        }
+    }
+}
+
+let unit_suite = UsersUnitTestSuite(UserService(MockUserRepo()))
+unit_suite.run()

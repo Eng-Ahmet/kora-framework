@@ -1,0 +1,48 @@
+// ============================================================================
+// Unit Test Suite: 14_realtime_iot_telemetry
+// Tests sensor telemetry ingestion, quality metrics, and time-series queries
+// ============================================================================
+
+import { IotMetricEntity } from "../models/iot_metric.entity"
+import { TelemetryRepository } from "../repositories/telemetry.repository"
+import { TelemetryService } from "../services/telemetry.service"
+
+class TelemetryUnitTestSuite {
+    service: TelemetryService
+
+    init(service: TelemetryService) {
+        this.service = service
+    }
+
+    fn test_ingest_metric() -> Bool {
+        let res = this.service.ingestMetric("SENSOR-01", 22, 95)
+        return match res {
+            Ok(m) => m.deviceId == "SENSOR-01" && m.temperatureCelsius == 22,
+            Err(e) => false,
+        }
+    }
+
+    fn test_query_recent() -> Bool {
+        let res = this.service.queryRecentTelemetry()
+        return match res {
+            Ok(count) => count >= 0,
+            Err(e) => false,
+        }
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_ingest_metric()
+        let p2 = this.test_query_recent()
+        if p1 && p2 {
+            print("  ✓ Realtime IoT Telemetry Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ Realtime IoT Telemetry Unit Tests: failed")
+        }
+    }
+}
+
+let db = Database()
+let repo = TelemetryRepository(db)
+let service = TelemetryService(repo)
+let suite = TelemetryUnitTestSuite(service)
+suite.run()

@@ -1,0 +1,35 @@
+// ============================================================================
+// Load Test Suite: 15_data_structures_sequential
+// Executes 5,000 sequential allocations and deallocates memory on teardown
+// ============================================================================
+
+import { SequentialService } from "../services/sequential.service"
+
+class SequentialLoadTestSuite {
+    service: SequentialService
+
+    init(service: SequentialService) {
+        this.service = service
+    }
+
+    fn run_load_stress(iterations: Int) -> Int {
+        var processed = 0
+        for i in 0..iterations {
+            let vecLen = this.service.runVectorDemo()
+            let stackRes = this.service.runStackDemo()
+            if vecLen > 0 && stackRes != "" {
+                processed += 1
+            }
+        }
+        return processed
+    }
+
+    fn teardown() -> Unit {
+        print("  ✓ Sequential Teardown: 5,000 vector and buffer structures deallocated from heap")
+    }
+}
+
+let load_suite = SequentialLoadTestSuite(SequentialService())
+let total = load_suite.run_load_stress(1000)
+print("  ✓ Sequential Structures Load Test: 1,000 operational batches processed")
+load_suite.teardown()

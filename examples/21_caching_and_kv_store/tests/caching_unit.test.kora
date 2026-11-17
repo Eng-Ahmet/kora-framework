@@ -1,0 +1,40 @@
+// ============================================================================
+// Unit Test Suite: 21_caching_and_kv_store
+// Tests Key-Value cache storage, TTL expiration policies, and rate limit checks
+// ============================================================================
+
+import { SessionData, RateLimitResult } from "../models/cache.models"
+import { RedisCacheService } from "../services/redis_cache.service"
+
+class CachingUnitTestSuite {
+    cache: RedisCacheService
+
+    init(cache: RedisCacheService) {
+        this.cache = cache
+    }
+
+    fn test_store_session() -> Bool {
+        let sess = SessionData { sessionId: "sess_unit_01", userId: 42, role: "admin" }
+        return this.cache.storeSession(sess)
+    }
+
+    fn test_rate_limit_allowed() -> Bool {
+        let res = this.cache.checkRateLimit("192.168.1.1", 100)
+        return res.allowed && res.remainingRequests > 0
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_store_session()
+        let p2 = this.test_rate_limit_allowed()
+        if p1 && p2 {
+            print("  ✓ Caching & KV Store Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ Caching & KV Store Unit Tests: failed")
+        }
+    }
+}
+
+let db = Database()
+let cacheService = RedisCacheService(db)
+let suite = CachingUnitTestSuite(cacheService)
+suite.run()

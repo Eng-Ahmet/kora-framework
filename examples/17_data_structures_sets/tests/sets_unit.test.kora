@@ -1,0 +1,41 @@
+// ============================================================================
+// Unit Test Suite: 17_data_structures_sets
+// Tests Set algebra operations: union, intersection, BitSet flags, and BTreeSet
+// ============================================================================
+
+import { SetAlgebraService } from "../services/set_algebra.service"
+
+class SetsUnitTestSuite {
+    service: SetAlgebraService
+
+    init(service: SetAlgebraService) {
+        this.service = service
+    }
+
+    fn test_calculate_union() -> Bool {
+        return this.service.calculateUnion() == 4
+    }
+
+    fn test_calculate_intersection() -> Bool {
+        return this.service.calculateIntersection() == 1
+    }
+
+    fn test_bitset_flags() -> Bool {
+        return this.service.calculateBitSetFlags() == 3
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_calculate_union()
+        let p2 = this.test_calculate_intersection()
+        let p3 = this.test_bitset_flags()
+        if p1 && p2 && p3 {
+            print("  ✓ Sets Data Structures Unit Tests: 3/3 passed")
+        } else {
+            print("  ✗ Sets Data Structures Unit Tests: failed")
+        }
+    }
+}
+
+let service = SetAlgebraService()
+let suite = SetsUnitTestSuite(service)
+suite.run()

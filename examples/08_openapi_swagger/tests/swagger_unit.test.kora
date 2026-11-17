@@ -1,0 +1,64 @@
+// ============================================================================
+// Unit Test Suite: 08_openapi_swagger
+// Tests OpenAPI spec model mapping, slug resolution, and article publication
+// ============================================================================
+
+import { Article, CreateArticleInput, ArticleListResponse } from "../models/article.models"
+import { ArticleRepository } from "../interfaces/article.repository.interface"
+import { ArticleService } from "../services/article.service"
+
+class MockArticleRepo implements ArticleRepository {
+    init() {}
+
+    fn listArticles() -> ArticleListResponse {
+        let a = Article { id: 1, slug: "kora-guide", title: "Guide", content: "Doc", published: true }
+        return ArticleListResponse { articles: [a], totalCount: 1 }
+    }
+
+    fn getBySlug(slug: String) -> Option<Article> {
+        if slug == "kora-guide" {
+            return Some(Article { id: 1, slug: slug, title: "Guide", content: "Doc", published: true })
+        }
+        return None
+    }
+
+    fn createArticle(input: CreateArticleInput) -> Result<Article, String> {
+        return Ok(Article { id: 2, slug: "new-doc", title: input.title, content: input.content, published: true })
+    }
+}
+
+class SwaggerUnitTestSuite {
+    service: ArticleService
+
+    init(service: ArticleService) {
+        this.service = service
+    }
+
+    fn test_fetch_catalog() -> Bool {
+        let cat = this.service.listArticles()
+        return cat.totalCount == 1
+    }
+
+    fn test_find_by_slug() -> Bool {
+        let art = this.service.getBySlug("kora-guide")
+        return match art {
+            Some(a) => a.title == "Guide" && a.published,
+            None => false,
+        }
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_fetch_catalog()
+        let p2 = this.test_find_by_slug()
+        if p1 && p2 {
+            print("  ✓ OpenAPI Swagger Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ OpenAPI Swagger Unit Tests: failed")
+        }
+    }
+}
+
+let mock = MockArticleRepo()
+let service = ArticleService(mock)
+let suite = SwaggerUnitTestSuite(service)
+suite.run()

@@ -1,0 +1,56 @@
+// ============================================================================
+// Unit Test Suite: 13_modular_monolith_ecommerce
+// Tests catalog product creation, list retrieval, and billing invoice generation
+// ============================================================================
+
+import { CatalogItemEntity } from "./modules/catalog/entities/catalog_item.entity"
+import { CatalogRepository } from "./modules/catalog/repositories/catalog.repository"
+import { CatalogService } from "./modules/catalog/services/catalog.service"
+import { InvoiceEntity } from "./modules/billing/entities/invoice.entity"
+import { BillingRepository } from "./modules/billing/repositories/billing.repository"
+import { BillingService } from "./modules/billing/services/billing.service"
+
+class EcommerceUnitTestSuite {
+    catalogService: CatalogService
+    billingService: BillingService
+
+    init(catalogService: CatalogService, billingService: BillingService) {
+        this.catalogService = catalogService
+        this.billingService = billingService
+    }
+
+    fn test_add_catalog_product() -> Bool {
+        let res = this.catalogService.addProduct("Wireless Mouse", 4999)
+        return match res {
+            Ok(p) => p.title == "Wireless Mouse" && p.priceCents == 4999,
+            Err(e) => false,
+        }
+    }
+
+    fn test_create_invoice() -> Bool {
+        let res = this.billingService.charge("shopper@kora.dev", 4999)
+        return match res {
+            Ok(inv) => inv.customerEmail == "shopper@kora.dev" && inv.totalCents == 4999,
+            Err(e) => false,
+        }
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_add_catalog_product()
+        let p2 = this.test_create_invoice()
+        if p1 && p2 {
+            print("  ✓ Modular Monolith E-Commerce Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ Modular Monolith E-Commerce Unit Tests: failed")
+        }
+    }
+}
+
+let db = Database()
+let catRepo = CatalogRepository(db)
+let catService = CatalogService(catRepo)
+let billRepo = BillingRepository(db)
+let billService = BillingService(billRepo)
+
+let suite = EcommerceUnitTestSuite(catService, billService)
+suite.run()

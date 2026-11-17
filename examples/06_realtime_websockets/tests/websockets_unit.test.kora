@@ -1,0 +1,42 @@
+// ============================================================================
+// Unit Test Suite: 06_realtime_websockets
+// Tests WebSocket message routing, room presence, and payload integrity
+// ============================================================================
+
+import { ChatMessage, RoomPresence } from "../models/chat.models"
+import { ChatRepository } from "../repositories/chat.repository"
+import { ChatService } from "../services/chat_hub.service"
+
+class WebSocketsUnitTestSuite {
+    service: ChatService
+
+    init(service: ChatService) {
+        this.service = service
+    }
+
+    fn test_send_message() -> Bool {
+        let msg = this.service.sendMessage("Unit test message")
+        return msg.content == "Unit test message" && msg.sender == "system"
+    }
+
+    fn test_room_presence() -> Bool {
+        let presence = this.service.getPresence("general")
+        return presence.room == "general" && presence.activeMembers == 5
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_send_message()
+        let p2 = this.test_room_presence()
+        if p1 && p2 {
+            print("  ✓ WebSockets Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ WebSockets Unit Tests: failed")
+        }
+    }
+}
+
+let db = Database()
+let repo = ChatRepository(db)
+let service = ChatService(repo)
+let suite = WebSocketsUnitTestSuite(service)
+suite.run()

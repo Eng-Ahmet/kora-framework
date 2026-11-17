@@ -1,0 +1,47 @@
+// ============================================================================
+// Unit Test Suite: 15_data_structures_sequential
+// Verifies sequential data structures: Vector, Stack (LIFO), Queue (FIFO), Buffer
+// ============================================================================
+
+import { Task } from "../models/task.model"
+import { SequentialService } from "../services/sequential.service"
+
+class SequentialUnitTestSuite {
+    service: SequentialService
+
+    init(service: SequentialService) {
+        this.service = service
+    }
+
+    fn test_vector_ops() -> Bool {
+        return this.service.runVectorDemo() == 6
+    }
+
+    fn test_stack_ops() -> Bool {
+        return this.service.runStackDemo() == "Action 2"
+    }
+
+    fn test_queue_ops() -> Bool {
+        return this.service.runQueueDemo() == 101
+    }
+
+    fn test_circular_buffer() -> Bool {
+        return this.service.runBufferDemo() == 2
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_vector_ops()
+        let p2 = this.test_stack_ops()
+        let p3 = this.test_queue_ops()
+        let p4 = this.test_circular_buffer()
+        if p1 && p2 && p3 && p4 {
+            print("  ✓ Sequential Data Structures Unit Tests: 4/4 passed")
+        } else {
+            print("  ✗ Sequential Data Structures Unit Tests: failed")
+        }
+    }
+}
+
+let service = SequentialService()
+let suite = SequentialUnitTestSuite(service)
+suite.run()

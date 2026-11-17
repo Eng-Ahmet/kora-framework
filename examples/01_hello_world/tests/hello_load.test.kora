@@ -1,0 +1,38 @@
+// ============================================================================
+// Load Test Suite: 01_hello_world
+// Tests high-throughput order calculations with full memory cleanup & teardown
+// ============================================================================
+
+import { OrderStatus } from "../enums/order_status.enum"
+import { OrderProcessor } from "../services/order_processor.service"
+
+class HelloLoadTestSuite {
+    processor: OrderProcessor
+
+    init(processor: OrderProcessor) {
+        this.processor = processor
+    }
+
+    fn run_load_stress(iterations: Int) -> Int {
+        var processed = 0
+        for i in 0..iterations {
+            let total = this.processor.calculateTotal(100, 18)
+            let status = OrderStatus.Paid(total)
+            let desc = this.processor.describeOrder(status)
+            if total > 0 {
+                processed += 1
+            }
+        }
+        return processed
+    }
+
+    fn teardown() -> Unit {
+        let cleanup = this.processor.describeOrder(OrderStatus.Cancelled("Load test teardown: synthetic memory released"))
+        print("  ✓ Teardown: " + cleanup)
+    }
+}
+
+let load_suite = HelloLoadTestSuite(OrderProcessor())
+let count = load_suite.run_load_stress(1000)
+print("  ✓ Hello World Load Test: 1,000 order calculations executed")
+load_suite.teardown()

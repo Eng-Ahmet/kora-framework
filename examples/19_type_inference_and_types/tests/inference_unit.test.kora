@@ -1,0 +1,43 @@
+// ============================================================================
+// Unit Test Suite: 19_type_inference_and_types
+// Tests Hindley-Milner type inference, ADT pattern matching, and model formatting
+// ============================================================================
+
+import { PaymentStatus } from "../enums/payment_status.enum"
+import { ServerConfig } from "../models/server_config.model"
+import { TypeInferenceService } from "../services/type_inference.service"
+
+class InferenceUnitTestSuite {
+    service: TypeInferenceService
+
+    init(service: TypeInferenceService) {
+        this.service = service
+    }
+
+    fn test_describe_pending() -> Bool {
+        return this.service.describePayment(PaymentStatus.Pending) == "Payment is currently pending authorization."
+    }
+
+    fn test_describe_completed() -> Bool {
+        return this.service.describePayment(PaymentStatus.Completed) == "Payment has been successfully processed."
+    }
+
+    fn test_infer_primitives() -> Bool {
+        return this.service.inferPrimitives() == "user_42"
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_describe_pending()
+        let p2 = this.test_describe_completed()
+        let p3 = this.test_infer_primitives()
+        if p1 && p2 && p3 {
+            print("  ✓ Type Inference Unit Tests: 3/3 passed")
+        } else {
+            print("  ✗ Type Inference Unit Tests: failed")
+        }
+    }
+}
+
+let service = TypeInferenceService()
+let suite = InferenceUnitTestSuite(service)
+suite.run()

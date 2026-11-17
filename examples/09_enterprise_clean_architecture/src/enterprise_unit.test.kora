@@ -1,0 +1,51 @@
+// ============================================================================
+// Unit Test Suite: 09_enterprise_clean_architecture
+// Tests enterprise order creation, status verification, and domain event dispatch
+// ============================================================================
+
+import { OrderRouter } from "./routes/order.routes"
+import { OrderController } from "./modules/orders/order.controller"
+import { OrderService } from "./modules/orders/order.service"
+import { OrderRepository } from "./modules/orders/order.repository"
+import { OrderEventEmitter } from "./modules/orders/order.events"
+import { AmbientDatabasePool } from "./database/database.pool"
+import { ApiResponse } from "./middleware/api_response_factory.middleware"
+
+class EnterpriseUnitTestSuite {
+    orderRouter: OrderRouter
+
+    init(orderRouter: OrderRouter) {
+        this.orderRouter = orderRouter
+    }
+
+    fn test_create_order() -> Bool {
+        let resp = this.orderRouter.createOrder(101, 3, 14999)
+        return resp.statusCode == 201 && resp.success
+    }
+
+    fn test_get_order() -> Bool {
+        let resp = this.orderRouter.getOrder(1)
+        return resp.statusCode == 200 && resp.success
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_create_order()
+        let p2 = this.test_get_order()
+        if p1 && p2 {
+            print("  ✓ Enterprise Clean Architecture Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ Enterprise Clean Architecture Unit Tests: failed")
+        }
+    }
+}
+
+let dbPool = AmbientDatabasePool()
+let events = OrderEventEmitter()
+let orderRepo = OrderRepository(dbPool)
+let orderService = OrderService(orderRepo, events)
+let apiResp = ApiResponse()
+let controller = OrderController(orderService, apiResp)
+let router = OrderRouter(controller)
+
+let suite = EnterpriseUnitTestSuite(router)
+suite.run()

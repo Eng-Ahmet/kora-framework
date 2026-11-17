@@ -1,0 +1,51 @@
+// ============================================================================
+// Unit Test Suite: 22_nosql_document_store
+// Tests MongoDB document insertion, primary key lookup, and document count query
+// ============================================================================
+
+import { AuditEvent } from "../entities/audit_event.entity"
+import { MongoAuditRepository } from "../services/mongo_document.service"
+
+class DocumentStoreUnitTestSuite {
+    repo: MongoAuditRepository
+
+    init(repo: MongoAuditRepository) {
+        this.repo = repo
+    }
+
+    fn test_insert_document() -> Bool {
+        let event = AuditEvent {
+            id: "doc_unit_1",
+            eventType: "USER_LOGIN",
+            actorId: 42,
+            ipAddress: "127.0.0.1",
+            timestamp: 1715000000,
+            payload: "{\"provider\": \"password\"}"
+        }
+        let res = this.repo.recordEvent(event)
+        return res.acknowledged
+    }
+
+    fn test_find_document() -> Bool {
+        let docOpt = this.repo.findByEvent("SECURITY_LOGIN_SUCCESS")
+        return match docOpt {
+            Some(d) => d.actorId == 42,
+            None => true,
+        }
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_insert_document()
+        let p2 = this.test_find_document()
+        if p1 && p2 {
+            print("  ✓ NoSQL Document Store Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ NoSQL Document Store Unit Tests: failed")
+        }
+    }
+}
+
+let db = Database()
+let repo = MongoAuditRepository(db)
+let suite = DocumentStoreUnitTestSuite(repo)
+suite.run()

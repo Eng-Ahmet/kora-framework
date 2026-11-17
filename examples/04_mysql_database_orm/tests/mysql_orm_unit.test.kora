@@ -1,0 +1,49 @@
+// ============================================================================
+// Unit Test Suite: 04_mysql_database_orm
+// Verifies Customer signup validation, duplicate prevention, and balance checks
+// ============================================================================
+
+import { Customer } from "../entities/customer.entity"
+import { CustomerSignupInput } from "../models/customer.models"
+import { MySqlCustomerRepository } from "../services/mysql_customer.service"
+import { CustomerRouter } from "../routes/customer.routes"
+
+class MySqlOrmUnitTestSuite {
+    router: CustomerRouter
+
+    init(router: CustomerRouter) {
+        this.router = router
+    }
+
+    fn test_valid_registration() -> Bool {
+        let res = this.router.register("unit_test@kora.dev")
+        return match res {
+            Ok(c) => c.email == "unit_test@kora.dev" && c.creditBalance == 5000,
+            Err(e) => false,
+        }
+    }
+
+    fn test_insufficient_email() -> Bool {
+        let res = this.router.register("")
+        return match res {
+            Ok(c) => false,
+            Err(e) => true,
+        }
+    }
+
+    fn run() -> Unit {
+        let p1 = this.test_valid_registration()
+        let p2 = this.test_insufficient_email()
+        if p1 && p2 {
+            print("  ✓ MySQL ORM Unit Tests: 2/2 passed")
+        } else {
+            print("  ✗ MySQL ORM Unit Tests: failed")
+        }
+    }
+}
+
+let db = Database()
+let repo = MySqlCustomerRepository(db)
+let router = CustomerRouter(repo)
+let suite = MySqlOrmUnitTestSuite(router)
+suite.run()
