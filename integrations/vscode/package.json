@@ -167,6 +167,12 @@
         "command": "kora.fixDiagnostic",
         "title": "Kora AI: Auto-Fix Compiler Diagnostic",
         "category": "Kora"
+      },
+      {
+        "command": "kora.auditFile",
+        "title": "Kora AI: Audit File Against .agent Rules",
+        "category": "Kora",
+        "icon": "$(shield)"
       }
     ],
     "menus": {
@@ -182,19 +188,24 @@
           "group": "1_kora@2"
         },
         {
-          "command": "kora.generateTests",
+          "command": "kora.auditFile",
           "when": "editorLangId == kora",
           "group": "1_kora@3"
         },
         {
-          "command": "kora.checkFile",
+          "command": "kora.generateTests",
           "when": "editorLangId == kora",
           "group": "1_kora@4"
         },
         {
-          "command": "kora.formatFile",
+          "command": "kora.checkFile",
           "when": "editorLangId == kora",
           "group": "1_kora@5"
+        },
+        {
+          "command": "kora.formatFile",
+          "when": "editorLangId == kora",
+          "group": "1_kora@6"
         }
       ],
       "editor/title": [
@@ -240,6 +251,34 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically run canonical code formatting on save for .kora and .kr files."
+        },
+        "kora.copilot.provider": {
+          "type": "string",
+          "enum": [
+            "embedded",
+            "ollama",
+            "openai",
+            "gemini",
+            "anthropic",
+            "custom"
+          ],
+          "default": "embedded",
+          "description": "AI provider used by Kora Copilot (defaults to the built-in offline knowledge engine indexing .agent/rules and docs)."
+        },
+        "kora.copilot.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Custom LLM API endpoint URL (e.g. http://localhost:11434 for Ollama)."
+        },
+        "kora.copilot.model": {
+          "type": "string",
+          "default": "llama3",
+          "description": "Model name for external LLM provider."
+        },
+        "kora.copilot.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API Key for cloud LLM providers (OpenAI, Gemini, Anthropic)."
         }
       }
     },

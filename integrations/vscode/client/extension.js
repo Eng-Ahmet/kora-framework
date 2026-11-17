@@ -1,12 +1,14 @@
 const vscode = require('vscode');
-const { execFile, exec } = require('child_process');
+const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { KoraCopilotEngine } = require('./kora-copilot-engine');
 
 let diagnosticCollection;
 let validationTimeouts = new Map();
 let statusBarItem;
 let assistantViewProvider;
+let copilotEngine;
 
 /**
  * Official 23 Examples Metadata Catalog
@@ -132,6 +134,21 @@ function activate(context) {
     diagnosticCollection = vscode.languages.createDiagnosticCollection('kora');
     context.subscriptions.push(diagnosticCollection);
 
+    // 0. Initialize Kora Copilot Engine & Index Workspace Knowledge
+    copilotEngine = new KoraCopilotEngine();
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+        const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        copilotEngine.indexWorkspace(root);
+    }
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeWorkspaceFolders(e => {
+            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                copilotEngine.indexWorkspace(vscode.workspace.workspaceFolders[0].uri.fsPath);
+            }
+        })
+    );
+
     // 1. Status Bar Item for Smart Executable Detection
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     statusBarItem.command = 'kora.smartRun';
@@ -151,7 +168,7 @@ function activate(context) {
             statusBarItem.backgroundColor = undefined;
         } else {
             statusBarItem.text = `${analysis.icon} Kora: ${analysis.classification}`;
-            statusBarItem.tooltip = `${analysis.fileName} is a Clean Architecture module. Click to check syntax & types.`;
+            statusBarItem.tooltip = `${analysis.fileName} is a Clean Architecture component. Click to check syntax & rules.`;
         }
         statusBarItem.show();
 
@@ -186,7 +203,7 @@ function activate(context) {
     }
 
     // 3. Register Kora AI Assistant & Copilot Webview View Provider
-    assistantViewProvider = new KoraAssistantViewProvider(context.extensionUri);
+    assistantViewProvider = new KoraAssistantViewProvider(context.extensionUri, copilotEngine);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider('kora.assistantView', assistantViewProvider)
     );
@@ -225,7 +242,7 @@ function activate(context) {
                 }
 
                 // Types
-                const types = ['Int', 'Float', 'Bool', 'String', 'Unit', 'Option', 'Result', 'Database', 'Request', 'Response', 'App', 'Vector', 'HashMap', 'Stack', 'Queue'];
+                const types = ['Int', 'Float', 'Bool', 'String', 'Unit', 'Option', 'Result', 'Database', 'Request', 'Response', 'App', 'Vector', 'HashMap', 'Stack', 'Queue', 'CircularBuffer', 'TaskGroup'];
                 for (const ty of types) {
                     const item = new vscode.CompletionItem(ty, vscode.CompletionItemKind.TypeParameter);
                     item.detail = `Kora Type: ${ty}`;
@@ -233,7 +250,7 @@ function activate(context) {
                 }
 
                 // Decorators
-                const decorators = ['@entity', '@table', '@primary', '@autoIncrement', '@unique', '@index', '@required', '@email', '@min', '@max', '@default'];
+                const decorators = ['@entity', '@table', '@primary', '@autoIncrement', '@unique', '@index', '@required', '@email', '@min', '@max', '@default', '@column', '@collection', '@id'];
                 for (const dec of decorators) {
                     const item = new vscode.CompletionItem(dec, vscode.CompletionItemKind.Property);
                     item.detail = `Kora Decorator: ${dec}`;
@@ -252,19 +269,18 @@ function activate(context) {
         provideCodeActions(document, range, contextAction, token) {
             const actions = [];
 
-            // A. Quick fixes for compiler diagnostics
             for (const diag of contextAction.diagnostics) {
                 if (diag.message.includes('E5001') || diag.message.includes('missing constructor') || diag.message.includes('init')) {
                     const fix = new vscode.CodeAction('💡 Add missing `init(...)` constructor', vscode.CodeActionKind.QuickFix);
                     fix.edit = new vscode.WorkspaceEdit();
-                    fix.edit.insert(document.uri, range.start, '\n    init() {\n        // Initialize properties\n    }\n');
+                    fix.edit.insert(document.uri, range.start, '\n    init() {\n        // Injected dependencies\n    }\n');
                     fix.diagnostics = [diag];
                     fix.isPreferred = true;
                     actions.push(fix);
                 }
 
                 if (diag.message.includes('undefined')) {
-                    const fix = new vscode.CodeAction('💡 Replace `undefined` with `null` / `Option` (Kora single-null)', vscode.CodeActionKind.QuickFix);
+                    const fix = new vscode.CodeAction('💡 Replace `undefined` with `null` / `Option` (Rule 01: Single-Null)', vscode.CodeActionKind.QuickFix);
                     fix.edit = new vscode.WorkspaceEdit();
                     fix.edit.replace(document.uri, range, 'null');
                     fix.diagnostics = [diag];
@@ -273,7 +289,6 @@ function activate(context) {
                 }
             }
 
-            // B. Refactoring Code Actions: Generate Tests
             const genTestFix = new vscode.CodeAction('✨ Scaffold Unit & Load Test Suite for this file', vscode.CodeActionKind.Refactor);
             genTestFix.command = {
                 command: 'kora.generateTests',
@@ -282,12 +297,20 @@ function activate(context) {
             };
             actions.push(genTestFix);
 
+            const auditFix = new vscode.CodeAction('🛡️ Audit File Against .agent Rules', vscode.CodeActionKind.QuickFix);
+            auditFix.command = {
+                command: 'kora.auditFile',
+                title: 'Audit File Against .agent Rules',
+                arguments: [document.fileName]
+            };
+            actions.push(auditFix);
+
             return actions;
         }
     });
     context.subscriptions.push(codeActionProvider);
 
-    // 6. CodeLens Provider ("▶ Run Entrypoint" & "🧪 Run Test Suite")
+    // 6. CodeLens Provider ("▶ Run Entrypoint", "🧪 Run Test Suite", "🛡️ Audit Rules")
     const codeLensProvider = vscode.languages.registerCodeLensProvider('kora', {
         provideCodeLenses(document, token) {
             const codeLenses = [];
@@ -330,6 +353,11 @@ function activate(context) {
                     new vscode.CodeLens(topRange, {
                         title: '⚡ Check Architecture & Types',
                         command: 'kora.checkFile',
+                        arguments: [document.fileName]
+                    }),
+                    new vscode.CodeLens(topRange, {
+                        title: '🛡️ Audit Rules',
+                        command: 'kora.auditFile',
                         arguments: [document.fileName]
                     }),
                     new vscode.CodeLens(topRange, {
@@ -394,6 +422,19 @@ function activate(context) {
             vscode.commands.executeCommand('editor.action.formatDocument');
         }),
 
+        vscode.commands.registerCommand('kora.auditFile', (filePath) => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showInformationMessage('Please open a Kora file to audit.');
+                return;
+            }
+            const audit = copilotEngine.auditDocument(editor.document);
+            if (assistantViewProvider) {
+                assistantViewProvider.displayAudit(audit);
+                vscode.commands.executeCommand('kora.assistantView.focus');
+            }
+        }),
+
         vscode.commands.registerCommand('kora.explainCode', () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
@@ -402,6 +443,7 @@ function activate(context) {
             }
             if (assistantViewProvider) {
                 assistantViewProvider.triggerExplanation(editor.document);
+                vscode.commands.executeCommand('kora.assistantView.focus');
             }
         }),
 
@@ -513,8 +555,9 @@ function validateKoraDocument(document) {
  * Webview View Provider for the Kora Copilot & AI Assistant sidebar panel.
  */
 class KoraAssistantViewProvider {
-    constructor(extensionUri) {
+    constructor(extensionUri, engine) {
         this.extensionUri = extensionUri;
+        this.engine = engine;
         this.view = null;
         this.currentAnalysis = null;
         this.currentDiagnostics = [];
@@ -529,7 +572,7 @@ class KoraAssistantViewProvider {
 
         webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
 
-        webviewView.webview.onDidReceiveMessage(message => {
+        webviewView.webview.onDidReceiveMessage(async (message) => {
             switch (message.type) {
                 case 'smartRun':
                     vscode.commands.executeCommand('kora.smartRun');
@@ -546,6 +589,9 @@ class KoraAssistantViewProvider {
                 case 'explainCode':
                     vscode.commands.executeCommand('kora.explainCode');
                     break;
+                case 'auditFile':
+                    vscode.commands.executeCommand('kora.auditFile');
+                    break;
                 case 'cloneExample':
                     if (message.slug) {
                         let terminal = vscode.window.terminals.find(t => t.name === 'Kora Example') || vscode.window.createTerminal('Kora Example');
@@ -553,13 +599,20 @@ class KoraAssistantViewProvider {
                         terminal.sendText(`kora example init ${message.slug}`);
                     }
                     break;
+                case 'insertCode':
+                    if (message.code && vscode.window.activeTextEditor) {
+                        const editor = vscode.window.activeTextEditor;
+                        editor.edit(editBuilder => {
+                            editBuilder.insert(editor.selection.active, message.code);
+                        });
+                    }
+                    break;
                 case 'askQuestion':
-                    this.answerKoraPrompt(message.prompt);
+                    await this.answerKoraPrompt(message.prompt);
                     break;
             }
         });
 
-        // Initialize with active document if available
         if (vscode.window.activeTextEditor) {
             const analysis = analyzeKoraDocument(vscode.window.activeTextEditor.document);
             this.updateActiveFile(analysis);
@@ -590,6 +643,15 @@ class KoraAssistantViewProvider {
         }
     }
 
+    displayAudit(audit) {
+        if (this.view) {
+            this.view.webview.postMessage({
+                type: 'auditResult',
+                audit: audit
+            });
+        }
+    }
+
     triggerExplanation(document) {
         const text = document.getText();
         const analysis = analyzeKoraDocument(document);
@@ -604,18 +666,18 @@ class KoraAssistantViewProvider {
         if (analysis.isRunnable) {
             explanation += `> 💡 **Execution Advice**: This file contains an entrypoint or test runner. Click **▶ Run Entrypoint** or use \`kora run "${analysis.fileName}"\`.\n\n`;
         } else {
-            explanation += `> 💡 **Architecture Advice**: This file belongs to the application layer. Clean Architecture recommends dependency-injecting it into a Controller or registering its routes in \`src/main.kora\`.\n\n`;
+            explanation += `> 💡 **Clean Architecture Advice**: In Kora Clean Architecture (\`.agent/rules/04-clean-architecture.md\`), domain logic is organized into bounded contexts. Inject this service into a controller or mount via \`Router\` in \`src/main.kora\`.\n\n`;
         }
 
         explanation += `#### 🔍 Layer Breakdown:\n`;
         if (text.includes('@table') || text.includes('@entity')) {
-            explanation += `- **Data Layer (@table)**: Maps directly to SQL tables or MongoDB collections with zero boilerplate.\n`;
+            explanation += `- **Data Layer (@table)**: Persisted database entity (\`.agent/rules/07-database-multi-engine-orm.md\`).\n`;
         }
         if (text.includes('class') && text.includes('init(')) {
-            explanation += `- **Service / DI Layer**: Injected automatically at compile-time with verified acyclic dependencies.\n`;
+            explanation += `- **Service / DI Layer**: State and logic with acyclic dependency injection (\`init\`).\n`;
         }
         if (text.includes('channel') || text.includes('actor') || text.includes('spawn')) {
-            explanation += `- **Concurrency Layer**: Executes over Tokio worker threads with non-blocking mailboxes.\n`;
+            explanation += `- **Concurrency Layer**: Executes over Tokio worker threads with mailboxes (\`.agent/rules/08-concurrency-actors-streams.md\`).\n`;
         }
 
         if (this.view) {
@@ -626,24 +688,17 @@ class KoraAssistantViewProvider {
         }
     }
 
-    answerKoraPrompt(prompt) {
-        const lower = prompt.toLowerCase();
-        let answer = "";
+    async answerKoraPrompt(prompt) {
+        const doc = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document : null;
+        const config = vscode.workspace.getConfiguration('kora.copilot');
 
-        if (lower.includes('clean architecture') || lower.includes('slice') || lower.includes('layer')) {
-            answer = `### 🏛️ Kora Clean Architecture Pattern\n\nKora organizes features into isolated, testable domain slices:\n\`\`\`\nsrc/features/<name>/\n├── routes/       # HTTP route declarations\n├── controllers/  # Dependency-injected HTTP controllers\n├── services/     # Pure business logic & transactions\n├── repositories/ # Database ORM and persistence\n├── models/       # Pure immutable DTOs\n├── entities/     # @table database entities\n└── tests/        # Unit & Load test suites\n\`\`\`\nGenerate automatically with: \`kora g feature <name>\``;
-        } else if (lower.includes('websocket') || lower.includes('realtime')) {
-            answer = `### ⚡ Kora Realtime WebSockets\n\n\`\`\`kora\nclass ChatHub {\n    room: String\n    init(room: String) { this.room = room }\n    fn broadcast(msg: String) -> Bool {\n        print("[WS:" + this.room + "] " + msg)\n        return true\n    }\n}\n\`\`\`\nExplore complete working implementation: **06_realtime_websockets**`;
-        } else if (lower.includes('actor') || lower.includes('concurrency')) {
-            answer = `### 🎭 Kora Async Actors & Mailboxes\n\n\`\`\`kora\nclass WorkerActor {\n    var counter: Int\n    init() { this.counter = 0 }\n    fn handle(job: String) -> Int {\n        this.counter += 1\n        return this.counter\n    }\n}\n\`\`\`\nExplore complete working implementation: **07_async_actors_concurrency**`;
-        } else {
-            answer = `### 💡 Kora Copilot Advice\n\nKora is a high-performance backend language with:\n- **Pure models**: \`model Dto { ... }\`\n- **Injected classes**: \`class Svc { init(...) {} }\`\n- **Exhaustive matching**: \`match expr { Some(v) => v, None => fallback }\`\n- **Native testing**: \`kora test\` runs unit and load suites across all 23 catalog projects!`;
-        }
+        const answer = await this.engine.answerPrompt(prompt, doc, config);
 
         if (this.view) {
             this.view.webview.postMessage({
                 type: 'assistantAnswer',
-                answer: answer
+                answer: answer,
+                provider: config.get('provider', 'embedded')
             });
         }
     }
@@ -681,15 +736,27 @@ class KoraAssistantViewProvider {
         .header {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
+            justify-content: space-between;
+            margin-bottom: 10px;
             padding-bottom: 8px;
             border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
         }
         .logo {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 700;
             color: var(--vscode-textLink-foreground);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .engine-badge {
+            font-size: 9px;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10B981;
+            border: 1px solid #10B981;
+            padding: 1px 5px;
+            border-radius: 10px;
+            font-weight: 600;
         }
         .tabs {
             display: flex;
@@ -780,9 +847,18 @@ class KoraAssistantViewProvider {
             margin-top: 10px;
             font-size: 11px;
             line-height: 1.4;
-            max-height: 250px;
+            max-height: 280px;
             overflow-y: auto;
             border-left: 3px solid var(--vscode-textLink-foreground);
+            white-space: pre-wrap;
+        }
+        .audit-box {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-widget-border);
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 11px;
         }
         .diag-item {
             background: rgba(239, 68, 68, 0.1);
@@ -880,18 +956,48 @@ class KoraAssistantViewProvider {
             font-size: 10px;
             cursor: pointer;
         }
+        .chip:hover {
+            opacity: 0.8;
+        }
+        .chat-history {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 380px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        .msg-user {
+            background: var(--vscode-button-secondaryBackground);
+            padding: 6px 8px;
+            border-radius: 4px;
+            align-self: flex-end;
+            font-size: 11px;
+            max-width: 90%;
+        }
+        .msg-assistant {
+            background: var(--vscode-editor-background);
+            border-left: 3px solid var(--vscode-textLink-foreground);
+            padding: 8px 10px;
+            border-radius: 4px;
+            align-self: flex-start;
+            font-size: 11px;
+            line-height: 1.4;
+            max-width: 98%;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <span class="logo">⚡ Kora Copilot</span>
-        <span style="font-size: 10px; opacity: 0.7;">v0.8.0</span>
+        <span class="engine-badge" id="engine-indicator">Knowledge Core (.agent & docs)</span>
     </div>
 
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('copilot')">Inspector</button>
+        <button class="tab-btn" onclick="switchTab('ask')">Copilot Chat</button>
         <button class="tab-btn" onclick="switchTab('examples')">Examples (23)</button>
-        <button class="tab-btn" onclick="switchTab('ask')">Ask Copilot</button>
     </div>
 
     <!-- 1. Inspector / Active File Copilot -->
@@ -905,11 +1011,17 @@ class KoraAssistantViewProvider {
             
             <div class="action-grid">
                 <button class="action-btn primary" id="btn-run" onclick="smartRun()">▶ Smart Run / Test</button>
+                <button class="action-btn" onclick="auditFile()">🛡️ Audit .agent Rules</button>
                 <button class="action-btn" onclick="checkFile()">⚡ Check Types</button>
                 <button class="action-btn" onclick="runTests()">🧪 Test Suite</button>
                 <button class="action-btn" onclick="explainCode()">💡 Explain Code</button>
                 <button class="action-btn" onclick="generateTests()">✨ Scaffold Tests</button>
             </div>
+        </div>
+
+        <div id="audit-container" style="display: none;">
+            <div style="font-weight: 600; margin-bottom: 4px;">Rule Compliance Audit:</div>
+            <div id="audit-text" class="audit-box"></div>
         </div>
 
         <div id="diagnostics-panel" style="display: none;">
@@ -923,27 +1035,30 @@ class KoraAssistantViewProvider {
         </div>
     </div>
 
-    <!-- 2. Examples Catalog -->
+    <!-- 2. Copilot Chat -->
+    <div id="tab-ask" class="section">
+        <div class="suggestion-chips">
+            <span class="chip" onclick="askChip('Audit active file against .agent rules')">🛡️ Audit Rules</span>
+            <span class="chip" onclick="askChip('Explain Rule 04: Clean Architecture')">🏛️ Rule 04 Architecture</span>
+            <span class="chip" onclick="askChip('Show Rule 07: Multi-Engine Database ORM')">🗄️ Rule 07 Database</span>
+            <span class="chip" onclick="askChip('Show Rule 08: Actors & Mailboxes')">⚡ Rule 08 Concurrency</span>
+            <span class="chip" onclick="askChip('Explain Single-Null Design vs undefined')">🎯 Single-Null vs Undefined</span>
+        </div>
+
+        <div class="chat-history" id="chat-history"></div>
+
+        <div class="chat-input-row">
+            <input type="text" id="chat-input" class="chat-input" placeholder="Ask Kora Copilot (.agent & docs indexed)..." onkeydown="if(event.key==='Enter') sendPrompt()" />
+            <button class="chat-btn" onclick="sendPrompt()">Send</button>
+        </div>
+    </div>
+
+    <!-- 3. Examples Catalog -->
     <div id="tab-examples" class="section">
         <div style="margin-bottom: 8px; font-size: 11px; opacity: 0.8;">Click any official reference architecture to scaffold directly into your project:</div>
         <div id="catalog-list">
             ${catalogHtml}
         </div>
-    </div>
-
-    <!-- 3. Ask Copilot -->
-    <div id="tab-ask" class="section">
-        <div class="suggestion-chips">
-            <span class="chip" onclick="askChip('Clean Architecture pattern')">Clean Architecture</span>
-            <span class="chip" onclick="askChip('WebSocket chat hub')">WebSockets</span>
-            <span class="chip" onclick="askChip('Async actor concurrency')">Actors</span>
-            <span class="chip" onclick="askChip('Unit and load tests')">Testing</span>
-        </div>
-        <div class="chat-input-row">
-            <input type="text" id="chat-input" class="chat-input" placeholder="Ask Kora Copilot..." onkeydown="if(event.key==='Enter') sendPrompt()" />
-            <button class="chat-btn" onclick="sendPrompt()">Ask</button>
-        </div>
-        <div id="chat-response" class="explanation-box" style="display: none;"></div>
     </div>
 
     <script>
@@ -960,6 +1075,7 @@ class KoraAssistantViewProvider {
         function checkFile() { vscode.postMessage({ type: 'checkFile' }); }
         function runTests() { vscode.postMessage({ type: 'runTests' }); }
         function explainCode() { vscode.postMessage({ type: 'explainCode' }); }
+        function auditFile() { vscode.postMessage({ type: 'auditFile' }); }
         function generateTests() { vscode.postMessage({ type: 'generateTests' }); }
         function cloneExample(slug) { vscode.postMessage({ type: 'cloneExample', slug: slug }); }
 
@@ -972,8 +1088,19 @@ class KoraAssistantViewProvider {
             const input = document.getElementById('chat-input');
             const prompt = input.value.trim();
             if (!prompt) return;
+
+            appendMessage('user', prompt);
             vscode.postMessage({ type: 'askQuestion', prompt: prompt });
             input.value = '';
+        }
+
+        function appendMessage(role, text) {
+            const history = document.getElementById('chat-history');
+            const msg = document.createElement('div');
+            msg.className = role === 'user' ? 'msg-user' : 'msg-assistant';
+            msg.innerText = text;
+            history.appendChild(msg);
+            history.scrollTop = history.scrollHeight;
         }
 
         window.addEventListener('message', event => {
@@ -1011,15 +1138,30 @@ class KoraAssistantViewProvider {
                 } else {
                     panel.style.display = 'none';
                 }
+            } else if (msg.type === 'auditResult') {
+                const container = document.getElementById('audit-container');
+                const text = document.getElementById('audit-text');
+                container.style.display = 'block';
+                const audit = msg.audit;
+                if (audit.passed) {
+                    text.innerHTML = '<span style="color: #10B981; font-weight: 600;">✓ 100% Rule Compliance:</span> No violations of .agent/rules found.';
+                } else {
+                    let out = '<span style="color: #ef4444; font-weight: 600;">' + audit.violations + ' Rule Violation(s):</span><br>';
+                    audit.findings.forEach(f => {
+                        out += '<div style="margin-top: 4px;">• <b>[' + f.code + '] ' + f.rule + '</b>: ' + f.message + '<br><i>Fix: ' + f.fix + '</i></div>';
+                    });
+                    text.innerHTML = out;
+                }
             } else if (msg.type === 'explanationResult') {
                 const container = document.getElementById('explanation-container');
                 const text = document.getElementById('explanation-text');
                 container.style.display = 'block';
                 text.innerText = msg.explanation;
             } else if (msg.type === 'assistantAnswer') {
-                const box = document.getElementById('chat-response');
-                box.style.display = 'block';
-                box.innerText = msg.answer;
+                appendMessage('assistant', msg.answer);
+                if (msg.provider && msg.provider !== 'embedded') {
+                    document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
+                }
             }
         });
     </script>
