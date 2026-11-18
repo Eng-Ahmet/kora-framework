@@ -410,9 +410,11 @@ class TestWebviewUIAndAntigravityLayout(unittest.TestCase):
     """Verifies that extension.js contains the required UI components and layout structures."""
 
     def setUp(self):
-        ext_path = os.path.join(CLIENT_DIR, 'extension.js')
-        with open(ext_path, 'r', encoding='utf-8') as f:
-            self.content = f.read()
+        self.content = ''
+        for fname in sorted(os.listdir(CLIENT_DIR)):
+            if fname.endswith('.js'):
+                with open(os.path.join(CLIENT_DIR, fname), 'r', encoding='utf-8') as f:
+                    self.content += f.read() + '\n'
 
     def test_chat_input_fixed_bottom(self):
         self.assertIn('.chat-input-box', self.content)
@@ -433,9 +435,11 @@ class TestCommandResilienceAndWorkspaceScope(unittest.TestCase):
     """Verifies that all commands and buttons are resilient, non-blocking, and workspace-aware."""
 
     def setUp(self):
-        ext_path = os.path.join(CLIENT_DIR, 'extension.js')
-        with open(ext_path, 'r', encoding='utf-8') as f:
-            self.content = f.read()
+        self.content = ''
+        for fname in sorted(os.listdir(CLIENT_DIR)):
+            if fname.endswith('.js'):
+                with open(os.path.join(CLIENT_DIR, fname), 'r', encoding='utf-8') as f:
+                    self.content += f.read() + '\n'
 
     def test_resolve_active_kora_file_exists(self):
         self.assertIn('function resolveActiveKoraFile', self.content)

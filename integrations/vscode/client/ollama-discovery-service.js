@@ -294,12 +294,12 @@ class OllamaDiscoveryService {
 
             // 2. Hardware and Parameter Fit (Weight: ~25%)
             if (hw.tier === 'low') {
-                // 8GB RAM: 1.5B–3B is ideal
+                // 8GB RAM: 1.5B-3B is ideal
                 if (paramNum >= 1.0 && paramNum <= 3.5) score += 40;
                 else if (paramNum <= 7.5) score += 15;
                 else score -= 50; // Too heavy for 8GB
             } else if (hw.tier === 'balanced') {
-                // 16GB RAM (Target): 7B–8B is the sweet spot
+                // 16GB RAM (Target): 7B-8B is the sweet spot
                 if (paramNum >= 6.0 && paramNum <= 8.5) score += 45;
                 else if (paramNum >= 3.0 && paramNum < 6.0) score += 35;
                 else if (paramNum < 3.0) score += 20;
