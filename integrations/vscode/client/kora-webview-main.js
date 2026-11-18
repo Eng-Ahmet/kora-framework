@@ -267,6 +267,17 @@
                 }
             }
 
+            // 5b. File reference pill in markdown
+            const filePill = e.target.closest('.file-ref-pill');
+            if (filePill) {
+                const targetPath = filePill.getAttribute('data-path') || filePill.getAttribute('title');
+                if (targetPath) {
+                    e.preventDefault();
+                    openFile(targetPath);
+                    return;
+                }
+            }
+
             // 6. Example clone / card
             const cloneBtn = e.target.closest('.btn-clone');
             if (cloneBtn) {
@@ -1116,34 +1127,75 @@
             }
         }
 
-        function appendMarkdownText(text, container) {
-            const p = document.createElement('div');
-            p.style.whiteSpace = 'pre-wrap';
-            p.style.lineHeight = '1.45';
+        function formatInlineMarkdown(str) {
+            if (!str) return '';
+            let s = str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
 
-            // Find file links: [label](file://path)
-            const linkRegex = /\[([^\]]+)\]\(file:\/\/([^)]+)\)/g;
-            let lastIdx = 0;
-            let m;
+            s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+            s = s.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #F3F4F6;">$1</strong>');
+            s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            s = s.replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 10.5px; color: #FBBF24;">$1</code>');
+            s = s.replace(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/g, '<span class="file-ref-pill" data-path="$2" title="Click to open">$1</span>');
 
-            while ((m = linkRegex.exec(text)) !== null) {
-                if (m.index > lastIdx) {
-                    p.appendChild(document.createTextNode(text.substring(lastIdx, m.index)));
+            return s;
+        }
+
+        function renderMarkdownBlock(text) {
+            const lines = text.split('\n');
+            let html = '';
+            let inList = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+
+                const hMatch = line.match(/^(#{1,4})\s+(.+)$/);
+                if (hMatch) {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    const level = hMatch[1].length;
+                    const content = formatInlineMarkdown(hMatch[2]);
+                    const fontSize = level === 1 ? '14px' : (level === 2 ? '13px' : '12px');
+                    const color = level === 1 ? '#60A5FA' : (level === 2 ? '#34D399' : '#F3F4F6');
+                    html += `<div style="font-size: ${fontSize}; font-weight: 700; color: ${color}; margin: 8px 0 4px 0;">${content}</div>`;
+                    continue;
                 }
-                const pill = document.createElement('span');
-                pill.className = 'file-ref-pill';
-                pill.innerText = m[1];
-                const targetFilePath = m[2];
-                pill.onclick = () => openFile(targetFilePath);
-                p.appendChild(pill);
-                lastIdx = m.index + m[0].length;
+
+                if (line.startsWith('>')) {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    const bqText = formatInlineMarkdown(line.replace(/^>\s*/, ''));
+                    html += `<div class="md-blockquote">${bqText}</div>`;
+                    continue;
+                }
+
+                const listMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
+                if (listMatch) {
+                    if (!inList) { html += '<ul style="margin: 4px 0; padding-left: 16px;">'; inList = true; }
+                    html += `<li style="margin: 2px 0;">${formatInlineMarkdown(listMatch[2])}</li>`;
+                    continue;
+                } else if (inList) {
+                    html += '</ul>';
+                    inList = false;
+                }
+
+                if (!line.trim()) {
+                    html += '<div style="height: 6px;"></div>';
+                    continue;
+                }
+
+                html += `<div style="margin: 2px 0; line-height: 1.5;">${formatInlineMarkdown(line)}</div>`;
             }
 
-            if (lastIdx < text.length) {
-                p.appendChild(document.createTextNode(text.substring(lastIdx)));
-            }
+            if (inList) { html += '</ul>'; }
+            return html;
+        }
 
-            container.appendChild(p);
+        function appendMarkdownText(text, container) {
+            const block = document.createElement('div');
+            block.className = 'md-content-block';
+            block.innerHTML = renderMarkdownBlock(text);
+            container.appendChild(block);
         }
 
         window.addEventListener('message', event => {
@@ -1191,6 +1243,19 @@
                     const actBox = card.querySelector('.proposal-global-actions');
                     if (actBox) actBox.innerHTML = '<div style="color: #ef4444; font-weight: 600; text-align: center; grid-column: span 2;">Proposal Rejected.</div>';
                 }
+            } else if (msg.type === 'streamChunk') {
+                removeTypingIndicator();
+                let streamingEl = document.getElementById('active-streaming-message');
+                const history = document.getElementById('chat-history');
+                const scrollArea = document.getElementById('chat-scroll-area');
+                if (!streamingEl) {
+                    streamingEl = document.createElement('div');
+                    streamingEl.id = 'active-streaming-message';
+                    streamingEl.className = 'msg-assistant streaming';
+                    history.appendChild(streamingEl);
+                }
+                renderMarkdownWithCodeActions(msg.fullText, streamingEl);
+                if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
             } else if (msg.type === 'assistantAnswer') {
                 isGenerating = false;
                 const btnSend = document.getElementById('btn-send');
@@ -1199,7 +1264,18 @@
                 if (btnStop) btnStop.style.display = 'none';
                 removeTypingIndicator();
                 hideAgentTracker();
-                appendMessage('assistant', msg.answer, true);
+                const streamingEl = document.getElementById('active-streaming-message');
+                if (streamingEl) {
+                    streamingEl.removeAttribute('id');
+                    streamingEl.classList.remove('streaming');
+                    renderMarkdownWithCodeActions(msg.answer, streamingEl);
+                    const s = vscode.getState() || { history: [] };
+                    s.history = s.history || [];
+                    s.history.push({ type: 'message', role: 'assistant', text: msg.answer });
+                    vscode.setState(s);
+                } else {
+                    appendMessage('assistant', msg.answer, true);
+                }
                 if (msg.provider && msg.provider !== 'embedded') {
                     document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
                 }
@@ -1211,6 +1287,8 @@
                 if (btnStop) btnStop.style.display = 'none';
                 removeTypingIndicator();
                 hideAgentTracker();
+                const streamingEl = document.getElementById('active-streaming-message');
+                if (streamingEl) streamingEl.remove();
 
                 // Preserve user prompt so it is not lost
                 if (msg.originalPrompt && chatInput) {
@@ -1228,6 +1306,11 @@
                 if (btnStop) btnStop.style.display = 'none';
                 removeTypingIndicator();
                 hideAgentTracker();
+                const streamingEl = document.getElementById('active-streaming-message');
+                if (streamingEl) {
+                    streamingEl.removeAttribute('id');
+                    streamingEl.classList.remove('streaming');
+                }
             } else if (msg.type === 'fileUpdated') {
                 const a = msg.analysis;
                 if (!a) return;
@@ -1415,14 +1498,14 @@
                         bannerText.innerHTML = '<b>0 Ollama models found!</b> Run: <code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px;">ollama pull qwen2.5-coder:7b</code> <button class="btn-prop-sm" onclick="copyText(\'ollama pull qwen2.5-coder:7b\')">Copy</button>';
                     }
                     if (pill) pill.innerText = '0 Models (Ollama)';
-                } else if (msg.status === 'fallback') {
+                } else if (msg.status === 'error') {
                     if (banner && bannerText) {
                         banner.style.display = 'block';
-                        banner.style.background = 'rgba(245, 158, 11, 0.15)';
-                        banner.style.borderColor = '#f59e0b';
-                        bannerText.innerHTML = 'Requested model not found. Using best local coding model: <b>' + msg.activeModel + '</b>';
+                        banner.style.background = 'rgba(239, 68, 68, 0.15)';
+                        banner.style.borderColor = '#ef4444';
+                        bannerText.innerHTML = '<b>Ollama Error:</b> ' + (msg.resolution ? msg.resolution.message : 'Could not connect to Ollama');
                     }
-                    if (pill) pill.innerText = msg.activeModel;
+                    if (pill) pill.innerText = 'Ollama Error';
                 } else {
                     if (banner) banner.style.display = 'none';
                     if (pill && msg.activeModel) pill.innerText = msg.activeModel;

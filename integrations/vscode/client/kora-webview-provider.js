@@ -302,7 +302,7 @@ class KoraAssistantViewProvider {
 
                         try {
                             const resolution = await this.engine.ollamaService.resolveBestModel('chat', cfg.get('model'), endpoint);
-                            const ranked = await this.engine.ollamaService.getRankedModels('chat', endpoint);
+                            const ranked = (resolution && resolution.allModels) || (await this.engine.ollamaService.getRankedModels('chat', endpoint));
                             if (resolution && resolution.model && (!cfg.get('model') || cfg.get('model') === 'gemma:2b' || cfg.get('model') === 'default' || resolution.status === 'fallback')) {
                                 await cfg.update('model', resolution.model, vscode.ConfigurationTarget.Global);
                             }
@@ -319,6 +319,7 @@ class KoraAssistantViewProvider {
                                 });
                             }
                         } catch (e) {
+                            console.error('Kora Ollama model discovery error:', e);
                             if (this.view) {
                                 this.view.webview.postMessage({
                                     type: 'ollamaModelsLoaded',
@@ -327,11 +328,11 @@ class KoraAssistantViewProvider {
                                     activeModel: 'qwen2.5-coder:7b',
                                     resolution: {
                                         model: null,
-                                        status: 'no_models',
+                                        status: 'error',
                                         message: e.message,
-                                        recommendation: 'ollama pull qwen2.5-coder:7b'
+                                        recommendation: 'ollama serve'
                                     },
-                                    status: 'no_models',
+                                    status: 'error',
                                     endpoint: endpoint,
                                     detectedAlive: false
                                 });
@@ -804,6 +805,17 @@ class KoraAssistantViewProvider {
             return;
         }
 
+        const onChunk = (chunk, fullText) => {
+            if (this.isGenerationStopped) return;
+            if (this.view) {
+                this.view.webview.postMessage({
+                    type: 'streamChunk',
+                    chunk: chunk,
+                    fullText: fullText
+                });
+            }
+        };
+
         try {
             const contextData = await this.resolveContextMentions(prompt);
             let enrichedPrompt = prompt;
@@ -814,7 +826,8 @@ class KoraAssistantViewProvider {
 
             const answer = await this.engine.answerPrompt(enrichedPrompt, doc, runtimeConfig, {
                 scope,
-                onProgress
+                onProgress,
+                onChunk
             });
 
             if (this.isGenerationStopped) return;

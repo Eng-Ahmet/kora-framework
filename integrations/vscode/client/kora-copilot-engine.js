@@ -395,7 +395,7 @@ class KoraCopilotEngine {
             }
         } else if (provider !== 'embedded') {
             try {
-                answer = await this._callExternalLlm(query, activeDoc, config, context);
+                answer = await this._callExternalLlm(query, activeDoc, config, context, options.onChunk);
             } catch (err) {
                 const fallbackResponse = this._generateEmbeddedResponse(query, activeDoc, context);
                 answer = `> **Provider Notice**: External LLM (${provider}) was unreachable: ${err.message}.\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
@@ -928,7 +928,7 @@ INSTRUCTIONS:
         }
     }
 
-    async _callExternalLlm(prompt, activeDoc, config, context = null) {
+    async _callExternalLlm(prompt, activeDoc, config, context = null, onChunk = null) {
         const provider = (config.provider || 'embedded').toLowerCase();
         let effectiveModel = config.model;
 
@@ -967,7 +967,7 @@ INSTRUCTIONS:
                     model: effectiveModel,
                     system: systemPrompt,
                     prompt: prompt,
-                    stream: false
+                    stream: true
                 });
             } else if (provider === 'gemini') {
                 const token = config.geminiKey || config.apiKey || process.env.GEMINI_API_KEY;
@@ -1013,15 +1013,70 @@ INSTRUCTIONS:
             }
 
             const client = urlObj.protocol === 'https:' ? https : http;
+            let fullText = '';
+            let lineBuffer = '';
+            let idleTimer = null;
+
+            const resetIdle = () => {
+                if (idleTimer) clearTimeout(idleTimer);
+                idleTimer = setTimeout(() => {
+                    req.destroy();
+                    reject(new Error("Request timed out (90s idle)"));
+                }, 90000);
+            };
+
             const req = client.request(urlObj, {
                 method: 'POST',
                 headers: Object.assign(headers, { 'Content-Length': Buffer.byteLength(postData) })
             }, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
+                resetIdle();
+                res.on('data', chunk => {
+                    resetIdle();
+                    const str = chunk.toString();
+                    if (provider === 'ollama') {
+                        lineBuffer += str;
+                        const lines = lineBuffer.split('\n');
+                        lineBuffer = lines.pop();
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed) continue;
+                            try {
+                                const json = JSON.parse(trimmed);
+                                const token = json.response || (json.message && json.message.content) || '';
+                                if (token) {
+                                    fullText += token;
+                                    if (typeof onChunk === 'function') {
+                                        onChunk(token, fullText);
+                                    }
+                                }
+                            } catch (e) {}
+                        }
+                    } else {
+                        fullText += str;
+                    }
+                });
+
                 res.on('end', () => {
+                    if (idleTimer) clearTimeout(idleTimer);
+                    if (provider === 'ollama') {
+                        if (lineBuffer && lineBuffer.trim()) {
+                            try {
+                                const json = JSON.parse(lineBuffer.trim());
+                                const token = json.response || (json.message && json.message.content) || '';
+                                if (token) {
+                                    fullText += token;
+                                    if (typeof onChunk === 'function') {
+                                        onChunk(token, fullText);
+                                    }
+                                }
+                            } catch (e) {}
+                        }
+                        if (fullText.trim()) {
+                            return resolve(fullText);
+                        }
+                    }
                     try {
-                        const json = JSON.parse(data);
+                        const json = JSON.parse(fullText);
                         if (provider === 'ollama' && json.response) {
                             resolve(json.response);
                         } else if (provider === 'ollama' && json.message && json.message.content) {
@@ -1033,22 +1088,27 @@ INSTRUCTIONS:
                         } else if (json.error) {
                             reject(new Error(typeof json.error === 'string' ? json.error : (json.error.message || JSON.stringify(json.error))));
                         } else {
-                            resolve(data);
+                            resolve(fullText);
                         }
                     } catch (e) {
                         if (res.statusCode >= 400) {
-                            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                            reject(new Error(`HTTP ${res.statusCode}: ${fullText}`));
                         } else {
-                            resolve(data);
+                            resolve(fullText);
                         }
                     }
                 });
             });
 
-            req.on('error', err => reject(err));
-            req.setTimeout(35000, () => {
+            req.on('error', err => {
+                if (idleTimer) clearTimeout(idleTimer);
+                reject(err);
+            });
+
+            req.setTimeout(90000, () => {
+                if (idleTimer) clearTimeout(idleTimer);
                 req.destroy();
-                reject(new Error("Request timed out (35s)"));
+                reject(new Error("Initial connection timed out (90s)"));
             });
 
             req.write(postData);

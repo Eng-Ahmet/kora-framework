@@ -336,10 +336,35 @@
             border-radius: 4px;
             align-self: flex-start;
             font-size: 11px;
-            line-height: 1.45;
+            line-height: 1.5;
             max-width: 100%;
             width: 100%;
             word-break: break-word;
+            direction: auto;
+            unicode-bidi: plaintext;
+        }
+        .msg-assistant.streaming::after {
+            content: "";
+            display: inline-block;
+            width: 6px;
+            height: 12px;
+            background: #34D399;
+            margin-left: 4px;
+            vertical-align: middle;
+            animation: cursorBlink 0.8s infinite;
+        }
+        @keyframes cursorBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .md-blockquote {
+            border-left: 3px solid #60A5FA;
+            background: rgba(59, 130, 246, 0.08);
+            padding: 5px 9px;
+            margin: 6px 0;
+            border-radius: 0 4px 4px 0;
+            font-size: 11px;
+            line-height: 1.45;
         }
         .file-ref-pill {
             display: inline-flex;

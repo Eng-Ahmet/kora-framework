@@ -397,6 +397,16 @@ class OllamaDiscoveryService {
     }
 
     /**
+     * Returns all installed models ranked by suitability for the given task.
+     */
+    async getRankedModels(task = 'chat', customEndpoint = null) {
+        const ep = customEndpoint ? this._normalizeEndpoint(customEndpoint) : this.endpoint;
+        const installed = await this.listInstalledModels(ep);
+        const hw = this.getHardwareProfile();
+        return this.rankModels(installed, task, hw);
+    }
+
+    /**
      * Resolves the best available Ollama model for the given task.
      * Automatically handles fallbacks if a requested model is missing.
      */
