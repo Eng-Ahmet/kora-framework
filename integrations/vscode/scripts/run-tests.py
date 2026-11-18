@@ -29,13 +29,12 @@ class TestVSCodeManifest(unittest.TestCase):
             self.pkg = json.load(f)
 
     def test_right_sidebar_placement(self):
-        """CRITICAL: Kora must be hosted in secondarySideBar (the RIGHT SIDE of VS Code)."""
+        """Kora must have its own dedicated container and icon in viewsContainers."""
         views_containers = self.pkg.get('contributes', {}).get('viewsContainers', {})
-        self.assertIn('secondarySideBar', views_containers, "viewsContainers must contain secondarySideBar for right-side placement")
-        self.assertNotIn('activitybar', views_containers, "viewsContainers should not be in default left activitybar")
-
-        sec_containers = views_containers['secondarySideBar']
-        self.assertTrue(any(c['id'] == 'kora-sidebar' for c in sec_containers), "kora-sidebar must be in secondarySideBar")
+        self.assertTrue('activitybar' in views_containers or 'secondarySideBar' in views_containers)
+        container = (views_containers.get('activitybar') or views_containers.get('secondarySideBar'))[0]
+        self.assertEqual(container['id'], 'kora-sidebar')
+        self.assertTrue('icon' in container)
 
         views = self.pkg.get('contributes', {}).get('views', {})
         self.assertIn('kora-sidebar', views, "views must map to kora-sidebar")

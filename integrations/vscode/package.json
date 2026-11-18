@@ -112,11 +112,11 @@
       }
     ],
     "viewsContainers": {
-      "secondarySideBar": [
+      "activitybar": [
         {
           "id": "kora-sidebar",
-          "title": "Kora Framework",
-          "icon": "./icons/kora-activitybar.svg"
+          "title": "Kora",
+          "icon": "icons/kora-activitybar.svg"
         }
       ]
     },

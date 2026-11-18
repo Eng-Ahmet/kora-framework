@@ -1832,7 +1832,7 @@ class KoraAssistantViewProvider {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' ${webview.cspSource}; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource};">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'unsafe-inline' 'unsafe-eval' ${webview.cspSource}; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource};">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kora AI Agent</title>
     <style>
@@ -3040,23 +3040,29 @@ class KoraAssistantViewProvider {
         <div id="test-connection-status" style="margin-top: 10px; display: none; padding: 8px; border-radius: 5px; font-size: 11px; line-height: 1.4;"></div>
     </div>
 
-    <script nonce="${nonce}">
+    <script>
         const vscode = acquireVsCodeApi();
 
         function switchTab(name) {
-            document.querySelectorAll('.tab-btn').forEach(b => {
-                const target = b.getAttribute('data-tab') || (b.getAttribute('onclick') || '').match(/switchTab\('([^']+)'\)/)?.[1];
+            if (!name) return;
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(b => {
+                const target = b.getAttribute('data-tab');
                 if (target === name) {
                     b.classList.add('active');
                 } else {
                     b.classList.remove('active');
                 }
             });
-            document.querySelectorAll('.section').forEach(s => {
+
+            const sections = document.querySelectorAll('.section');
+            sections.forEach(s => {
                 if (s.id === 'tab-' + name) {
                     s.classList.add('active');
+                    s.style.display = (name === 'ask' ? 'flex' : 'block');
                 } else {
                     s.classList.remove('active');
+                    s.style.display = 'none';
                 }
             });
 
@@ -3066,20 +3072,29 @@ class KoraAssistantViewProvider {
                 vscode.setState(s);
             } catch (e) {}
         }
+        window.switchTab = switchTab;
 
-        // Attach direct event listeners to tabs and chips to guarantee they work unconditionally
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                const tab = this.getAttribute('data-tab');
-                if (tab) switchTab(tab);
-            });
-        });
+        // Global Event Delegation for all tabs and chips
+        document.addEventListener('click', function(e) {
+            const tabBtn = e.target.closest('.tab-btn');
+            if (tabBtn) {
+                const tab = tabBtn.getAttribute('data-tab');
+                if (tab) {
+                    e.preventDefault();
+                    switchTab(tab);
+                    return;
+                }
+            }
 
-        document.querySelectorAll('.chip').forEach(chip => {
-            chip.addEventListener('click', function(e) {
-                const txt = this.getAttribute('data-chip') || this.innerText;
-                askChip(txt);
-            });
+            const chip = e.target.closest('.chip');
+            if (chip) {
+                const txt = chip.getAttribute('data-chip') || chip.innerText;
+                if (txt && typeof askChip === 'function') {
+                    e.preventDefault();
+                    askChip(txt);
+                    return;
+                }
+            }
         });
 
         let isGenerating = false;
@@ -4139,6 +4154,32 @@ class KoraAssistantViewProvider {
                 }
             }
         });
+    
+        // Expose all action functions globally so inline onclick handlers always work
+        window.switchTab = switchTab;
+        window.sendPrompt = sendPrompt;
+        window.smartRun = smartRun;
+        window.checkFile = checkFile;
+        window.runTests = runTests;
+        window.explainCode = explainCode;
+        window.auditFile = auditFile;
+        window.generateTests = generateTests;
+        window.openArch = function() { switchTab('arch'); };
+        window.analyzeWorkspace = analyzeWorkspace;
+        window.requestWorkspaceRefactor = requestWorkspaceRefactor;
+        window.toggleConfigPanel = toggleConfigPanel;
+        window.saveAllSettings = saveAllSettings;
+        window.testConnection = testConnection;
+        window.triggerFilePicker = triggerFilePicker;
+        window.stopGeneration = stopGeneration;
+        window.refreshOllamaModels = refreshOllamaModels;
+        window.requestGitHubLogin = requestGitHubLogin;
+        window.togglePasswordVisibility = togglePasswordVisibility;
+        window.cloneExample = cloneExample;
+        window.insertSnippet = insertSnippet;
+        window.askChip = askChip;
+        window.handleChipClick = askChip;
+
     </script>
 </body>
 </html>`;
