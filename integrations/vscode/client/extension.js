@@ -9,6 +9,7 @@ let validationTimeouts = new Map();
 let statusBarItem;
 let assistantViewProvider;
 let copilotEngine;
+let lastActiveKoraDocument = null;
 
 /**
  * Safely escape characters for RegExp dynamic interpolation (prevents ReDoS and syntax errors)
@@ -66,41 +67,41 @@ function analyzeKoraDocument(document) {
     const hasActor = /class\s+[A-Za-z0-9_]*Actor/.test(text);
 
     let classification = "Library Module";
-    let icon = "$(library)";
+    let icon = "";
     let isRunnable = false;
     let runCommand = null;
 
     if (isTestFile) {
         classification = "Automated Test Suite";
-        icon = "$(beaker)";
+        icon = "";
         isRunnable = true;
         runCommand = "kora.runTests";
     } else if (hasMain || hasListen) {
         classification = "Runnable Entrypoint";
-        icon = "$(play)";
+        icon = "";
         isRunnable = true;
         runCommand = "kora.runFile";
     } else if (hasController) {
         classification = "Clean Architecture Controller";
-        icon = "$(symbol-interface)";
+        icon = "";
     } else if (hasService) {
         classification = "Clean Architecture Service";
-        icon = "$(gear)";
+        icon = "";
     } else if (hasRepository) {
         classification = "Data Access Repository";
-        icon = "$(database)";
+        icon = "";
     } else if (hasEntity) {
         classification = "Database Entity (@table)";
-        icon = "$(table)";
+        icon = "";
     } else if (hasModel) {
         classification = "Pure DTO Model";
-        icon = "$(symbol-struct)";
+        icon = "";
     } else if (hasRoutes) {
         classification = "HTTP Routing Module";
-        icon = "$(link)";
+        icon = "";
     } else if (hasActor) {
         classification = "Concurrency Actor";
-        icon = "$(zap)";
+        icon = "";
     }
 
     // Extract symbols
@@ -142,7 +143,7 @@ function activate(context) {
     context.subscriptions.push(diagnosticCollection);
 
     // 0. Initialize Kora Copilot Engine & Index Workspace Knowledge
-    copilotEngine = new KoraCopilotEngine(vscode);
+    copilotEngine = new KoraCopilotEngine(context.extensionUri, vscode);
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
         const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
         copilotEngine.indexWorkspace(root);
@@ -161,26 +162,41 @@ function activate(context) {
     statusBarItem.command = 'kora.smartRun';
     context.subscriptions.push(statusBarItem);
 
+    // 1b. Persistent Status Bar Item for Kora AI Copilot (Right Side)
+    const aiStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    aiStatusBarItem.command = 'kora.focusChat';
+    aiStatusBarItem.text = 'Kora AI';
+    aiStatusBarItem.tooltip = 'Open Kora AI Copilot (Right Sidebar)';
+    aiStatusBarItem.show();
+    context.subscriptions.push(aiStatusBarItem);
+
     function updateStatusBar() {
         const editor = vscode.window.activeTextEditor;
-        if (!editor || !isKoraFile(editor.document)) {
-            statusBarItem.hide();
-            return;
-        }
+        if (editor && isKoraFile(editor.document)) {
+            lastActiveKoraDocument = editor.document;
+            const analysis = analyzeKoraDocument(editor.document);
+            if (analysis.isRunnable) {
+                statusBarItem.text = `${analysis.icon} Kora: ${analysis.classification} (Click to Run)`;
+                statusBarItem.tooltip = `Click to execute ${analysis.fileName} with Kora`;
+                statusBarItem.backgroundColor = undefined;
+            } else {
+                statusBarItem.text = `Kora: ${analysis.classification}`;
+                statusBarItem.tooltip = `${analysis.fileName} is a Clean Architecture component. Click to check syntax & rules.`;
+            }
+            statusBarItem.show();
 
-        const analysis = analyzeKoraDocument(editor.document);
-        if (analysis.isRunnable) {
-            statusBarItem.text = `${analysis.icon} Kora: ${analysis.classification} (Click to Run)`;
-            statusBarItem.tooltip = `Click to execute ${analysis.fileName} with Kora`;
-            statusBarItem.backgroundColor = undefined;
+            if (assistantViewProvider) {
+                assistantViewProvider.updateActiveFile(analysis);
+            }
+        } else if (lastActiveKoraDocument) {
+            const analysis = analyzeKoraDocument(lastActiveKoraDocument);
+            statusBarItem.text = `Kora: ${analysis.classification}`;
+            statusBarItem.tooltip = `Last active: ${analysis.fileName} (Click to Run)`;
+            statusBarItem.show();
         } else {
-            statusBarItem.text = `${analysis.icon} Kora: ${analysis.classification}`;
-            statusBarItem.tooltip = `${analysis.fileName} is a Clean Architecture component. Click to check syntax & rules.`;
-        }
-        statusBarItem.show();
-
-        if (assistantViewProvider) {
-            assistantViewProvider.updateActiveFile(analysis);
+            statusBarItem.text = `Kora: Workspace Active`;
+            statusBarItem.tooltip = `Kora Framework extension active. Click to run entrypoint or test suite.`;
+            statusBarItem.show();
         }
     }
 
@@ -541,7 +557,7 @@ function activate(context) {
 
             for (const diag of contextAction.diagnostics) {
                 if (diag.message.includes('E5001') || diag.message.includes('missing constructor') || diag.message.includes('init')) {
-                    const fix = new vscode.CodeAction('💡 Add missing `init(...)` constructor', vscode.CodeActionKind.QuickFix);
+                    const fix = new vscode.CodeAction('Add missing `init(...)` constructor', vscode.CodeActionKind.QuickFix);
                     fix.edit = new vscode.WorkspaceEdit();
                     fix.edit.insert(document.uri, range.start, '\n    init() {\n        // Injected dependencies\n    }\n');
                     fix.diagnostics = [diag];
@@ -550,7 +566,7 @@ function activate(context) {
                 }
 
                 if (diag.message.includes('undefined')) {
-                    const fix = new vscode.CodeAction('💡 Replace `undefined` with `null` / `Option` (Rule 01: Single-Null)', vscode.CodeActionKind.QuickFix);
+                    const fix = new vscode.CodeAction('Replace `undefined` with `null` / `Option` (Rule 01: Single-Null)', vscode.CodeActionKind.QuickFix);
                     fix.edit = new vscode.WorkspaceEdit();
                     fix.edit.replace(document.uri, range, 'null');
                     fix.diagnostics = [diag];
@@ -559,7 +575,7 @@ function activate(context) {
                 }
             }
 
-            const genTestFix = new vscode.CodeAction('✨ Scaffold Unit & Load Test Suite for this file', vscode.CodeActionKind.Refactor);
+            const genTestFix = new vscode.CodeAction('Scaffold Unit & Load Test Suite for this file', vscode.CodeActionKind.Refactor);
             genTestFix.command = {
                 command: 'kora.generateTests',
                 title: 'Generate Unit & Load Tests',
@@ -567,7 +583,7 @@ function activate(context) {
             };
             actions.push(genTestFix);
 
-            const auditFix = new vscode.CodeAction('🛡️ Audit File Against .agent Rules', vscode.CodeActionKind.QuickFix);
+            const auditFix = new vscode.CodeAction('Audit File Against .agent Rules', vscode.CodeActionKind.QuickFix);
             auditFix.command = {
                 command: 'kora.auditFile',
                 title: 'Audit File Against .agent Rules',
@@ -580,7 +596,7 @@ function activate(context) {
     });
     context.subscriptions.push(codeActionProvider);
 
-    // 6. CodeLens Provider ("▶ Run Entrypoint", "🧪 Run Test Suite", "🛡️ Audit Rules")
+    // 6. CodeLens Provider ("Run Entrypoint", "Run Test Suite", "Audit Rules")
     const codeLensProvider = vscode.languages.registerCodeLensProvider('kora', {
         provideCodeLenses(document, token) {
             const codeLenses = [];
@@ -592,12 +608,12 @@ function activate(context) {
                     const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, 0));
                     codeLenses.push(
                         new vscode.CodeLens(range, {
-                            title: '▶ Run Entrypoint',
+                            title: 'Run Entrypoint',
                             command: 'kora.runFile',
                             arguments: [document.fileName]
                         }),
                         new vscode.CodeLens(range, {
-                            title: '⚡ Check Architecture',
+                            title: 'Check Architecture',
                             command: 'kora.checkFile',
                             arguments: [document.fileName]
                         })
@@ -609,7 +625,7 @@ function activate(context) {
                     const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, 0));
                     codeLenses.push(
                         new vscode.CodeLens(range, {
-                            title: '🧪 Run Test Suite',
+                            title: 'Run Test Suite',
                             command: 'kora.runTests',
                             arguments: [document.fileName]
                         })
@@ -621,17 +637,17 @@ function activate(context) {
                 const topRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
                 codeLenses.push(
                     new vscode.CodeLens(topRange, {
-                        title: '⚡ Check Architecture & Types',
+                        title: 'Check Architecture & Types',
                         command: 'kora.checkFile',
                         arguments: [document.fileName]
                     }),
                     new vscode.CodeLens(topRange, {
-                        title: '🛡️ Audit Rules',
+                        title: 'Audit Rules',
                         command: 'kora.auditFile',
                         arguments: [document.fileName]
                     }),
                     new vscode.CodeLens(topRange, {
-                        title: '✨ Scaffold Tests',
+                        title: 'Scaffold Tests',
                         command: 'kora.generateTests',
                         arguments: [document.fileName]
                     })
@@ -643,83 +659,161 @@ function activate(context) {
     });
     context.subscriptions.push(codeLensProvider);
 
+    // Helper to resolve active Kora file with multiple resilient fallbacks (Editor, Sidebar, Indexed Workspace)
+    function resolveActiveKoraFile(filePath) {
+        if (filePath && typeof filePath === 'string') return filePath;
+        if (filePath && filePath.fsPath) return filePath.fsPath;
+        if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document) {
+            return vscode.window.activeTextEditor.document.fileName;
+        }
+        if (assistantViewProvider && assistantViewProvider.currentAnalysis && assistantViewProvider.currentAnalysis.filePath) {
+            return assistantViewProvider.currentAnalysis.filePath;
+        }
+        if (lastActiveKoraDocument && lastActiveKoraDocument.fileName) {
+            return lastActiveKoraDocument.fileName;
+        }
+        if (copilotEngine && copilotEngine.workspaceEngine && copilotEngine.workspaceEngine.indexedFiles) {
+            for (const [fPath, meta] of copilotEngine.workspaceEngine.indexedFiles) {
+                if (meta.role === 'entrypoint' || fPath.endsWith('main.kora') || fPath.endsWith('main.kr')) {
+                    return fPath;
+                }
+            }
+            for (const [fPath] of copilotEngine.workspaceEngine.indexedFiles) {
+                return fPath;
+            }
+        }
+        return null;
+    }
+
     // 7. Register VS Code Commands
     context.subscriptions.push(
         vscode.commands.registerCommand('kora.smartRun', (filePath) => {
-            const activeFile = filePath || (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.fileName);
-            if (!activeFile) return;
-
-            const doc = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document : null;
-            const analysis = doc ? analyzeKoraDocument(doc) : null;
-
-            if (analysis && analysis.isTestFile) {
-                vscode.commands.executeCommand('kora.runTests', activeFile);
+            const targetFile = resolveActiveKoraFile(filePath);
+            if (targetFile && fs.existsSync(targetFile)) {
+                const doc = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.fileName === targetFile)
+                    ? vscode.window.activeTextEditor.document
+                    : null;
+                const analysis = doc ? analyzeKoraDocument(doc) : (assistantViewProvider ? assistantViewProvider.currentAnalysis : null);
+                if (analysis && analysis.isTestFile) {
+                    vscode.commands.executeCommand('kora.runTests', targetFile);
+                } else {
+                    vscode.commands.executeCommand('kora.runFile', targetFile);
+                }
             } else {
-                vscode.commands.executeCommand('kora.runFile', activeFile);
+                let terminal = vscode.window.terminals.find(t => t.name === 'Kora Run') || vscode.window.createTerminal('Kora Run');
+                terminal.show();
+                terminal.sendText('kora run');
             }
         }),
 
         vscode.commands.registerCommand('kora.runFile', (filePath) => {
-            const activeFile = filePath || (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.fileName);
-            if (!activeFile) return;
-
+            const targetFile = resolveActiveKoraFile(filePath);
             let terminal = vscode.window.terminals.find(t => t.name === 'Kora Run') || vscode.window.createTerminal('Kora Run');
             terminal.show();
-            terminal.sendText(`kora run "${activeFile}"`);
+            if (targetFile && fs.existsSync(targetFile)) {
+                terminal.sendText(`kora run "${targetFile}"`);
+            } else {
+                terminal.sendText('kora run');
+            }
         }),
 
         vscode.commands.registerCommand('kora.checkFile', (filePath) => {
-            const activeFile = filePath || (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.fileName);
-            if (!activeFile) return;
-
+            const targetFile = resolveActiveKoraFile(filePath);
             let terminal = vscode.window.terminals.find(t => t.name === 'Kora Check') || vscode.window.createTerminal('Kora Check');
             terminal.show();
-            terminal.sendText(`kora check "${activeFile}"`);
+            if (targetFile && fs.existsSync(targetFile)) {
+                terminal.sendText(`kora check "${targetFile}"`);
+            } else {
+                terminal.sendText('kora check');
+            }
         }),
 
         vscode.commands.registerCommand('kora.runTests', (filePath) => {
-            const activeFile = filePath || (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.fileName);
+            const targetFile = resolveActiveKoraFile(filePath);
             let terminal = vscode.window.terminals.find(t => t.name === 'Kora Test') || vscode.window.createTerminal('Kora Test');
             terminal.show();
-            if (activeFile) {
-                terminal.sendText(`kora test "${activeFile}"`);
+            if (targetFile && targetFile.includes('test') && fs.existsSync(targetFile)) {
+                terminal.sendText(`kora test "${targetFile}"`);
             } else {
-                terminal.sendText(`kora test`);
+                terminal.sendText('kora test');
             }
         }),
 
         vscode.commands.registerCommand('kora.formatFile', () => {
-            vscode.commands.executeCommand('editor.action.formatDocument');
-        }),
-
-        vscode.commands.registerCommand('kora.auditFile', (filePath) => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showInformationMessage('Please open a Kora file to audit.');
-                return;
-            }
-            const audit = copilotEngine.auditDocument(editor.document);
-            if (assistantViewProvider) {
-                assistantViewProvider.displayAudit(audit);
-                vscode.commands.executeCommand('kora.assistantView.focus');
+            if (vscode.window.activeTextEditor) {
+                vscode.commands.executeCommand('editor.action.formatDocument');
+            } else {
+                let terminal = vscode.window.terminals.find(t => t.name === 'Kora Format') || vscode.window.createTerminal('Kora Format');
+                terminal.show();
+                terminal.sendText('kora fmt');
             }
         }),
 
-        vscode.commands.registerCommand('kora.explainCode', () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showInformationMessage('Please open a Kora file to explain.');
-                return;
+        vscode.commands.registerCommand('kora.auditFile', async (filePath) => {
+            const targetFile = resolveActiveKoraFile(filePath);
+            let docToAudit = null;
+            if (vscode.window.activeTextEditor && (!targetFile || vscode.window.activeTextEditor.document.fileName === targetFile)) {
+                docToAudit = vscode.window.activeTextEditor.document;
+            } else if (targetFile && fs.existsSync(targetFile)) {
+                try {
+                    docToAudit = await vscode.workspace.openTextDocument(targetFile);
+                } catch (e) {}
             }
+
+            if (docToAudit) {
+                const audit = copilotEngine.auditDocument(docToAudit);
+                if (assistantViewProvider) {
+                    assistantViewProvider.displayAudit(audit);
+                    try {
+                        vscode.commands.executeCommand('kora.assistantView.focus');
+                        vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+                    } catch (e) {}
+                }
+            } else {
+                if (assistantViewProvider) {
+                    try {
+                        vscode.commands.executeCommand('kora.assistantView.focus');
+                        vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+                    } catch (e) {}
+                    await assistantViewProvider.auditWorkspaceRules();
+                }
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.explainCode', async (filePath) => {
+            const targetFile = resolveActiveKoraFile(filePath);
+            let docToExplain = null;
+            if (vscode.window.activeTextEditor && (!targetFile || vscode.window.activeTextEditor.document.fileName === targetFile)) {
+                docToExplain = vscode.window.activeTextEditor.document;
+            } else if (targetFile && fs.existsSync(targetFile)) {
+                try {
+                    docToExplain = await vscode.workspace.openTextDocument(targetFile);
+                } catch (e) {}
+            }
+
             if (assistantViewProvider) {
-                assistantViewProvider.triggerExplanation(editor.document);
-                vscode.commands.executeCommand('kora.assistantView.focus');
+                assistantViewProvider.switchTab('ask');
+                try {
+                    vscode.commands.executeCommand('kora.assistantView.focus');
+                    vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+                } catch (e) {}
+                if (docToExplain) {
+                    assistantViewProvider.triggerExplanation(docToExplain);
+                } else {
+                    const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
+                        ? vscode.workspace.workspaceFolders[0].uri.fsPath
+                        : process.cwd();
+                    assistantViewProvider.analyzeWorkspaceArchitecture(wsRoot);
+                }
             }
         }),
 
         vscode.commands.registerCommand('kora.generateTests', (filePath) => {
-            const activeFile = filePath || (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.fileName);
-            if (!activeFile) return;
+            const activeFile = resolveActiveKoraFile(filePath);
+            if (!activeFile) {
+                vscode.window.showInformationMessage('Please open or select a Kora file to scaffold tests.');
+                return;
+            }
 
             const dir = path.dirname(activeFile);
             const baseName = path.basename(activeFile).replace(/\.(kora|kr)$/, '');
@@ -734,14 +828,14 @@ function activate(context) {
 
             const pascalName = baseName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
 
-            const unitContent = `// ============================================================================\n// Unit Test Suite: ${pascalName}UnitTestSuite\n// ============================================================================\n\nclass ${pascalName}UnitTestSuite {\n    init() {}\n\n    fn test_initial_state() -> Bool {\n        return true\n    }\n\n    fn run() -> Unit {\n        let p = this.test_initial_state()\n        if p {\n            print("  ✓ ${pascalName} Unit Tests: passed")\n        } else {\n            print("  ✗ ${pascalName} Unit Tests: failed")\n        }\n    }\n}\n\nlet suite = ${pascalName}UnitTestSuite()\nsuite.run()\n`;
+            const unitContent = `// ============================================================================\n// Unit Test Suite: ${pascalName}UnitTestSuite\n// ============================================================================\n\nclass ${pascalName}UnitTestSuite {\n    init() {}\n\n    fn test_initial_state() -> Bool {\n        return true\n    }\n\n    fn run() -> Unit {\n        let p = this.test_initial_state()\n        if p {\n            print("  [Pass] ${pascalName} Unit Tests: passed")\n        } else {\n            print("  [Fail] ${pascalName} Unit Tests: failed")\n        }\n    }\n}\n\nlet suite = ${pascalName}UnitTestSuite()\nsuite.run()\n`;
 
-            const loadContent = `// ============================================================================\n// Load Test Suite: ${pascalName}LoadTestSuite\n// ============================================================================\n\nclass ${pascalName}LoadTestSuite {\n    init() {}\n\n    fn run_load_stress(iterations: Int) -> Int {\n        var processed = 0\n        for i in 0..iterations {\n            processed += 1\n        }\n        return processed\n    }\n\n    fn teardown() -> Unit {\n        print("  ✓ ${pascalName} Teardown: synthetic allocations purged")\n    }\n}\n\nlet load_suite = ${pascalName}LoadTestSuite()\nlet total = load_suite.run_load_stress(1000)\nprint("  ✓ ${pascalName} Load Test: 1,000 iterations processed")\nload_suite.teardown()\n`;
+            const loadContent = `// ============================================================================\n// Load Test Suite: ${pascalName}LoadTestSuite\n// ============================================================================\n\nclass ${pascalName}LoadTestSuite {\n    init() {}\n\n    fn run_load_stress(iterations: Int) -> Int {\n        var processed = 0\n        for i in 0..iterations {\n            processed += 1\n        }\n        return processed\n    }\n\n    fn teardown() -> Unit {\n        print("  [Teardown] ${pascalName}: synthetic allocations purged")\n    }\n}\n\nlet load_suite = ${pascalName}LoadTestSuite()\nlet total = load_suite.run_load_stress(1000)\nprint("  [Pass] ${pascalName} Load Test: 1,000 iterations processed")\nload_suite.teardown()\n`;
 
             if (!fs.existsSync(unitPath)) fs.writeFileSync(unitPath, unitContent, 'utf-8');
             if (!fs.existsSync(loadPath)) fs.writeFileSync(loadPath, loadContent, 'utf-8');
 
-            vscode.window.showInformationMessage(`✓ Generated tests: tests/${baseName}_unit.test.kora and tests/${baseName}_load.test.kora`);
+            vscode.window.showInformationMessage(`Generated tests: tests/${baseName}_unit.test.kora and tests/${baseName}_load.test.kora`);
             vscode.workspace.openTextDocument(unitPath).then(doc => vscode.window.showTextDocument(doc));
         }),
 
@@ -774,14 +868,15 @@ function activate(context) {
         }),
 
         vscode.commands.registerCommand('kora.analyzeWorkspace', () => {
-            if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-                vscode.window.showInformationMessage('No active workspace folder to analyze.');
-                return;
-            }
-            const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
+                ? vscode.workspace.workspaceFolders[0].uri.fsPath
+                : process.cwd();
             if (assistantViewProvider) {
-                assistantViewProvider.analyzeWorkspaceArchitecture(root);
-                vscode.commands.executeCommand('kora.assistantView.focus');
+                assistantViewProvider.analyzeWorkspaceArchitecture(wsRoot);
+                try {
+                    vscode.commands.executeCommand('kora.assistantView.focus');
+                    vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+                } catch (e) {}
             }
         }),
 
@@ -802,6 +897,52 @@ function activate(context) {
             if (assistantViewProvider) {
                 assistantViewProvider.switchTab('architecture');
                 vscode.commands.executeCommand('kora.assistantView.focus');
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.autoFixRefactor', async (uriOrPath) => {
+            const targetFile = resolveActiveKoraFile(uriOrPath);
+            if (assistantViewProvider) {
+                assistantViewProvider.switchTab('ask');
+                try {
+                    vscode.commands.executeCommand('kora.assistantView.focus');
+                    vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+                } catch (e) {}
+                await assistantViewProvider.triggerWorkspaceRefactor(targetFile, 'Auto-Fix and refactor Kora invariants');
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.fixDiagnostic', async (filePath) => {
+            const activeFile = resolveActiveKoraFile(filePath);
+            if (assistantViewProvider) {
+                assistantViewProvider.switchTab('ask');
+                try {
+                    vscode.commands.executeCommand('kora.assistantView.focus');
+                    vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+                } catch (e) {}
+                await assistantViewProvider.triggerWorkspaceRefactor(activeFile, 'Auto-Fix compiler diagnostics');
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.focusChat', () => {
+            if (assistantViewProvider) {
+                assistantViewProvider.switchTab('ask');
+                try {
+                    vscode.commands.executeCommand('kora.assistantView.focus');
+                    vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+                } catch (e) {}
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.acceptProposedChanges', async () => {
+            if (assistantViewProvider) {
+                await assistantViewProvider.acceptActiveProposal();
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.rejectProposedChanges', async () => {
+            if (assistantViewProvider) {
+                await assistantViewProvider.rejectActiveProposal();
             }
         })
     );
@@ -875,6 +1016,15 @@ function validateKoraDocument(document) {
     });
 }
 
+function getNonce() {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < 32; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
 /**
  * Webview View Provider for the Kora Copilot & AI Assistant sidebar panel.
  */
@@ -885,6 +1035,7 @@ class KoraAssistantViewProvider {
         this.view = null;
         this.currentAnalysis = null;
         this.currentDiagnostics = [];
+        this.activeProposal = null;
     }
 
     resolveWebviewView(webviewView, context, token) {
@@ -899,22 +1050,22 @@ class KoraAssistantViewProvider {
         webviewView.webview.onDidReceiveMessage(async (message) => {
             switch (message.type) {
                 case 'smartRun':
-                    vscode.commands.executeCommand('kora.smartRun');
+                    vscode.commands.executeCommand('kora.smartRun', this.currentAnalysis ? this.currentAnalysis.filePath : null);
                     break;
                 case 'checkFile':
-                    vscode.commands.executeCommand('kora.checkFile');
+                    vscode.commands.executeCommand('kora.checkFile', this.currentAnalysis ? this.currentAnalysis.filePath : null);
                     break;
                 case 'runTests':
-                    vscode.commands.executeCommand('kora.runTests');
+                    vscode.commands.executeCommand('kora.runTests', this.currentAnalysis ? this.currentAnalysis.filePath : null);
                     break;
                 case 'generateTests':
-                    vscode.commands.executeCommand('kora.generateTests');
+                    vscode.commands.executeCommand('kora.generateTests', this.currentAnalysis ? this.currentAnalysis.filePath : null);
                     break;
                 case 'explainCode':
-                    vscode.commands.executeCommand('kora.explainCode');
+                    vscode.commands.executeCommand('kora.explainCode', this.currentAnalysis ? this.currentAnalysis.filePath : null);
                     break;
                 case 'auditFile':
-                    vscode.commands.executeCommand('kora.auditFile');
+                    vscode.commands.executeCommand('kora.auditFile', this.currentAnalysis ? this.currentAnalysis.filePath : null);
                     break;
                 case 'analyzeWorkspace':
                     vscode.commands.executeCommand('kora.analyzeWorkspace');
@@ -935,7 +1086,85 @@ class KoraAssistantViewProvider {
                     }
                     break;
                 case 'askQuestion':
-                    await this.answerKoraPrompt(message.prompt);
+                    await this.answerKoraPrompt(message.prompt, message.scope || 'workspace');
+                    break;
+                case 'requestAiFix':
+                case 'requestWorkspaceRefactor':
+                    {
+                        const activeFile = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document)
+                            ? vscode.window.activeTextEditor.document.fileName
+                            : (this.currentAnalysis ? this.currentAnalysis.filePath : null);
+                        await this.triggerWorkspaceRefactor(message.targetPath || activeFile, message.goal || 'Auto-Fix and refactor Kora invariants');
+                    }
+                    break;
+                case 'acceptProposal':
+                    await this.acceptActiveProposal(message.proposalId);
+                    break;
+                case 'rejectProposal':
+                    await this.rejectActiveProposal(message.proposalId);
+                    break;
+                case 'setFileStatus':
+                    this.setFileApprovalStatus(message.proposalId, message.filePath, message.status);
+                    break;
+                case 'previewDiff':
+                    try {
+                        await this.engine.reviewManager.openVisualDiff(message.filePath, message.proposalId);
+                    } catch (e) {
+                        vscode.window.showErrorMessage(`Failed to open visual diff: ${e.message}`);
+                    }
+                    break;
+                case 'selectFilesToAttach':
+                    try {
+                        const uris = await vscode.window.showOpenDialog({
+                            canSelectFiles: true,
+                            canSelectFolders: true,
+                            canSelectMany: true,
+                            openLabel: 'Attach to Kora AI'
+                        });
+                        if (uris && uris.length > 0) {
+                            const paths = uris.map(u => u.fsPath);
+                            if (this.view) {
+                                this.view.webview.postMessage({
+                                    type: 'filesAttached',
+                                    paths: paths
+                                });
+                            }
+                        }
+                    } catch (e) {}
+                    break;
+                case 'openFile':
+                    if (message.filePath) {
+                        try {
+                            const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(message.filePath));
+                            await vscode.window.showTextDocument(doc);
+                        } catch (e) {
+                            vscode.window.showErrorMessage(`Could not open file: ${e.message}`);
+                        }
+                    }
+                    break;
+                case 'applyFix':
+                    {
+                        let editor = vscode.window.activeTextEditor;
+                        if (message.filePath && (!editor || editor.document.fileName !== message.filePath)) {
+                            try {
+                                const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(message.filePath));
+                                editor = await vscode.window.showTextDocument(doc);
+                            } catch (e) {}
+                        }
+                        if (editor && message.code) {
+                            const doc = editor.document;
+                            const fullRange = new vscode.Range(
+                                doc.positionAt(0),
+                                doc.positionAt(doc.getText().length)
+                            );
+                            await editor.edit(editBuilder => {
+                                editBuilder.replace(fullRange, message.code);
+                            });
+                            await doc.save();
+                            vscode.window.showInformationMessage(`AI fix successfully applied to ${path.basename(doc.fileName)}!`);
+                            vscode.commands.executeCommand('kora.checkFile', doc.fileName);
+                        }
+                    }
                     break;
                 case 'updateProvider':
                     if (message.provider) {
@@ -951,7 +1180,7 @@ class KoraAssistantViewProvider {
                             const cfg = vscode.workspace.getConfiguration('kora.copilot');
                             await cfg.update('githubToken', session.accessToken, vscode.ConfigurationTarget.Global);
                             await cfg.update('provider', 'github', vscode.ConfigurationTarget.Global);
-                            vscode.window.showInformationMessage(`✅ GitHub Account linked for Kora Copilot (${session.account ? session.account.label : 'authenticated'})!`);
+                            vscode.window.showInformationMessage(`GitHub Account linked for Kora Copilot (${session.account ? session.account.label : 'authenticated'})!`);
                             this.syncProviderToWebview();
                         }
                     } catch (err) {
@@ -964,7 +1193,7 @@ class KoraAssistantViewProvider {
                         if (message.token) await cfg.update('githubToken', message.token, vscode.ConfigurationTarget.Global);
                         if (message.model) await cfg.update('model', message.model, vscode.ConfigurationTarget.Global);
                         await cfg.update('provider', 'github', vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage(`✅ GitHub Models configured (${message.model || 'gpt-4o-mini'})!`);
+                        vscode.window.showInformationMessage(`GitHub Models configured (${message.model || 'gpt-4o-mini'})!`);
                         this.syncProviderToWebview();
                     }
                     break;
@@ -976,7 +1205,7 @@ class KoraAssistantViewProvider {
                         if (message.endpoint) await cfg.update('endpoint', message.endpoint, vscode.ConfigurationTarget.Global);
                         await cfg.update('model', effectiveModel, vscode.ConfigurationTarget.Global);
                         await cfg.update('provider', 'ollama', vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage(`✅ Local Ollama configured (${effectiveModel})!`);
+                        vscode.window.showInformationMessage(`Local Ollama configured (${effectiveModel})!`);
                         this.syncProviderToWebview();
                     }
                     break;
@@ -984,16 +1213,73 @@ class KoraAssistantViewProvider {
                     {
                         const cfg = vscode.workspace.getConfiguration('kora.copilot');
                         const endpoint = message.endpoint || cfg.get('endpoint', 'http://localhost:11434');
-                        const models = await this.engine.listOllamaModels(endpoint);
-                        const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : '';
-                        if (this.view) {
+                        try {
+                            const resolution = await this.engine.ollamaService.resolveBestModel('chat', cfg.get('model'), endpoint);
+                            const ranked = await this.engine.ollamaService.getRankedModels('chat', endpoint);
+                            if (this.view) {
+                                this.view.webview.postMessage({
+                                    type: 'ollamaModelsLoaded',
+                                    models: ranked.map(m => m.name),
+                                    detailedModels: ranked,
+                                    activeModel: resolution.model,
+                                    resolution: resolution,
+                                    status: resolution.status
+                                });
+                            }
+                        } catch (e) {
+                            if (this.view) {
+                                this.view.webview.postMessage({
+                                    type: 'ollamaModelsLoaded',
+                                    models: [],
+                                    detailedModels: [],
+                                    activeModel: 'qwen2.5-coder:7b',
+                                    resolution: {
+                                        model: null,
+                                        status: 'no_models',
+                                        message: e.message,
+                                        recommendation: 'ollama pull qwen2.5-coder:7b'
+                                    },
+                                    status: 'no_models'
+                                });
+                            }
+                        }
+                    }
+                    break;
+                case 'getAvailableContextOptions':
+                    {
+                        this.syncProviderToWebview();
+                        if (this.currentAnalysis && this.view) {
                             this.view.webview.postMessage({
-                                type: 'ollamaModelsLoaded',
-                                models: models,
-                                envModel: envModel,
-                                activeModel: cfg.get('model', 'gemma:2b')
+                                type: 'activeFileUpdated',
+                                analysis: this.currentAnalysis
                             });
                         }
+                        const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
+                            ? vscode.workspace.workspaceFolders[0].uri.fsPath
+                            : process.cwd();
+                        await this.engine.workspaceEngine.discoverContext(wsRoot, '');
+                        const files = [];
+                        for (const [fPath, meta] of this.engine.workspaceEngine.indexedFiles) {
+                            files.push({
+                                label: meta.relPath,
+                                path: fPath,
+                                role: meta.role
+                            });
+                        }
+                        if (this.view) {
+                            this.view.webview.postMessage({
+                                type: 'availableContextOptions',
+                                files: files
+                            });
+                        }
+                    }
+                    break;
+                case 'stopGeneration':
+                    this.isGenerationStopped = true;
+                    if (this.view) {
+                        this.view.webview.postMessage({
+                            type: 'generationStopped'
+                        });
                     }
                     break;
                 case 'saveAllSettings':
@@ -1007,7 +1293,7 @@ class KoraAssistantViewProvider {
                         if (s.anthropicKey !== undefined) await cfg.update('anthropicKey', s.anthropicKey, vscode.ConfigurationTarget.Global);
                         if (s.model !== undefined) await cfg.update('model', s.model, vscode.ConfigurationTarget.Global);
                         if (s.endpoint !== undefined) await cfg.update('endpoint', s.endpoint, vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage(`✅ Kora Copilot settings saved! Active Provider: ${s.provider || cfg.get('provider')}`);
+                        vscode.window.showInformationMessage(`Kora Copilot settings saved! Active Provider: ${s.provider || cfg.get('provider')}`);
                         this.syncProviderToWebview();
                     }
                     break;
@@ -1034,99 +1320,142 @@ class KoraAssistantViewProvider {
                         }
                     }
                     break;
-                case 'requestAiFix':
-                    {
-                        const editor = vscode.window.activeTextEditor;
-                        if (!editor) {
-                            vscode.window.showWarningMessage('Please open a .kora or .kr file to fix.');
-                            break;
-                        }
-                        const doc = editor.document;
-                        const fileName = path.basename(doc.fileName);
-                        const originalCode = doc.getText();
-                        const diags = (this.currentDiagnostics || []).map(d => ({
-                            line: d.line || 1,
-                            message: d.message || ''
-                        }));
-                        const audit = this.engine.auditDocument(doc);
-                        const cfg = vscode.workspace.getConfiguration('kora.copilot');
-                        const config = {
-                            provider: cfg.get('provider', 'embedded'),
-                            model: cfg.get('model', 'gemma:2b'),
-                            endpoint: cfg.get('endpoint', ''),
-                            githubToken: cfg.get('githubToken', '')
-                        };
-
-                        await vscode.window.withProgress({
-                            location: vscode.ProgressLocation.Notification,
-                            title: `Kora AI: Analyzing and fixing ${fileName}...`,
-                            cancellable: false
-                        }, async () => {
-                            const fix = await this.engine.generateCodeFix(fileName, originalCode, diags, audit, config);
-                            if (this.view) {
-                                this.view.webview.postMessage({
-                                    type: 'aiFixProposed',
-                                    fix: fix,
-                                    filePath: doc.fileName
-                                });
-                            }
-                        });
-                    }
-                    break;
-                case 'applyFix':
-                    {
-                        let editor = vscode.window.activeTextEditor;
-                        if (message.filePath && (!editor || editor.document.fileName !== message.filePath)) {
-                            try {
-                                const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(message.filePath));
-                                editor = await vscode.window.showTextDocument(doc);
-                            } catch (e) {}
-                        }
-                        if (editor && message.code) {
-                            const doc = editor.document;
-                            const fullRange = new vscode.Range(
-                                doc.positionAt(0),
-                                doc.positionAt(doc.getText().length)
-                            );
-                            await editor.edit(editBuilder => {
-                                editBuilder.replace(fullRange, message.code);
-                            });
-                            await doc.save();
-                            vscode.window.showInformationMessage(`✅ AI fix successfully applied to ${path.basename(doc.fileName)}!`);
-                            vscode.commands.executeCommand('kora.checkFile', doc.fileName);
-                        }
-                    }
-                    break;
-                case 'previewDiff':
-                    {
-                        const editor = vscode.window.activeTextEditor;
-                        if (editor && message.code) {
-                            const origDoc = editor.document;
-                            const fileName = path.basename(origDoc.fileName);
-                            const tmpDir = path.join(path.dirname(origDoc.fileName), '.kora_tmp');
-                            try {
-                                if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-                                const tmpFilePath = path.join(tmpDir, `proposed_${fileName}`);
-                                fs.writeFileSync(tmpFilePath, message.code, 'utf8');
-                                const tmpUri = vscode.Uri.file(tmpFilePath);
-                                await vscode.commands.executeCommand(
-                                    'vscode.diff',
-                                    origDoc.uri,
-                                    tmpUri,
-                                    `${fileName} (Current) ↔ ${fileName} (AI Proposed Fix)`
-                                );
-                            } catch (e) {
-                                vscode.window.showErrorMessage(`Failed to open diff: ${e.message}`);
-                            }
-                        }
-                    }
-                    break;
             }
         });
 
         if (vscode.window.activeTextEditor) {
             const analysis = analyzeKoraDocument(vscode.window.activeTextEditor.document);
             this.updateActiveFile(analysis);
+        }
+    }
+
+    async triggerWorkspaceRefactor(targetPath = null, goal = 'Auto-Fix and refactor Kora invariants') {
+        const cfg = vscode.workspace.getConfiguration('kora.copilot');
+        const runtimeConfig = {
+            provider: cfg.get('provider', 'embedded'),
+            model: cfg.get('model', 'gemma:2b'),
+            endpoint: cfg.get('endpoint', ''),
+            githubToken: cfg.get('githubToken', '')
+        };
+
+        const onProgress = (step, allSteps) => {
+            if (this.view) {
+                this.view.webview.postMessage({
+                    type: 'agentProgress',
+                    step: step,
+                    allSteps: allSteps
+                });
+            }
+        };
+
+        const targetFiles = targetPath ? [targetPath] : [];
+
+        try {
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `Kora AI: Analyzing workspace and planning refactor...`,
+                cancellable: false
+            }, async () => {
+                const result = await this.engine.generateWorkspaceRefactor(goal, {
+                    targetFiles: targetFiles.length > 0 ? targetFiles : null,
+                    activeFilePath: targetPath,
+                    config: runtimeConfig
+                }, onProgress);
+
+                this.activeProposal = result.rawProposal;
+
+                if (this.view) {
+                    this.view.webview.postMessage({
+                        type: 'proposalCreated',
+                        proposal: result.proposal,
+                        filesCount: result.filesCount
+                    });
+                }
+
+                if (result.filesCount > 0) {
+                    vscode.window.showInformationMessage(`Kora AI: Prepared changes for ${result.filesCount} file(s). Review diffs in Kora AI panel.`);
+                } else {
+                    vscode.window.showInformationMessage(`Kora AI: No rule violations found. All workspace invariants satisfied!`);
+                    if (this.view) {
+                        this.view.webview.postMessage({
+                            type: 'assistantAnswer',
+                            answer: `**Workspace Invariants Satisfied**\n\nNo violations or necessary refactors found for: *${goal}*. All scanned components strictly comply with Clean Architecture rules.`,
+                            provider: 'embedded',
+                            model: 'RefactorAgent'
+                        });
+                    }
+                }
+            });
+        } catch (err) {
+            vscode.window.showErrorMessage(`Kora AI Refactor Error: ${err.message}`);
+            if (this.view) {
+                this.view.webview.postMessage({
+                    type: 'assistantError',
+                    error: err.message,
+                    originalPrompt: goal
+                });
+            }
+        }
+    }
+
+    async auditWorkspaceRules() {
+        const auditText = this.engine.auditWorkspace();
+        if (this.view) {
+            this.view.webview.postMessage({
+                type: 'auditResult',
+                audit: {
+                    passed: !auditText.includes('Rule Violation'),
+                    violations: (auditText.match(/Violation/g) || []).length,
+                    findings: [],
+                    rawText: auditText
+                }
+            });
+            this.view.webview.postMessage({
+                type: 'assistantAnswer',
+                answer: auditText,
+                provider: 'embedded',
+                model: 'RuleEngine'
+            });
+        }
+    }
+
+    async acceptActiveProposal(proposalId = null) {
+        try {
+            const result = await this.engine.reviewManager.applyApprovedChanges(proposalId);
+            if (this.view) {
+                this.view.webview.postMessage({
+                    type: 'proposalApplied',
+                    proposalId: proposalId || (this.activeProposal ? this.activeProposal.id : null),
+                    appliedCount: result.appliedCount
+                });
+            }
+            vscode.window.showInformationMessage(`Successfully applied changes to ${result.appliedCount} file(s)!`);
+            if (vscode.window.activeTextEditor) {
+                vscode.commands.executeCommand('kora.checkFile', vscode.window.activeTextEditor.document.fileName);
+            }
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to apply changes: ${err.message}`);
+        }
+    }
+
+    async rejectActiveProposal(proposalId = null) {
+        this.engine.reviewManager.rejectAll(proposalId);
+        if (this.view) {
+            this.view.webview.postMessage({
+                type: 'proposalRejected',
+                proposalId: proposalId || (this.activeProposal ? this.activeProposal.id : null)
+            });
+        }
+        vscode.window.showInformationMessage('AI proposed changes were rejected.');
+    }
+
+    setFileApprovalStatus(proposalId, filePath, status) {
+        const updated = this.engine.reviewManager.setFileStatus(proposalId, filePath, status);
+        if (this.view && updated) {
+            this.view.webview.postMessage({
+                type: 'proposalUpdated',
+                proposal: this.engine.reviewManager.serializeProposal(proposalId)
+            });
         }
     }
 
@@ -1167,20 +1496,20 @@ class KoraAssistantViewProvider {
         const text = document.getText();
         const analysis = analyzeKoraDocument(document);
 
-        let explanation = `### 🏛️ Kora Code & Architecture Analysis: \`${analysis.fileName}\`\n\n`;
+        let explanation = `### Kora Code & Architecture Analysis: \`${analysis.fileName}\`\n\n`;
         explanation += `- **Classification**: **${analysis.classification}**\n`;
-        explanation += `- **Runnable**: ${analysis.isRunnable ? '✅ Yes (Ready to run directly)' : 'ℹ️ No (Library / Service component)'}\n`;
+        explanation += `- **Runnable**: ${analysis.isRunnable ? 'Yes (Ready to run directly)' : 'No (Library / Service component)'}\n`;
         explanation += `- **Total Lines**: ${analysis.lineCount}\n`;
         explanation += `- **Declared Symbols**: ${analysis.symbols.length > 0 ? analysis.symbols.map(s => `\`${s.name} (${s.kind})\``).join(', ') : 'None'}\n`;
         explanation += `- **Imported Modules**: ${analysis.imports.length > 0 ? analysis.imports.map(i => `\`${i.path}\``).join(', ') : 'None'}\n\n`;
 
         if (analysis.isRunnable) {
-            explanation += `> 💡 **Execution Advice**: This file contains an entrypoint or test runner. Click **▶ Run Entrypoint** or use \`kora run "${analysis.fileName}"\`.\n\n`;
+            explanation += `> **Execution Advice**: This file contains an entrypoint or test runner. Click **Run Entrypoint** or use \`kora run "${analysis.fileName}"\`.\n\n`;
         } else {
-            explanation += `> 💡 **Clean Architecture Advice**: In Kora Clean Architecture (\`.agent/rules/04-clean-architecture.md\`), domain logic is organized into bounded contexts. Inject this service into a controller or mount via \`Router\` in \`src/main.kora\`.\n\n`;
+            explanation += `> **Clean Architecture Advice**: In Kora Clean Architecture (\`.agent/rules/04-clean-architecture.md\`), domain logic is organized into bounded contexts. Inject this service into a controller or mount via \`Router\` in \`src/main.kora\`.\n\n`;
         }
 
-        explanation += `#### 🔍 Layer Breakdown:\n`;
+        explanation += `#### Layer Breakdown:\n`;
         if (text.includes('@table') || text.includes('@entity')) {
             explanation += `- **Data Layer (@table)**: Persisted database entity (\`.agent/rules/07-database-multi-engine-orm.md\`).\n`;
         }
@@ -1199,7 +1528,125 @@ class KoraAssistantViewProvider {
         }
     }
 
-    async answerKoraPrompt(prompt) {
+    async resolveContextMentions(prompt) {
+        const mentions = [];
+        const attachments = [];
+
+        // 1. @selection
+        if (/@selection\b/i.test(prompt)) {
+            mentions.push('@selection');
+            const editor = vscode.window.activeTextEditor;
+            if (editor && !editor.selection.isEmpty) {
+                const selectedText = editor.document.getText(editor.selection);
+                const relFile = vscode.workspace.asRelativePath ? vscode.workspace.asRelativePath(editor.document.uri) : path.basename(editor.document.fileName);
+                attachments.push({
+                    type: 'selection',
+                    title: `@selection in ${relFile} (Lines ${editor.selection.start.line + 1}-${editor.selection.end.line + 1})`,
+                    content: selectedText
+                });
+            } else if (editor) {
+                attachments.push({
+                    type: 'selection',
+                    title: `@selection in ${path.basename(editor.document.fileName)} (Full File)`,
+                    content: editor.document.getText().slice(0, 5000)
+                });
+            }
+        }
+
+        // 2. @problems
+        if (/@problems\b/i.test(prompt)) {
+            mentions.push('@problems');
+            const allDiags = vscode.languages.getDiagnostics();
+            const problemsList = [];
+            for (const [uri, diags] of allDiags) {
+                const relPath = vscode.workspace.asRelativePath ? vscode.workspace.asRelativePath(uri) : (uri.fsPath || '');
+                for (const d of diags) {
+                    const sev = d.severity === 0 ? 'Error' : 'Warning';
+                    problemsList.push(`- [${sev}] ${relPath}:${d.range.start.line + 1}: ${d.message}`);
+                }
+            }
+            attachments.push({
+                type: 'problems',
+                title: `@problems (${problemsList.length} issue(s) found)`,
+                content: problemsList.slice(0, 30).join('\n') || 'No compiler errors or warnings found in workspace.'
+            });
+        }
+
+        // 3. @terminal
+        if (/@terminal\b/i.test(prompt)) {
+            mentions.push('@terminal');
+            const terms = vscode.window.terminals;
+            const termInfo = terms.map(t => `- Terminal: "${t.name}" (Active: ${t === vscode.window.activeTerminal})`).join('\n');
+            attachments.push({
+                type: 'terminal',
+                title: `@terminal (Active terminals)`,
+                content: termInfo || 'No active terminal sessions.'
+            });
+        }
+
+        // 4. @workspace
+        if (/@workspace\b/i.test(prompt)) {
+            mentions.push('@workspace');
+            const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
+                ? vscode.workspace.workspaceFolders[0].uri.fsPath
+                : process.cwd();
+            const context = await this.engine.workspaceEngine.discoverContext(wsRoot, prompt);
+            attachments.push({
+                type: 'workspace',
+                title: `@workspace (${this.engine.workspaceEngine.indexedFiles.size} indexed files)`,
+                content: this.engine.workspaceEngine.formatContextForPrompt(context)
+            });
+        }
+
+        // 5. @file[: ]([^\s]+)
+        const fileRegex = /@file(?::|\s+)([^\s]+)/gi;
+        let fm;
+        while ((fm = fileRegex.exec(prompt)) !== null) {
+            const rawTarget = fm[1].replace(/['"]/g, '');
+            mentions.push(`@file:${rawTarget}`);
+            const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
+                ? vscode.workspace.workspaceFolders[0].uri.fsPath
+                : process.cwd();
+            const fullPath = path.isAbsolute(rawTarget) ? rawTarget : path.resolve(wsRoot, rawTarget);
+            if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+                try {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    attachments.push({
+                        type: 'file',
+                        title: `@file ${rawTarget}`,
+                        path: fullPath,
+                        content: content.slice(0, 8000)
+                    });
+                } catch (e) {}
+            }
+        }
+
+        // 6. @folder[: ]([^\s]+)
+        const folderRegex = /@folder(?::|\s+)([^\s]+)/gi;
+        let fdm;
+        while ((fdm = folderRegex.exec(prompt)) !== null) {
+            const rawFolder = fdm[1].replace(/['"]/g, '');
+            mentions.push(`@folder:${rawFolder}`);
+            const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
+                ? vscode.workspace.workspaceFolders[0].uri.fsPath
+                : process.cwd();
+            const fullFolder = path.isAbsolute(rawFolder) ? rawFolder : path.resolve(wsRoot, rawFolder);
+            if (fs.existsSync(fullFolder) && fs.statSync(fullFolder).isDirectory()) {
+                try {
+                    const files = fs.readdirSync(fullFolder);
+                    attachments.push({
+                        type: 'folder',
+                        title: `@folder ${rawFolder}`,
+                        content: `Files in directory ${rawFolder}:\n` + files.slice(0, 40).map(f => `- ${f}`).join('\n')
+                    });
+                } catch (e) {}
+            }
+        }
+
+        return { mentions, attachments };
+    }
+
+    async answerKoraPrompt(prompt, scope = 'workspace') {
         const doc = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document : null;
         const config = vscode.workspace.getConfiguration('kora.copilot');
 
@@ -1212,7 +1659,6 @@ class KoraAssistantViewProvider {
         let endpoint = config.get('endpoint', '');
         let apiKey = config.get('apiKey', '');
 
-        // If provider is GitHub and token isn't in settings or env, try silent session lookup
         if (provider === 'github' && !githubToken && !apiKey && !process.env.GITHUB_TOKEN && !process.env.GH_TOKEN) {
             try {
                 const session = await vscode.authentication.getSession('github', ['read:user'], { createIfNone: false });
@@ -1233,15 +1679,58 @@ class KoraAssistantViewProvider {
             apiKey
         };
 
-        const answer = await this.engine.answerPrompt(prompt, doc, runtimeConfig);
+        this.isGenerationStopped = false;
 
-        if (this.view) {
-            this.view.webview.postMessage({
-                type: 'assistantAnswer',
-                answer: answer,
-                provider: provider,
-                model: model
+        const onProgress = (step, allSteps) => {
+            if (this.isGenerationStopped) return;
+            if (this.view) {
+                this.view.webview.postMessage({
+                    type: 'agentProgress',
+                    step: step,
+                    allSteps: allSteps
+                });
+            }
+        };
+
+        const lower = (prompt || '').toLowerCase();
+        if (scope === 'refactor' || lower.startsWith('/fix') || lower.startsWith('/refactor') || lower.includes('refactor file') || lower.includes('auto-fix')) {
+            await this.triggerWorkspaceRefactor(doc ? doc.fileName : null, prompt);
+            return;
+        }
+
+        try {
+            const contextData = await this.resolveContextMentions(prompt);
+            let enrichedPrompt = prompt;
+            if (contextData.attachments.length > 0) {
+                const blocks = contextData.attachments.map(att => `[Context Reference: ${att.title}]\n\`\`\`\n${att.content}\n\`\`\``).join('\n\n');
+                enrichedPrompt = `${prompt}\n\n${blocks}`;
+            }
+
+            const answer = await this.engine.answerPrompt(enrichedPrompt, doc, runtimeConfig, {
+                scope,
+                onProgress
             });
+
+            if (this.isGenerationStopped) return;
+
+            if (this.view) {
+                this.view.webview.postMessage({
+                    type: 'assistantAnswer',
+                    answer: answer,
+                    provider: provider,
+                    model: model,
+                    mentions: contextData.mentions
+                });
+            }
+        } catch (err) {
+            if (this.view) {
+                this.view.webview.postMessage({
+                    type: 'assistantError',
+                    error: err.message,
+                    originalPrompt: prompt
+                });
+            }
+            vscode.window.showErrorMessage(`Kora AI Error: ${err.message}`);
         }
     }
 
@@ -1323,6 +1812,7 @@ class KoraAssistantViewProvider {
     }
 
     getHtmlForWebview(webview) {
+        const nonce = getNonce();
         const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'icon.png'));
         const catalogHtml = EXAMPLES_CATALOG.map(ex => `
             <div class="example-card" onclick="cloneExample('${ex.slug}')">
@@ -1333,7 +1823,7 @@ class KoraAssistantViewProvider {
                 <div class="example-desc">${ex.desc}</div>
                 <div class="example-footer">
                     <span class="category-tag">${ex.category}</span>
-                    <button class="btn-clone" title="Scaffold into current project">Scaffold Example ⚡</button>
+                    <button class="btn-clone" title="Scaffold into current project">Scaffold Example</button>
                 </div>
             </div>
         `).join('');
@@ -1342,29 +1832,38 @@ class KoraAssistantViewProvider {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' ${webview.cspSource}; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource};">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kora AI Assistant</title>
+    <title>Kora AI Agent</title>
     <style>
         * {
             box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
         }
         body {
             font-family: var(--vscode-font-family);
             color: var(--vscode-foreground);
             background-color: var(--vscode-sideBar-background);
-            padding: 8px;
-            margin: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 6px 8px;
             font-size: 11.5px;
             width: 100%;
             max-width: 100%;
-            overflow-x: hidden;
+            box-sizing: border-box;
         }
         .header {
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
             border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
             width: 100%;
         }
@@ -1397,9 +1896,10 @@ class KoraAssistantViewProvider {
             flex-shrink: 0;
         }
         .tabs {
+            flex-shrink: 0;
             display: flex;
             gap: 2px;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
             padding: 2px;
             border-radius: 6px;
@@ -1438,7 +1938,11 @@ class KoraAssistantViewProvider {
         }
         .section {
             display: none;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
             width: 100%;
+            box-sizing: border-box;
         }
         .section.active {
             display: block;
@@ -1446,12 +1950,462 @@ class KoraAssistantViewProvider {
         #tab-ask.section.active {
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 80px);
-            max-height: calc(100vh - 80px);
+            flex: 1 1 auto;
+            min-height: 0;
+            height: 100%;
             overflow: hidden;
             box-sizing: border-box;
             position: relative;
         }
+        .drop-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(14, 165, 233, 0.28);
+            border: 2px dashed #0284c7;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-weight: 600;
+            font-size: 13px;
+            color: #38bdf8;
+            z-index: 999;
+            pointer-events: none;
+            backdrop-filter: blur(2px);
+        }
+        .attached-files-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 4px 6px;
+            margin-bottom: 4px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px dashed rgba(56, 189, 248, 0.3);
+            border-radius: 4px;
+        }
+        .attached-file-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: #38bdf8;
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+        .attached-file-remove {
+            cursor: pointer;
+            opacity: 0.7;
+            font-weight: 700;
+            margin-left: 2px;
+            padding: 0 2px;
+        }
+        .attached-file-remove:hover {
+            opacity: 1;
+            color: #ef4444;
+        }
+        .btn-attach {
+            background: transparent;
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.15));
+            color: var(--vscode-foreground);
+            padding: 5px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+        .btn-attach:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #38bdf8;
+            color: #38bdf8;
+        }
+            box-sizing: border-box;
+            position: relative;
+        }
+        .provider-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+            border-radius: 4px;
+            padding: 4px 6px;
+            margin-bottom: 6px;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .provider-select-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            min-width: 0;
+        }
+        .provider-select {
+            background: var(--vscode-dropdown-background);
+            color: var(--vscode-dropdown-foreground);
+            border: 1px solid var(--vscode-dropdown-border, rgba(255, 255, 255, 0.1));
+            border-radius: 3px;
+            font-size: 10.5px;
+            padding: 2px 4px;
+            flex: 1;
+            cursor: pointer;
+            min-width: 0;
+        }
+        .btn-config-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 4px;
+            opacity: 0.8;
+            flex-shrink: 0;
+        }
+        .btn-config-toggle:hover {
+            opacity: 1.0;
+        }
+        .provider-config-box {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-widget-border);
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 8px;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+        .agent-tracker {
+            background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.04));
+            border: 1px solid var(--vscode-focusBorder, #38bdf8);
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin-bottom: 6px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .tracker-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10.5px;
+            font-weight: 600;
+        }
+        .tracker-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 9.5px;
+        }
+        .tracker-detail {
+            font-size: 10.5px;
+            opacity: 0.85;
+            line-height: 1.3;
+        }
+        .tracker-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: 3px;
+            padding-top: 3px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            max-height: 80px;
+            overflow-y: auto;
+            font-size: 9px;
+            opacity: 0.8;
+        }
+        .chat-scroll-area {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 2px;
+            margin-bottom: 6px;
+            min-height: 80px;
+        }
+        .suggestion-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 4px;
+            flex-shrink: 0;
+        }
+        .chip {
+            background: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            padding: 3px 6px;
+            border-radius: 12px;
+            font-size: 9.5px;
+            cursor: pointer;
+            transition: opacity 0.15s ease;
+        }
+        .chip:hover {
+            opacity: 0.8;
+        }
+        .chat-history {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+        .msg-user {
+            background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+            padding: 6px 8px;
+            border-radius: 6px;
+            align-self: flex-end;
+            font-size: 11px;
+            max-width: 90%;
+            word-break: break-word;
+        }
+        .msg-assistant {
+            background: var(--vscode-editor-background);
+            border-left: 3px solid var(--vscode-textLink-foreground);
+            padding: 8px 10px;
+            border-radius: 4px;
+            align-self: flex-start;
+            font-size: 11px;
+            line-height: 1.45;
+            max-width: 100%;
+            width: 100%;
+            word-break: break-word;
+        }
+        .file-ref-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 1px 6px;
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 10px;
+            font-size: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            margin: 1px 2px;
+            font-family: monospace;
+        }
+        .file-ref-pill:hover {
+            background: rgba(59, 130, 246, 0.3);
+        }
+        .proposal-card {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-focusBorder, #38bdf8);
+            border-radius: 6px;
+            padding: 8px;
+            margin: 6px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .proposal-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+        }
+        .proposal-title {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #38bdf8;
+        }
+        .proposal-file-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+            background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+            border-radius: 4px;
+            padding: 4px 6px;
+            margin-bottom: 4px;
+            font-size: 10.5px;
+        }
+        .proposal-file-name {
+            cursor: pointer;
+            color: var(--vscode-textLink-foreground);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+        .diff-stat-add { color: #10b981; font-weight: 600; font-size: 9.5px; }
+        .diff-stat-del { color: #ef4444; font-weight: 600; font-size: 9.5px; }
+        .btn-prop-sm {
+            background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+            color: var(--vscode-foreground);
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+            border-radius: 3px;
+            padding: 2px 5px;
+            font-size: 9.5px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-prop-sm:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .proposal-global-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .btn-accept-all {
+            background: #10b981;
+            color: #fff;
+            border: none;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 10.5px;
+            text-align: center;
+        }
+        .btn-accept-all:hover {
+            background: #059669;
+        }
+        .btn-reject-all {
+            background: #ef4444;
+            color: #fff;
+            border: none;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 10.5px;
+            text-align: center;
+        }
+        .btn-reject-all:hover {
+            background: #dc2626;
+        }
+        .chat-input-box {
+            flex-shrink: 0;
+            background: var(--vscode-sideBar-background);
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.15));
+            border-radius: 8px;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+            margin-top: auto;
+            width: 100%;
+            z-index: 20;
+        }
+        .chat-scope-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            font-size: 10px;
+        }
+        .scope-select {
+            background: var(--vscode-dropdown-background);
+            color: var(--vscode-dropdown-foreground);
+            border: 1px solid var(--vscode-dropdown-border, rgba(255, 255, 255, 0.1));
+            border-radius: 4px;
+            font-size: 10px;
+            padding: 2px 6px;
+            cursor: pointer;
+        }
+        .chat-textarea {
+            width: 100%;
+            min-height: 40px;
+            max-height: 120px;
+            resize: none;
+            overflow-y: auto;
+            background: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.1));
+            border-radius: 5px;
+            padding: 6px 8px;
+            font-family: inherit;
+            font-size: 11.5px;
+            line-height: 1.4;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .chat-textarea:focus {
+            border-color: var(--vscode-focusBorder);
+        }
+        .chat-actions-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+        .btn-refactor-quick {
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(37, 99, 235, 0.2));
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 4px;
+            padding: 3px 8px;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-refactor-quick:hover {
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(37, 99, 235, 0.35));
+        }
+        .btn-send-main {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            font-size: 10.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-send-main:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        .typing-cursor {
+            display: inline-block;
+            width: 6px;
+            height: 12px;
+            background: var(--vscode-textLink-foreground);
+            margin-left: 2px;
+            vertical-align: middle;
+            animation: blink 0.8s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .typing-indicator {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding: 6px 10px;
+            font-size: 11px;
+            opacity: 0.85;
+            color: var(--vscode-textLink-foreground);
+            background: var(--vscode-editor-background);
+            border-radius: 4px;
+            border-left: 3px solid var(--vscode-textLink-foreground);
+            font-style: italic;
+        }
+        /* Inspector & other tabs */
         .file-status-box {
             background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
             border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
@@ -1613,6 +2567,105 @@ class KoraAssistantViewProvider {
         .settings-group {
             margin-bottom: 10px;
         }
+        .active-model-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            background: rgba(56, 189, 248, 0.12);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 2px 7px;
+            border-radius: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.15s ease;
+        }
+        .active-model-pill:hover {
+            background: rgba(56, 189, 248, 0.22);
+            border-color: #38bdf8;
+        }
+        .btn-mention-pill {
+            background: rgba(59, 130, 246, 0.12);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 9.5px;
+            cursor: pointer;
+            font-family: monospace;
+            transition: all 0.15s;
+        }
+        .btn-mention-pill:hover {
+            background: rgba(59, 130, 246, 0.25);
+        }
+        .mention-menu {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            margin-bottom: 6px;
+            background: var(--vscode-editorWidget-background, #252526);
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.15));
+            border-radius: 6px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .mention-menu-header {
+            font-size: 9.5px;
+            font-weight: 600;
+            opacity: 0.7;
+            padding: 4px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            text-transform: uppercase;
+        }
+        .mention-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            padding: 5px 8px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background 0.1s;
+        }
+        .mention-item:hover, .mention-item.selected {
+            background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.08));
+        }
+        .mention-token {
+            font-weight: 600;
+            color: #38bdf8;
+            font-family: monospace;
+        }
+        .mention-desc {
+            font-size: 10px;
+            opacity: 0.75;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .btn-stop-gen {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 10.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-stop-gen:hover {
+            background: rgba(239, 68, 68, 0.28);
+        }
         .settings-label {
             display: block;
             font-size: 10.5px;
@@ -1620,180 +2673,169 @@ class KoraAssistantViewProvider {
             opacity: 0.85;
             margin-bottom: 3px;
         }
-        .provider-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-widget-border);
-            border-radius: 4px;
-            padding: 4px 8px;
-            margin-bottom: 8px;
-        }
-        .provider-select-group {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex: 1;
-        }
-        .provider-select {
-            background: var(--vscode-dropdown-background);
-            color: var(--vscode-dropdown-foreground);
-            border: 1px solid var(--vscode-dropdown-border);
-            border-radius: 3px;
-            font-size: 11px;
-            padding: 3px 6px;
-            flex: 1;
-            cursor: pointer;
-        }
-        .btn-config-toggle {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 13px;
-            padding: 2px 4px;
-            opacity: 0.8;
-        }
-        .btn-config-toggle:hover {
-            opacity: 1.0;
-        }
-        .provider-config-box {
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-widget-border);
-            border-radius: 4px;
-            padding: 8px;
-            margin-bottom: 10px;
-            font-size: 11px;
-        }
-        .chat-scroll-area {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding-right: 2px;
-            margin-bottom: 4px;
-            min-height: 80px;
-        }
-        .chat-input-row {
-            display: flex;
-            gap: 4px;
-            padding-top: 6px;
-            padding-bottom: 2px;
-            background: var(--vscode-sideBar-background);
-            border-top: 1px solid var(--vscode-widget-border);
-            margin-top: auto;
-            width: 100%;
-            z-index: 10;
-        }
-        .chat-input {
-            flex: 1;
-            background: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border: 1px solid var(--vscode-input-border);
-            padding: 6px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-        }
-        .chat-btn {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 6px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .suggestion-chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-bottom: 8px;
-        }
-        .chip {
-            background: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            padding: 3px 6px;
-            border-radius: 12px;
-            font-size: 10px;
-            cursor: pointer;
-        }
-        .chip:hover {
-            opacity: 0.8;
-        }
-        .chat-history {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            width: 100%;
-        }
-        .msg-user {
-            background: var(--vscode-button-secondaryBackground);
-            padding: 6px 8px;
-            border-radius: 4px;
-            align-self: flex-end;
-            font-size: 11px;
-            max-width: 90%;
-        }
-        .msg-assistant {
-            background: var(--vscode-editor-background);
-            border-left: 3px solid var(--vscode-textLink-foreground);
-            padding: 8px 10px;
-            border-radius: 4px;
-            align-self: flex-start;
-            font-size: 11px;
-            line-height: 1.4;
-            max-width: 98%;
-            white-space: pre-wrap;
-        }
-        .typing-cursor {
-            display: inline-block;
-            width: 6px;
-            height: 12px;
-            background: var(--vscode-textLink-foreground);
-            margin-left: 2px;
-            vertical-align: middle;
-            animation: blink 0.8s infinite;
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
-        }
-        .typing-indicator {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            padding: 6px 10px;
-            font-size: 11px;
-            opacity: 0.85;
-            color: var(--vscode-textLink-foreground);
-            background: var(--vscode-editor-background);
-            border-radius: 4px;
-            border-left: 3px solid var(--vscode-textLink-foreground);
-            font-style: italic;
-        }
     </style>
 </head>
 <body>
     <div class="header">
         <div class="logo">
             <img src="${logoUri}" width="20" height="20" class="logo-img" alt="Kora Logo" />
-            <span>Kora Copilot</span>
+            <span>Kora AI Agent</span>
         </div>
-        <span class="engine-badge" id="engine-indicator">● Active</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="active-model-pill" id="active-model-pill" onclick="switchTab('settings')" title="Active AI model. Click to configure settings.">Embedded</span>
+            <span class="engine-badge" id="engine-indicator">Active</span>
+        </div>
     </div>
 
     <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('copilot')">Inspector</button>
-        <button class="tab-btn" onclick="switchTab('arch')">Architecture</button>
-        <button class="tab-btn" onclick="switchTab('learn')">Learning</button>
-        <button class="tab-btn" onclick="switchTab('ask')">AI Chat</button>
-        <button class="tab-btn" onclick="switchTab('examples')">Examples (23)</button>
-        <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
+        <button class="tab-btn active" data-tab="ask" onclick="switchTab('ask')">AI Agent</button>
+        <button class="tab-btn" data-tab="copilot" onclick="switchTab('copilot')">Inspector</button>
+        <button class="tab-btn" data-tab="arch" onclick="switchTab('arch')">Architecture</button>
+        <button class="tab-btn" data-tab="learn" onclick="switchTab('learn')">Learning</button>
+        <button class="tab-btn" data-tab="examples" onclick="switchTab('examples')">Examples (23)</button>
+        <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">Settings</button>
     </div>
 
-    <!-- 1. Inspector / Active File Copilot -->
-    <div id="tab-copilot" class="section active">
+    <!-- 1. AI Agent Chat Tab (Primary) -->
+    <div id="tab-ask" class="section active">
+        <!-- Drag & Drop Overlay Indicator -->
+        <div id="drop-overlay" class="drop-overlay" style="display: none;">
+            
+            <span>Drop File or Folder to Attach</span>
+            <span style="font-size: 10px; opacity: 0.85;">Will be indexed and attached to AI context</span>
+        </div>
+
+        <div class="provider-bar">
+            <div class="provider-select-group">
+                <span style="font-size: 10px; opacity: 0.8; font-weight: 600;">Engine:</span>
+                <select id="copilot-provider-select" class="provider-select" onchange="onProviderSelectChanged(this.value)">
+                    <option value="embedded">Embedded Core (Offline Rules)</option>
+                    <option value="copilot">GitHub Copilot (Native IDE)</option>
+                    <option value="ollama">Local Ollama (Intelligent Discovery)</option>
+                    <option value="github">GitHub Models API (PAT)</option>
+                </select>
+            </div>
+            <button class="btn-config-toggle" onclick="toggleConfigPanel()" title="Configure Engine Settings">Configure</button>
+        </div>
+
+        <div id="ollama-alert-banner" style="display: none; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; font-size: 10px; line-height: 1.4;">
+            <div id="ollama-alert-text"></div>
+        </div>
+
+        <div id="provider-config-box" class="provider-config-box" style="display: none;">
+            <div id="cfg-copilot" style="display: none;">
+                <div style="font-weight: 600; margin-bottom: 4px; color: #60A5FA;">Native GitHub Copilot</div>
+                <div style="font-size: 10.5px; opacity: 0.85; margin-bottom: 6px;">Zero token setup: Queries the Language Model API provided by your authenticated GitHub Copilot IDE session.</div>
+                <div style="font-size: 10px; color: #10B981; font-weight: 600;">Ready to chat without manual API keys or endpoints.</div>
+            </div>
+            <div id="cfg-github" style="display: none;">
+                <div style="font-weight: 600; margin-bottom: 4px;">GitHub Models Setup</div>
+                <button class="action-btn primary" style="width: 100%; margin-bottom: 6px; padding: 4px;" onclick="requestGitHubLogin()">Auto-Link GitHub Account</button>
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Or paste Personal Access Token (PAT):</div>
+                <input type="password" id="cfg-gh-token" class="chat-textarea" style="min-height: 28px; max-height: 28px;" placeholder="ghp_... or github_pat_..." />
+                <div style="font-size: 10px; opacity: 0.7; margin: 4px 0 2px 0;">Model:</div>
+                <div style="display: flex; gap: 4px;">
+                    <select id="cfg-gh-model" class="provider-select" style="flex: 1;">
+                        <option value="gpt-4o-mini">gpt-4o-mini (Fast & Recommended)</option>
+                        <option value="Phi-3.5-mini-instruct">Phi-3.5-mini-instruct (Small)</option>
+                        <option value="Meta-Llama-3.1-8B-Instruct">Meta-Llama-3.1-8B-Instruct</option>
+                    </select>
+                    <button class="btn-send-main" onclick="saveGitHubConfig()">Save</button>
+                </div>
+            </div>
+            <div id="cfg-ollama" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-weight: 600; color: #34D399;">Local Ollama Models</span>
+                    <button class="btn-prop-sm" onclick="refreshOllamaModels()" title="Refresh models from local Ollama">Scan</button>
+                </div>
+                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Endpoint URL:</div>
+                <input type="text" id="cfg-ollama-endpoint" class="chat-textarea" style="min-height: 28px; max-height: 28px;" value="http://localhost:11434" onchange="refreshOllamaModels()" />
+                <div style="font-size: 10px; opacity: 0.7; margin: 4px 0 2px 0;">Discovered / Selected Model:</div>
+                <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                    <select id="cfg-ollama-model" class="provider-select" style="flex: 1;" onchange="onOllamaSelectChange(this.value)">
+                        <option value="auto">Auto-detect best model</option>
+                        <option value="custom">Enter custom model name...</option>
+                    </select>
+                    <button class="btn-send-main" onclick="saveOllamaConfig()">Save</button>
+                </div>
+                <input type="text" id="cfg-ollama-custom" class="chat-textarea" style="min-height: 28px; max-height: 28px; display: none;" placeholder="Type custom model (e.g. qwen2.5-coder:7b)..." />
+            </div>
+            <div id="cfg-embedded" style="display: none;">
+                <div style="font-weight: 600; margin-bottom: 2px;">Embedded Knowledge Engine</div>
+                <div style="font-size: 10px; opacity: 0.8;">Instant offline inference powered by Kora AST analyzer, .agent/rules/ invariants, and the official language documentation.</div>
+            </div>
+        </div>
+
+        <!-- Compact Antigravity-Style Agent Status & Step Timeline -->
+        <div id="agent-tracker" class="agent-tracker" style="display: none;">
+            <div class="tracker-header" onclick="toggleTrackerSteps()" style="cursor: pointer;" title="Click to expand/collapse agent activity steps">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="tracker-badge" id="tracker-badge">Working</span>
+                    <span id="tracker-state-title" style="color: #38bdf8;">Exploring Workspace</span>
+                </div>
+                <span id="tracker-chevron" style="font-size: 9px; opacity: 0.8;">v</span>
+            </div>
+            <div id="tracker-detail" class="tracker-detail">Scanning project files and module relationships...</div>
+            <div id="tracker-steps" class="tracker-steps" style="display: none;"></div>
+        </div>
+
+        <div class="chat-scroll-area" id="chat-scroll-area">
+            <div class="suggestion-chips">
+                <span class="chip" data-chip="Auto-fix all rule violations across workspace" onclick="askChip('Auto-fix all rule violations across workspace')">Auto-Fix Workspace</span>
+                <span class="chip" data-chip="Analyze workspace Clean Architecture layers" onclick="askChip('Analyze workspace Clean Architecture layers')">Analyze Architecture</span>
+                <span class="chip" data-chip="Audit active file against .agent rules" onclick="askChip('Audit active file against .agent rules')">Audit Rules</span>
+                <span class="chip" data-chip="Show Rule 08: Actors & Mailboxes" onclick="askChip('Show Rule 08: Actors & Mailboxes')">Rule 08 Concurrency</span>
+                <span class="chip" data-chip="Explain Single-Null Design vs undefined" onclick="askChip('Explain Single-Null Design vs undefined')">Single-Null vs Undefined</span>
+            </div>
+
+            <div class="chat-history" id="chat-history"></div>
+        </div>
+
+        <!-- Persistent Fixed Bottom Chat Input Container -->
+        <div class="chat-input-box" style="position: relative;">
+            <div id="mention-menu" class="mention-menu" style="display: none;">
+                <div class="mention-menu-header">Context References (click or Enter to insert):</div>
+                <div class="mention-items-list" id="mention-items-list"></div>
+            </div>
+
+            <!-- Attached Files/Folders Bar -->
+            <div id="attached-files-bar" class="attached-files-bar" style="display: none;"></div>
+
+            <div class="chat-scope-bar">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="opacity: 0.8;">Scope:</span>
+                    <select id="chat-scope" class="scope-select">
+                        <option value="workspace">Entire Workspace</option>
+                        <option value="active">Active File Only</option>
+                        <option value="refactor">Refactor Mode</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px; overflow-x: auto;">
+                    <button class="btn-mention-pill" onclick="insertMentionToken('@workspace')" title="Reference entire project architecture">@workspace</button>
+                    <button class="btn-mention-pill" onclick="insertMentionToken('@selection')" title="Reference active editor code selection">@selection</button>
+                    <button class="btn-mention-pill" onclick="insertMentionToken('@problems')" title="Reference current compiler diagnostics">@problems</button>
+                </div>
+            </div>
+            <textarea id="chat-input" class="chat-textarea" placeholder="Ask Kora AI Agent, drag & drop files/folders here, type @ for context references, or /fix... (Enter to send, Shift+Enter for new line)"></textarea>
+            <div class="chat-actions-row">
+                <button class="btn-refactor-quick" onclick="requestWorkspaceRefactor()" title="Workspace-wide AI Auto-Fix & Refactor">
+                    <span>Auto-Fix & Refactor</span>
+                </button>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <button class="btn-attach" id="btn-attach" onclick="triggerFilePicker()" title="Attach File or Folder (Drag & Drop also supported)">Attach</button>
+                    <button class="btn-stop-gen" id="btn-stop" style="display: none;" onclick="stopGeneration()" title="Stop Generation">
+                        <span>Stop</span>
+                    </button>
+                    <button class="btn-send-main" id="btn-send" onclick="sendPrompt()">
+                        <span>Send</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Active File Inspector Tab -->
+    <div id="tab-copilot" class="section">
         <div class="file-status-box">
             <div class="file-title">
                 <span id="active-filename">No active file</span>
@@ -1802,32 +2844,14 @@ class KoraAssistantViewProvider {
             <div id="active-meta" style="font-size: 11px; opacity: 0.8; margin-bottom: 6px;">Open a .kora or .kr file to analyze</div>
             
             <div class="action-grid">
-                <button class="action-btn primary" id="btn-run" onclick="smartRun()">▶ Smart Run / Test</button>
-                <button class="action-btn" onclick="auditFile()" title="Audit file against .agent rules">🛡️ Audit Rules</button>
-                <button class="action-btn" onclick="checkFile()" title="Run type checks and linter">⚡ Check Types</button>
-                <button class="action-btn" onclick="runTests()" title="Execute test suites">🧪 Test Suite</button>
-                <button class="action-btn" onclick="explainCode()" title="Explain code architecture">💡 Explain Code</button>
-                <button class="action-btn" onclick="generateTests()" title="Scaffold tests for active symbols">✨ Scaffold Tests</button>
-                <button class="action-btn" onclick="switchTab('arch')" title="Inspect clean architecture layers">🏛️ Architecture</button>
-                <button class="action-btn" onclick="requestAiFix()" style="grid-column: span 2; background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 600;" title="AI analyzes errors, audits rules and proposes code fixes with Accept / Reject">🪄 AI Auto-Fix & Refactor File</button>
-            </div>
-        </div>
-
-        <div id="ai-fix-container" style="display: none; margin-top: 10px; border: 1px solid var(--vscode-editorBracketMatch-border, #3b82f6); border-radius: 6px; padding: 10px; background: var(--vscode-editor-background);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                <span style="font-weight: 600; color: #38bdf8;">🪄 AI Proposed Fix</span>
-                <span id="ai-fix-status" style="font-size: 10px; padding: 2px 6px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); color: #38bdf8;">Ready to Review</span>
-            </div>
-            <div id="ai-fix-summary" style="font-size: 11px; margin-bottom: 8px; opacity: 0.9; line-height: 1.4;"></div>
-            <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">Proposed Code:</div>
-            <pre id="ai-fix-code" style="max-height: 180px; overflow: auto; background: var(--vscode-terminal-background, #1e1e1e); padding: 8px; border-radius: 4px; font-size: 11px; font-family: monospace; border: 1px solid rgba(255,255,255,0.1); margin: 0 0 10px 0; white-space: pre;"></pre>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-                <button class="action-btn primary" style="background: #10b981; color: white;" onclick="acceptAiFix()">✅ Accept & Apply</button>
-                <button class="action-btn" style="background: #ef4444; color: white;" onclick="rejectAiFix()">❌ Reject</button>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-                <button class="action-btn" onclick="previewDiffEditor()">👁️ Side-by-Side Diff</button>
-                <button class="action-btn" onclick="smartRun()">▶ Run & Verify</button>
+                <button class="action-btn primary" id="btn-run" onclick="smartRun()">Smart Run / Test</button>
+                <button class="action-btn" onclick="auditFile()" title="Audit file against .agent rules">Audit Rules</button>
+                <button class="action-btn" onclick="checkFile()" title="Run type checks and linter">Check Types</button>
+                <button class="action-btn" onclick="runTests()" title="Execute test suites">Test Suite</button>
+                <button class="action-btn" onclick="explainCode()" title="Explain code architecture">Explain Code</button>
+                <button class="action-btn" onclick="generateTests()" title="Scaffold tests for active symbols">Scaffold Tests</button>
+                <button class="action-btn" onclick="switchTab('arch')" title="Inspect clean architecture layers">Architecture</button>
+                <button class="action-btn" onclick="requestWorkspaceRefactor()" style="grid-column: span 2; background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 600;" title="AI analyzes workspace/file and proposes coordinated code fixes with Diff Review">AI Auto-Fix & Refactor (Workspace)</button>
             </div>
         </div>
 
@@ -1847,9 +2871,9 @@ class KoraAssistantViewProvider {
         </div>
     </div>
 
-    <!-- 1b. Architecture Explorer Tab -->
+    <!-- 3. Architecture Explorer Tab -->
     <div id="tab-arch" class="section">
-        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">🏛️ Workspace Architecture Explorer</div>
+        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">Workspace Architecture Explorer</div>
         <div style="font-size: 11px; opacity: 0.8; margin-bottom: 10px;">Visual representation of Clean Architecture layers across your workspace:</div>
         
         <div id="arch-stats" class="action-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 12px;">
@@ -1879,130 +2903,53 @@ class KoraAssistantViewProvider {
             </div>
         </div>
 
-        <button class="action-btn primary" style="width: 100%; margin-bottom: 12px;" onclick="analyzeWorkspace()">🔄 Refresh Workspace Map</button>
+        <button class="action-btn primary" style="width: 100%; margin-bottom: 12px;" onclick="analyzeWorkspace()">Refresh Workspace Map</button>
 
         <div style="font-weight: 600; margin-bottom: 6px;">Layer Data Flow (Clean Architecture):</div>
         <div style="background: var(--vscode-editor-background); padding: 8px; border-radius: 4px; font-size: 11px; line-height: 1.5; border-left: 3px solid #10B981;">
-            <b>1. HTTP Request</b> ➔ <code>Controllers (Presentation)</code><br>
-            <b>2. Validation</b> ➔ <code>DTO Models (Boundary)</code><br>
-            <b>3. Injected DI</b> ➔ <code>Services (Application Logic)</code><br>
-            <b>4. Interface Contract</b> ➔ <code>Repositories (Data Access)</code><br>
-            <b>5. Storage Mapping</b> ➔ <code>Entities (@table SQL / NoSQL)</code>
+            <b>1. HTTP Request</b> -> <code>Controllers (Presentation)</code><br>
+            <b>2. Validation</b> -> <code>DTO Models (Boundary)</code><br>
+            <b>3. Injected DI</b> -> <code>Services (Application Logic)</code><br>
+            <b>4. Interface Contract</b> -> <code>Repositories (Data Access)</code><br>
+            <b>5. Storage Mapping</b> -> <code>Entities (@table SQL / NoSQL)</code>
         </div>
     </div>
 
-    <!-- 1c. Learning Center Tab -->
+    <!-- 4. Learning Center Tab -->
     <div id="tab-learn" class="section">
-        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">🎓 Kora Interactive Learning Center</div>
+        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">Kora Interactive Learning Center</div>
         <div style="font-size: 11px; opacity: 0.8; margin-bottom: 10px;">Master Kora through hands-on lessons with runnable code:</div>
 
         <div class="lesson-card" style="background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
             <div style="font-weight: 600; color: var(--vscode-textLink-foreground);">Lesson 1: Pure Models & DTOs</div>
             <div style="font-size: 11px; margin: 4px 0;">Models define immutable payloads without runtime overhead:</div>
             <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px;">model User {\n    name: String\n    age: Int\n}</pre>
-            <button class="action-btn" onclick="insertSnippet('model User {\n    name: String\n    age: Int\n}\n')">Insert into Editor 📝</button>
+            <button class="action-btn" onclick="insertSnippet('model User {\n    name: String\n    age: Int\n}\n')">Insert into Editor</button>
         </div>
 
         <div class="lesson-card" style="background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
             <div style="font-weight: 600; color: var(--vscode-textLink-foreground);">Lesson 2: Clean Architecture & DI</div>
             <div style="font-size: 11px; margin: 4px 0;">Services receive dependencies via <code>init(...)</code> constructor injection:</div>
             <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px;">class UserService {\n    repo: UserRepository\n    init(repo: UserRepository) {\n        this.repo = repo\n    }\n}</pre>
-            <button class="action-btn" onclick="insertSnippet('class UserService {\n    repo: UserRepository\n    init(repo: UserRepository) {\n        this.repo = repo\n    }\n}\n')">Insert into Editor 📝</button>
+            <button class="action-btn" onclick="insertSnippet('class UserService {\n    repo: UserRepository\n    init(repo: UserRepository) {\n        this.repo = repo\n    }\n}\n')">Insert into Editor</button>
         </div>
 
         <div class="lesson-card" style="background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
             <div style="font-weight: 600; color: var(--vscode-textLink-foreground);">Lesson 3: Concurrency Actors & Mailboxes</div>
             <div style="font-size: 11px; margin: 4px 0;">Stateful actors run on Tokio threads with <code>tell</code> and <code>ask</code>:</div>
             <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px;">class WorkerActor {\n    var count: Int\n    init() { this.count = 0 }\n    fn handle(msg: String) -> Int {\n        this.count += 1\n        return this.count\n    }\n}</pre>
-            <button class="action-btn" onclick="insertSnippet('class WorkerActor {\n    var count: Int\n    init() { this.count = 0 }\n    fn handle(msg: String) -> Int {\n        this.count += 1\n        return this.count\n    }\n}\n')">Insert into Editor 📝</button>
+            <button class="action-btn" onclick="insertSnippet('class WorkerActor {\n    var count: Int\n    init() { this.count = 0 }\n    fn handle(msg: String) -> Int {\n        this.count += 1\n        return this.count\n    }\n}\n')">Insert into Editor</button>
         </div>
 
         <div class="lesson-card" style="background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
             <div style="font-weight: 600; color: var(--vscode-textLink-foreground);">Lesson 4: Load Test with Teardown</div>
             <div style="font-size: 11px; margin: 4px 0;">High throughput stress testing with guaranteed resource teardown (Rule 10):</div>
             <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px;">class LoadTestSuite {\n    fn run(n: Int) -> Int {\n        var total = 0\n        for i in 0..n { total += 1 }\n        return total\n    }\n    fn teardown() -> Unit {\n        print(\"Teardown complete\")\n    }\n}</pre>
-            <button class="action-btn" onclick="insertSnippet('class LoadTestSuite {\n    init() {}\n    fn run(n: Int) -> Int {\n        var total = 0\n        for i in 0..n { total += 1 }\n        return total\n    }\n    fn teardown() -> Unit {\n        print(\"  ✓ Teardown: synthetic allocations purged\")\n    }\n}\n')">Insert into Editor 📝</button>
+            <button class="action-btn" onclick="insertSnippet('class LoadTestSuite {\n    init() {}\n    fn run(n: Int) -> Int {\n        var total = 0\n        for i in 0..n { total += 1 }\n        return total\n    }\n    fn teardown() -> Unit {\n        print(\"  [Teardown] synthetic allocations purged\")\n    }\n}\n')">Insert into Editor</button>
         </div>
     </div>
 
-    <!-- 2. Copilot Chat -->
-    <div id="tab-ask" class="section">
-        <div class="provider-bar">
-            <div class="provider-select-group">
-                <span style="font-size: 10px; opacity: 0.8; font-weight: 600;">Engine:</span>
-                <select id="copilot-provider-select" class="provider-select" onchange="onProviderSelectChanged(this.value)">
-                    <option value="embedded">⚡ Embedded Core (Offline Rules)</option>
-                    <option value="copilot">🤖 GitHub Copilot (Native IDE)</option>
-                    <option value="ollama">🦙 Local Ollama (gemma:2b / local)</option>
-                    <option value="github">🐙 GitHub Models API (PAT)</option>
-                </select>
-            </div>
-            <button class="btn-config-toggle" onclick="toggleConfigPanel()" title="Configure Engine Settings">⚙️</button>
-        </div>
-
-        <div id="provider-config-box" class="provider-config-box" style="display: none;">
-            <div id="cfg-copilot" style="display: none;">
-                <div style="font-weight: 600; margin-bottom: 4px; color: #60A5FA;">🤖 Native GitHub Copilot</div>
-                <div style="font-size: 10.5px; opacity: 0.85; margin-bottom: 6px;">Zero token setup: Queries the Language Model API provided by your authenticated GitHub Copilot IDE session.</div>
-                <div style="font-size: 10px; color: #10B981; font-weight: 600;">✓ Ready to chat without manual API keys or endpoints.</div>
-            </div>
-            <div id="cfg-github" style="display: none;">
-                <div style="font-weight: 600; margin-bottom: 4px;">🐙 GitHub Models Setup</div>
-                <button class="action-btn primary" style="width: 100%; margin-bottom: 6px; padding: 4px;" onclick="requestGitHubLogin()">🔗 Auto-Link GitHub Account</button>
-                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Or paste Personal Access Token (PAT):</div>
-                <input type="password" id="cfg-gh-token" class="chat-input" placeholder="ghp_... or github_pat_..." style="width: 100%; margin-bottom: 6px; box-sizing: border-box;" />
-                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Model:</div>
-                <div style="display: flex; gap: 4px;">
-                    <select id="cfg-gh-model" class="provider-select" style="flex: 1;">
-                        <option value="gpt-4o-mini">gpt-4o-mini (Fast & Recommended)</option>
-                        <option value="Phi-3.5-mini-instruct">Phi-3.5-mini-instruct (Small)</option>
-                        <option value="Meta-Llama-3.1-8B-Instruct">Meta-Llama-3.1-8B-Instruct</option>
-                    </select>
-                    <button class="chat-btn" onclick="saveGitHubConfig()">Save</button>
-                </div>
-            </div>
-            <div id="cfg-ollama" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <span style="font-weight: 600; color: #34D399;">🦙 Local Ollama Models</span>
-                    <button class="chat-btn" style="padding: 2px 6px; font-size: 10px;" onclick="refreshOllamaModels()" title="Refresh models from local Ollama">🔄 Refresh</button>
-                </div>
-                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Endpoint URL:</div>
-                <input type="text" id="cfg-ollama-endpoint" class="chat-input" value="http://localhost:11434" style="width: 100%; margin-bottom: 6px; box-sizing: border-box;" onchange="refreshOllamaModels()" />
-                <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">Installed / Custom Model:</div>
-                <div style="display: flex; gap: 4px; margin-bottom: 4px;">
-                    <select id="cfg-ollama-model" class="provider-select" style="flex: 1;" onchange="onOllamaSelectChange(this.value)">
-                        <option value="gemma:2b">gemma:2b (Installed)</option>
-                        <option value="custom">✏️ Enter custom model name...</option>
-                    </select>
-                    <button class="chat-btn" onclick="saveOllamaConfig()">Save</button>
-                </div>
-                <input type="text" id="cfg-ollama-custom" class="chat-input" placeholder="Type custom model (e.g. gemma:2b)..." style="width: 100%; display: none; margin-bottom: 4px; box-sizing: border-box;" />
-            </div>
-            <div id="cfg-embedded" style="display: none;">
-                <div style="font-weight: 600; margin-bottom: 2px;">⚡ Embedded Knowledge Engine</div>
-                <div style="font-size: 10px; opacity: 0.8;">Instant offline inference powered by Kora AST analyzer, .agent/rules/ invariants, and the official language documentation.</div>
-            </div>
-        </div>
-
-        <div class="chat-scroll-area" id="chat-scroll-area">
-            <div class="suggestion-chips">
-                <span class="chip" onclick="askChip('Audit active file against .agent rules')">🛡️ Audit Rules</span>
-                <span class="chip" onclick="askChip('Explain Rule 04: Clean Architecture')">🏛️ Rule 04 Architecture</span>
-                <span class="chip" onclick="askChip('Show Rule 07: Multi-Engine Database ORM')">🗄️ Rule 07 Database</span>
-                <span class="chip" onclick="askChip('Show Rule 08: Actors & Mailboxes')">⚡ Rule 08 Concurrency</span>
-                <span class="chip" onclick="askChip('Explain Single-Null Design vs undefined')">🎯 Single-Null vs Undefined</span>
-            </div>
-
-            <div class="chat-history" id="chat-history"></div>
-        </div>
-
-        <div class="chat-input-row">
-            <input type="text" id="chat-input" class="chat-input" placeholder="Ask Kora Copilot (or discuss active code)..." onkeydown="if(event.key==='Enter') sendPrompt()" />
-            <button class="chat-btn" onclick="sendPrompt()">Send</button>
-        </div>
-    </div>
-
-    <!-- 3. Examples Catalog -->
+    <!-- 5. Examples Catalog -->
     <div id="tab-examples" class="section">
         <div style="margin-bottom: 8px; font-size: 11px; opacity: 0.8;">Click any official reference architecture to scaffold directly into your project:</div>
         <div id="catalog-list">
@@ -2010,34 +2957,34 @@ class KoraAssistantViewProvider {
         </div>
     </div>
 
-    <!-- 4. Settings Section -->
+    <!-- 6. Settings Section -->
     <div id="tab-settings" class="section">
-        <div style="font-weight: 600; font-size: 12.5px; margin-bottom: 4px;">⚙️ AI Models & API Keys Settings</div>
+        <div style="font-weight: 600; font-size: 12.5px; margin-bottom: 4px;">AI Models & API Keys Settings</div>
         <div style="font-size: 10.5px; opacity: 0.8; margin-bottom: 10px;">Configure AI engine providers, API keys, custom endpoints, and models:</div>
 
         <div class="settings-group">
             <label class="settings-label">Active Engine Provider:</label>
             <select id="cfg-active-provider" class="provider-select" onchange="onSettingsProviderChange(this.value)">
-                <option value="embedded">⚡ Embedded Core (Offline Rules & Docs)</option>
-                <option value="copilot">🤖 GitHub Copilot (Native IDE - Zero Config)</option>
-                <option value="ollama">🦙 Local Ollama (gemma:2b / local models)</option>
-                <option value="github">🐙 GitHub Models API (PAT / Azure)</option>
-                <option value="openai">🤖 OpenAI (gpt-4o / gpt-4o-mini)</option>
-                <option value="gemini">✨ Google Gemini (gemini-1.5-flash)</option>
-                <option value="anthropic">🧠 Anthropic Claude (claude-3-5-sonnet)</option>
-                <option value="custom">🌐 Custom OpenAI-compatible Endpoint</option>
+                <option value="embedded">Embedded Core (Offline Rules & Docs)</option>
+                <option value="copilot">GitHub Copilot (Native IDE - Zero Config)</option>
+                <option value="ollama">Local Ollama (gemma:2b / local models)</option>
+                <option value="github">GitHub Models API (PAT / Azure)</option>
+                <option value="openai">OpenAI (gpt-4o / gpt-4o-mini)</option>
+                <option value="gemini">Google Gemini (gemini-1.5-flash)</option>
+                <option value="anthropic">Anthropic Claude (claude-3-5-sonnet)</option>
+                <option value="custom">Custom OpenAI-compatible Endpoint</option>
             </select>
         </div>
 
         <div class="settings-group" id="cfg-field-copilot" style="display: none; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); padding: 8px; border-radius: 4px; margin-bottom: 8px;">
-            <div style="font-weight: 600; color: #60A5FA; margin-bottom: 4px;">🤖 Native GitHub Copilot Mode</div>
+            <div style="font-weight: 600; color: #60A5FA; margin-bottom: 4px;">Native GitHub Copilot Mode</div>
             <div style="font-size: 10.5px; opacity: 0.85; line-height: 1.4;">Zero tokens required: Directly connects to GitHub Copilot's Language Model in your IDE. No external PAT or setup needed!</div>
         </div>
 
         <div class="settings-group" id="cfg-field-ollama" style="display: none; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); padding: 8px; border-radius: 4px; margin-bottom: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span style="font-weight: 600; color: #34D399;">🦙 Local Ollama Integration</span>
-                <button class="chat-btn" style="padding: 2px 6px; font-size: 10px;" onclick="refreshOllamaModels()">🔄 Scan Models</button>
+                <span style="font-weight: 600; color: #34D399;">Local Ollama Integration</span>
+                <button class="btn-prop-sm" onclick="refreshOllamaModels()">Scan Models</button>
             </div>
             <div style="font-size: 10.5px; opacity: 0.85; line-height: 1.4;">Private offline execution on your machine. Auto-detects local models (<b>gemma:2b</b>, etc.).</div>
         </div>
@@ -2045,99 +2992,443 @@ class KoraAssistantViewProvider {
         <div class="settings-group" id="cfg-field-github">
             <label class="settings-label">GitHub Token / PAT:</label>
             <div style="display: flex; gap: 4px; margin-bottom: 4px;">
-                <input type="password" id="cfg-input-github" class="chat-input" placeholder="ghp_... or github_pat_..." style="flex: 1;" />
-                <button class="chat-btn" onclick="togglePasswordVisibility('cfg-input-github')">👁️</button>
+                <input type="password" id="cfg-input-github" class="chat-textarea" style="min-height: 28px; max-height: 28px;" placeholder="ghp_... or github_pat_..." />
+                <button class="btn-prop-sm" onclick="togglePasswordVisibility('cfg-input-github')">Show</button>
             </div>
-            <button class="action-btn" style="width: 100%;" onclick="requestGitHubLogin()">🔗 Auto-Link GitHub Account</button>
+            <button class="action-btn" style="width: 100%;" onclick="requestGitHubLogin()">Auto-Link GitHub Account</button>
         </div>
 
         <div class="settings-group" id="cfg-field-openai">
             <label class="settings-label">OpenAI API Key:</label>
             <div style="display: flex; gap: 4px;">
-                <input type="password" id="cfg-input-openai" class="chat-input" placeholder="sk-..." style="flex: 1;" />
-                <button class="chat-btn" onclick="togglePasswordVisibility('cfg-input-openai')">👁️</button>
+                <input type="password" id="cfg-input-openai" class="chat-textarea" style="min-height: 28px; max-height: 28px;" placeholder="sk-..." />
+                <button class="btn-prop-sm" onclick="togglePasswordVisibility('cfg-input-openai')">Show</button>
             </div>
         </div>
 
         <div class="settings-group" id="cfg-field-gemini">
             <label class="settings-label">Google Gemini API Key:</label>
             <div style="display: flex; gap: 4px;">
-                <input type="password" id="cfg-input-gemini" class="chat-input" placeholder="AIzaSy..." style="flex: 1;" />
-                <button class="chat-btn" onclick="togglePasswordVisibility('cfg-input-gemini')">👁️</button>
+                <input type="password" id="cfg-input-gemini" class="chat-textarea" style="min-height: 28px; max-height: 28px;" placeholder="AIzaSy..." />
+                <button class="btn-prop-sm" onclick="togglePasswordVisibility('cfg-input-gemini')">Show</button>
             </div>
         </div>
 
         <div class="settings-group" id="cfg-field-anthropic">
             <label class="settings-label">Anthropic Claude API Key:</label>
             <div style="display: flex; gap: 4px;">
-                <input type="password" id="cfg-input-anthropic" class="chat-input" placeholder="sk-ant-..." style="flex: 1;" />
-                <button class="chat-btn" onclick="togglePasswordVisibility('cfg-input-anthropic')">👁️</button>
+                <input type="password" id="cfg-input-anthropic" class="chat-textarea" style="min-height: 28px; max-height: 28px;" placeholder="sk-ant-..." />
+                <button class="btn-prop-sm" onclick="togglePasswordVisibility('cfg-input-anthropic')">Show</button>
             </div>
         </div>
 
         <div class="settings-group">
             <label class="settings-label">Model Name:</label>
-            <input type="text" id="cfg-input-model" class="chat-input" placeholder="e.g. gpt-4o-mini, phi3:mini, claude-3-5-sonnet" style="width: 100%;" />
+            <input type="text" id="cfg-input-model" class="chat-textarea" style="min-height: 28px; max-height: 28px;" placeholder="e.g. gpt-4o-mini, phi3:mini, claude-3-5-sonnet" />
         </div>
 
         <div class="settings-group">
             <label class="settings-label">Endpoint URL (Optional):</label>
-            <input type="text" id="cfg-input-endpoint" class="chat-input" placeholder="e.g. http://localhost:11434 or https://api.openai.com/v1" style="width: 100%;" />
+            <input type="text" id="cfg-input-endpoint" class="chat-textarea" style="min-height: 28px; max-height: 28px;" placeholder="e.g. http://localhost:11434 or https://api.openai.com/v1" />
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px;">
-            <button class="action-btn primary" onclick="saveAllSettings()">💾 Save Settings</button>
-            <button class="action-btn" onclick="testConnection()">⚡ Test Connection</button>
+            <button class="action-btn primary" onclick="saveAllSettings()">Save Settings</button>
+            <button class="action-btn" onclick="testConnection()">Test Connection</button>
         </div>
 
         <div id="test-connection-status" style="margin-top: 10px; display: none; padding: 8px; border-radius: 5px; font-size: 11px; line-height: 1.4;"></div>
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
 
         function switchTab(name) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes(name));
-            if (targetBtn) targetBtn.classList.add('active');
-            const targetSec = document.getElementById('tab-' + name);
-            if (targetSec) targetSec.classList.add('active');
-        }
-
-        let currentProposedFixCode = null;
-        let currentProposedFixPath = null;
-
-        function requestAiFix() {
-            vscode.postMessage({ type: 'requestAiFix' });
-        }
-
-        function acceptAiFix() {
-            if (!currentProposedFixCode) return;
-            vscode.postMessage({
-                type: 'applyFix',
-                code: currentProposedFixCode,
-                filePath: currentProposedFixPath
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                const target = b.getAttribute('data-tab') || (b.getAttribute('onclick') || '').match(/switchTab\('([^']+)'\)/)?.[1];
+                if (target === name) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
             });
-            const status = document.getElementById('ai-fix-status');
-            if (status) {
-                status.innerText = 'Applied ✅';
-                status.style.color = '#10B981';
-                status.style.background = 'rgba(16, 185, 129, 0.2)';
+            document.querySelectorAll('.section').forEach(s => {
+                if (s.id === 'tab-' + name) {
+                    s.classList.add('active');
+                } else {
+                    s.classList.remove('active');
+                }
+            });
+
+            try {
+                const s = vscode.getState() || { history: [] };
+                s.activeTab = name;
+                vscode.setState(s);
+            } catch (e) {}
+        }
+
+        // Attach direct event listeners to tabs and chips to guarantee they work unconditionally
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const tab = this.getAttribute('data-tab');
+                if (tab) switchTab(tab);
+            });
+        });
+
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.addEventListener('click', function(e) {
+                const txt = this.getAttribute('data-chip') || this.innerText;
+                askChip(txt);
+            });
+        });
+
+        let isGenerating = false;
+        let lastSentPrompt = '';
+        let availableContextFiles = [];
+        let mentionSelectedIndex = 0;
+        let activeMentionFilter = '';
+
+        // Drag & Drop File and Folder Attachment Handler
+        const dropOverlay = document.getElementById('drop-overlay');
+        const attachedBar = document.getElementById('attached-files-bar');
+        let attachedPaths = [];
+
+        function renderAttachedPills() {
+            if (!attachedBar) return;
+            if (attachedPaths.length === 0) {
+                attachedBar.style.display = 'none';
+                attachedBar.innerHTML = '';
+                return;
+            }
+            attachedBar.style.display = 'flex';
+            attachedBar.innerHTML = '';
+            attachedPaths.forEach((itemPath, index) => {
+                const pill = document.createElement('span');
+                pill.className = 'attached-file-pill';
+                const isFolder = itemPath.endsWith('/') || !itemPath.includes('.');
+                const icon = isFolder ? '[Folder]' : '[File]';
+                const shortName = itemPath.split(/[/\\]/).filter(Boolean).pop() || itemPath;
+                pill.innerHTML = '<span>' + icon + ' ' + shortName + '</span><span class="attached-file-remove" data-idx="' + index + '" title="Remove attachment">x</span>';
+                pill.querySelector('.attached-file-remove').onclick = (e) => {
+                    e.stopPropagation();
+                    attachedPaths.splice(index, 1);
+                    renderAttachedPills();
+                };
+                attachedBar.appendChild(pill);
+            });
+        }
+
+        function attachFileOrFolder(rawPath) {
+            if (!rawPath) return;
+            const clean = rawPath.trim().replace(/^file:\/\//, '');
+            if (!attachedPaths.includes(clean)) {
+                attachedPaths.push(clean);
+                renderAttachedPills();
             }
         }
 
-        function rejectAiFix() {
-            currentProposedFixCode = null;
-            const container = document.getElementById('ai-fix-container');
-            if (container) container.style.display = 'none';
+        function triggerFilePicker() {
+            vscode.postMessage({ type: 'selectFilesToAttach' });
         }
 
-        function previewDiffEditor() {
-            if (!currentProposedFixCode) return;
+        let dragCounter = 0;
+        window.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            if (dropOverlay) dropOverlay.style.display = 'flex';
+        });
+
+        window.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter <= 0 && dropOverlay) {
+                dropOverlay.style.display = 'none';
+                dragCounter = 0;
+            }
+        });
+
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            if (dropOverlay && dropOverlay.style.display === 'none') {
+                dropOverlay.style.display = 'flex';
+            }
+        });
+
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            if (dropOverlay) dropOverlay.style.display = 'none';
+
+            if (e.dataTransfer) {
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                        const file = e.dataTransfer.files[i];
+                        const pathStr = file.path || file.name;
+                        attachFileOrFolder(pathStr);
+                    }
+                }
+                const uriList = e.dataTransfer.getData('text/uri-list');
+                if (uriList) {
+                    const lines = uriList.split(/\r?\n/).filter(Boolean);
+                    lines.forEach(l => attachFileOrFolder(l));
+                }
+                const textPath = e.dataTransfer.getData('text/plain');
+                if (textPath && !uriList) {
+                    textPath.split(/\r?\n/).filter(Boolean).forEach(p => attachFileOrFolder(p));
+                }
+            }
+        });
+
+        // Request available files for context mention autocomplete
+        vscode.postMessage({ type: 'getAvailableContextOptions' });
+
+        // Restore persisted state safely
+        try {
+            const state = vscode.getState() || { history: [], activeTab: 'ask', proposals: [] };
+            if (state.history && Array.isArray(state.history)) {
+                state.history.forEach(item => {
+                    try {
+                        if (item.type === 'message') appendMessage(item.role, item.text, false);
+                        else if (item.type === 'proposal') renderProposalCard(item.proposal, false);
+                    } catch (e) {}
+                });
+            }
+            if (state.activeTab && state.activeTab !== 'ask') {
+                switchTab(state.activeTab);
+            }
+        } catch (e) {}
+
+        // Auto-expand textarea & mention menu listeners
+        const chatInput = document.getElementById('chat-input');
+        const mentionMenu = document.getElementById('mention-menu');
+        const mentionList = document.getElementById('mention-items-list');
+
+        if (chatInput) {
+            chatInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                handleMentionInput();
+            });
+
+            chatInput.addEventListener('keydown', function(e) {
+                if (mentionMenu && mentionMenu.style.display !== 'none') {
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        navigateMention(1);
+                        return;
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        navigateMention(-1);
+                        return;
+                    } else if (e.key === 'Enter' || e.key === 'Tab') {
+                        e.preventDefault();
+                        selectCurrentMention();
+                        return;
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        hideMentionMenu();
+                        return;
+                    }
+                }
+
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendPrompt();
+                }
+            });
+        }
+
+        function handleMentionInput() {
+            if (!chatInput) return;
+            const cursorPos = chatInput.selectionStart;
+            const textBefore = chatInput.value.slice(0, cursorPos);
+            const atMatch = textBefore.match(/@([a-zA-Z0-9_.:\/-]*)$/);
+
+            if (atMatch) {
+                activeMentionFilter = atMatch[1].toLowerCase();
+                showMentionMenu(activeMentionFilter);
+            } else {
+                hideMentionMenu();
+            }
+        }
+
+        function showMentionMenu(filter = '') {
+            if (!mentionMenu || !mentionList) return;
+
+            const baseOptions = [
+                { token: '@workspace', label: '@workspace', desc: 'Full workspace analysis & Clean Architecture layers' },
+                { token: '@selection', label: '@selection', desc: 'Reference current code selection in editor' },
+                { token: '@problems', label: '@problems', desc: 'Reference active compiler diagnostics & errors' },
+                { token: '@terminal', label: '@terminal', desc: 'Reference active terminal sessions' },
+                { token: '@file:', label: '@file:<path>', desc: 'Include specific project file content' },
+                { token: '@folder:', label: '@folder:<path>', desc: 'Inspect directory file hierarchy' }
+            ];
+
+            const fileOptions = availableContextFiles.map(f => ({
+                token: '@file:' + f.label,
+                label: '@file:' + f.label,
+                desc: (f.role || 'file') + ' - ' + f.path
+            }));
+
+            const all = baseOptions.concat(fileOptions);
+            const filtered = filter ? all.filter(o => o.token.toLowerCase().includes(filter) || o.label.toLowerCase().includes(filter)) : all;
+
+            if (filtered.length === 0) {
+                hideMentionMenu();
+                return;
+            }
+
+            mentionSelectedIndex = 0;
+            mentionList.innerHTML = '';
+            filtered.slice(0, 10).forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'mention-item' + (idx === 0 ? ' selected' : '');
+                div.innerHTML = '<span class="mention-token">' + item.token + '</span><span class="mention-desc">' + item.desc + '</span>';
+                div.onclick = () => {
+                    applyMentionSelection(item.token);
+                };
+                mentionList.appendChild(div);
+            });
+
+            mentionMenu.style.display = 'block';
+        }
+
+        function hideMentionMenu() {
+            if (mentionMenu) mentionMenu.style.display = 'none';
+        }
+
+        function navigateMention(delta) {
+            if (!mentionList) return;
+            const items = mentionList.querySelectorAll('.mention-item');
+            if (items.length === 0) return;
+            if (items[mentionSelectedIndex]) items[mentionSelectedIndex].classList.remove('selected');
+            mentionSelectedIndex = (mentionSelectedIndex + delta + items.length) % items.length;
+            if (items[mentionSelectedIndex]) {
+                items[mentionSelectedIndex].classList.add('selected');
+                items[mentionSelectedIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function selectCurrentMention() {
+            if (!mentionList) return;
+            const items = mentionList.querySelectorAll('.mention-item');
+            if (items.length > 0 && items[mentionSelectedIndex]) {
+                const tokenEl = items[mentionSelectedIndex].querySelector('.mention-token');
+                if (tokenEl) applyMentionSelection(tokenEl.innerText);
+            }
+        }
+
+        function applyMentionSelection(token) {
+            if (!chatInput) return;
+            const cursorPos = chatInput.selectionStart;
+            const text = chatInput.value;
+            const textBefore = text.slice(0, cursorPos);
+            const textAfter = text.slice(cursorPos);
+            const atIndex = textBefore.lastIndexOf('@');
+            if (atIndex >= 0) {
+                chatInput.value = textBefore.slice(0, atIndex) + token + ' ' + textAfter;
+                const newPos = atIndex + token.length + 1;
+                chatInput.selectionStart = chatInput.selectionEnd = newPos;
+            } else {
+                insertMentionToken(token);
+            }
+            chatInput.focus();
+            hideMentionMenu();
+        }
+
+        function insertMentionToken(token) {
+            if (!chatInput) return;
+            const pos = chatInput.selectionStart || chatInput.value.length;
+            const before = chatInput.value.slice(0, pos);
+            const after = chatInput.value.slice(pos);
+            const sep = before.length > 0 && !before.endsWith(' ') ? ' ' : '';
+            chatInput.value = before + sep + token + ' ' + after;
+            chatInput.focus();
+            chatInput.selectionStart = chatInput.selectionEnd = pos + sep.length + token.length + 1;
+            chatInput.style.height = 'auto';
+            chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+            hideMentionMenu();
+        }
+
+        function toggleTrackerSteps() {
+            const steps = document.getElementById('tracker-steps');
+            const chev = document.getElementById('tracker-chevron');
+            if (!steps) return;
+            if (steps.style.display === 'none') {
+                steps.style.display = 'flex';
+                if (chev) chev.innerText = '^';
+            } else {
+                steps.style.display = 'none';
+                if (chev) chev.innerText = 'v';
+            }
+        }
+
+        function copyText(str) {
+            navigator.clipboard.writeText(str);
+        }
+
+        function stopGeneration() {
+            vscode.postMessage({ type: 'stopGeneration' });
+            isGenerating = false;
+            const btnSend = document.getElementById('btn-send');
+            const btnStop = document.getElementById('btn-stop');
+            if (btnSend) btnSend.disabled = false;
+            if (btnStop) btnStop.style.display = 'none';
+            removeTypingIndicator();
+            hideAgentTracker();
+            appendMessage('assistant', '*Generation cancelled by user.*', false);
+        }
+
+        function requestWorkspaceRefactor() {
+            const scope = document.getElementById('chat-scope').value;
+            const input = document.getElementById('chat-input');
+            const customGoal = input ? input.value.trim() : '';
+            if (input) input.value = '';
+
+            showAgentTracker('PlanningRefactor', 'Analyzing workspace invariants and planning changes...');
+            vscode.postMessage({
+                type: 'requestWorkspaceRefactor',
+                scope: scope,
+                goal: customGoal || 'Auto-Fix and refactor Kora invariants'
+            });
+        }
+
+        function previewDiff(filePath, proposalId) {
             vscode.postMessage({
                 type: 'previewDiff',
-                code: currentProposedFixCode
+                filePath: filePath,
+                proposalId: proposalId
+            });
+        }
+
+        function openFile(filePath) {
+            vscode.postMessage({
+                type: 'openFile',
+                filePath: filePath
+            });
+        }
+
+        function acceptProposal(proposalId) {
+            vscode.postMessage({
+                type: 'acceptProposal',
+                proposalId: proposalId
+            });
+        }
+
+        function rejectProposal(proposalId) {
+            vscode.postMessage({
+                type: 'rejectProposal',
+                proposalId: proposalId
+            });
+        }
+
+        function setFileStatus(proposalId, filePath, status) {
+            vscode.postMessage({
+                type: 'setFileStatus',
+                proposalId: proposalId,
+                filePath: filePath,
+                status: status
             });
         }
 
@@ -2152,7 +3443,12 @@ class KoraAssistantViewProvider {
         function analyzeWorkspace() { vscode.postMessage({ type: 'analyzeWorkspace' }); }
 
         function askChip(text) {
-            document.getElementById('chat-input').value = text;
+            const input = document.getElementById('chat-input');
+            if (input) {
+                input.value = text;
+                input.style.height = 'auto';
+                input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+            }
             sendPrompt();
         }
 
@@ -2290,7 +3586,7 @@ class KoraAssistantViewProvider {
             statusDiv.style.background = 'var(--vscode-editorWidget-background)';
             statusDiv.style.border = '1px solid var(--vscode-widget-border)';
             statusDiv.style.color = 'var(--vscode-foreground)';
-            statusDiv.innerText = '⚡ Testing connection...';
+            statusDiv.innerText = 'Testing connection...';
 
             const settings = {
                 provider: document.getElementById('cfg-active-provider').value,
@@ -2309,23 +3605,63 @@ class KoraAssistantViewProvider {
 
         function sendPrompt() {
             const input = document.getElementById('chat-input');
-            const prompt = input.value.trim();
-            if (!prompt) return;
+            let prompt = input.value.trim();
+            if ((!prompt && attachedPaths.length === 0) || isGenerating) return;
 
+            if (attachedPaths.length > 0) {
+                const attachmentTokens = attachedPaths.map(p => {
+                    const isFolder = p.endsWith('/') || !p.includes('.');
+                    return isFolder ? ('@folder:' + p) : ('@file:' + p);
+                }).join(' ');
+                prompt = (prompt ? (prompt + ' ') : '') + attachmentTokens;
+                attachedPaths = [];
+                renderAttachedPills();
+            }
+
+            lastSentPrompt = prompt;
+            isGenerating = true;
+
+            const btnSend = document.getElementById('btn-send');
+            const btnStop = document.getElementById('btn-stop');
+            if (btnSend) btnSend.disabled = true;
+            if (btnStop) btnStop.style.display = 'inline-flex';
+
+            const scope = document.getElementById('chat-scope').value;
             appendMessage('user', prompt);
             showTypingIndicator();
-            vscode.postMessage({ type: 'askQuestion', prompt: prompt });
+            showAgentTracker('Understanding', 'Analyzing user request with workspace context...');
+
+            vscode.postMessage({
+                type: 'askQuestion',
+                prompt: prompt,
+                scope: scope
+            });
+
             input.value = '';
+            input.style.height = '40px';
         }
 
-        function appendMessage(role, text) {
+        function appendMessage(role, text, persist = true) {
             const history = document.getElementById('chat-history');
             const scrollArea = document.getElementById('chat-scroll-area');
             const msg = document.createElement('div');
             msg.className = role === 'user' ? 'msg-user' : 'msg-assistant';
-            msg.innerText = text;
+
+            if (role === 'assistant') {
+                renderMarkdownWithCodeActions(text, msg);
+            } else {
+                msg.innerText = text;
+            }
+
             history.appendChild(msg);
             if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
+
+            if (persist) {
+                const s = vscode.getState() || { history: [] };
+                s.history = s.history || [];
+                s.history.push({ type: 'message', role, text });
+                vscode.setState(s);
+            }
         }
 
         function showTypingIndicator() {
@@ -2335,7 +3671,7 @@ class KoraAssistantViewProvider {
             const ind = document.createElement('div');
             ind.id = 'active-typing-indicator';
             ind.className = 'typing-indicator';
-            ind.innerHTML = '<span>⚡ Kora Copilot is responding</span><span class="typing-cursor"></span>';
+            ind.innerHTML = '<span>Kora AI is reasoning...</span><span class="typing-cursor"></span>';
             history.appendChild(ind);
             if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
         }
@@ -2343,6 +3679,66 @@ class KoraAssistantViewProvider {
         function removeTypingIndicator() {
             const ind = document.getElementById('active-typing-indicator');
             if (ind) ind.remove();
+        }
+
+        function showAgentTracker(state, detail) {
+            const tracker = document.getElementById('agent-tracker');
+            if (!tracker) return;
+            tracker.style.display = 'flex';
+            document.getElementById('tracker-state-title').innerText = state;
+            document.getElementById('tracker-detail').innerText = detail;
+        }
+
+        function hideAgentTracker() {
+            const tracker = document.getElementById('agent-tracker');
+            if (tracker) tracker.style.display = 'none';
+        }
+
+        function renderProposalCard(proposal, persist = true) {
+            removeTypingIndicator();
+            hideAgentTracker();
+
+            const history = document.getElementById('chat-history');
+            const scrollArea = document.getElementById('chat-scroll-area');
+
+            const card = document.createElement('div');
+            card.className = 'proposal-card';
+            card.id = 'card-' + proposal.id;
+
+            let fileRows = '';
+            for (const f of proposal.files) {
+                const statusColor = f.status === 'accepted' ? '#10b981' : (f.status === 'rejected' ? '#ef4444' : '#38bdf8');
+                fileRows += '<div class="proposal-file-row">' +
+                    '<span class="proposal-file-name" onclick="openFile(\'' + f.filePath + '\')" title="Click to open ' + f.fileName + '">' + f.fileName + '</span>' +
+                    '<span class="diff-stat-add">+' + f.additions + '</span>' +
+                    '<span class="diff-stat-del">-' + f.deletions + '</span>' +
+                    '<span style="font-size: 9.5px; color:' + statusColor + ';">' + f.status + '</span>' +
+                    '<button class="btn-prop-sm" onclick="previewDiff(\'' + f.filePath + '\', \'' + proposal.id + '\')">Diff</button>' +
+                    '<button class="btn-prop-sm" style="color: #10b981;" onclick="setFileStatus(\'' + proposal.id + '\', \'' + f.filePath + '\', \'accepted\')" title="Accept this file">Accept</button>' +
+                    '<button class="btn-prop-sm" style="color: #ef4444;" onclick="setFileStatus(\'' + proposal.id + '\', \'' + f.filePath + '\', \'rejected\')" title="Reject this file">Reject</button>' +
+                '</div>';
+            }
+
+            card.innerHTML = '<div class="proposal-card-header">' +
+                '<span class="proposal-title">' + proposal.title + '</span>' +
+                '<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">' + proposal.totalFiles + ' files</span>' +
+            '</div>' +
+            '<div style="font-size: 10.5px; opacity: 0.85; margin-bottom: 6px;">Coordinated changes proposed across multiple project files. Click <b>Diff</b> to inspect native side-by-side comparison.</div>' +
+            '<div class="proposal-files-list">' + fileRows + '</div>' +
+            '<div class="proposal-global-actions">' +
+                '<button class="btn-accept-all" onclick="acceptProposal(\'' + proposal.id + '\')">Accept All Changes</button>' +
+                '<button class="btn-reject-all" onclick="rejectProposal(\'' + proposal.id + '\')">Reject All</button>' +
+            '</div>';
+
+            history.appendChild(card);
+            if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
+
+            if (persist) {
+                const s = vscode.getState() || { history: [] };
+                s.history = s.history || [];
+                s.history.push({ type: 'proposal', proposal });
+                vscode.setState(s);
+            }
         }
 
         function renderMarkdownWithCodeActions(text, container) {
@@ -2354,10 +3750,7 @@ class KoraAssistantViewProvider {
             while ((match = codeBlockRegex.exec(text)) !== null) {
                 const preText = text.substring(lastIndex, match.index);
                 if (preText.trim()) {
-                    const p = document.createElement('div');
-                    p.style.whiteSpace = 'pre-wrap';
-                    p.innerText = preText;
-                    container.appendChild(p);
+                    appendMarkdownText(preText, container);
                 }
 
                 const lang = match[1] || 'kora';
@@ -2397,33 +3790,28 @@ class KoraAssistantViewProvider {
                 bar.style.borderTop = '1px solid rgba(255,255,255,0.08)';
 
                 const btnApply = document.createElement('button');
-                btnApply.className = 'chat-btn';
-                btnApply.style.padding = '3px 8px';
-                btnApply.style.fontSize = '10.5px';
+                btnApply.className = 'btn-prop-sm';
                 btnApply.style.background = '#10B981';
-                btnApply.innerText = '✅ Apply to File';
+                btnApply.style.color = '#fff';
+                btnApply.innerText = 'Apply to File';
                 btnApply.onclick = () => {
                     vscode.postMessage({ type: 'applyFix', code: code });
                 };
 
                 const btnDiff = document.createElement('button');
-                btnDiff.className = 'chat-btn';
-                btnDiff.style.padding = '3px 8px';
-                btnDiff.style.fontSize = '10.5px';
-                btnDiff.innerText = '👁️ Diff';
+                btnDiff.className = 'btn-prop-sm';
+                btnDiff.innerText = 'Diff';
                 btnDiff.onclick = () => {
                     vscode.postMessage({ type: 'previewDiff', code: code });
                 };
 
                 const btnCopy = document.createElement('button');
-                btnCopy.className = 'chat-btn';
-                btnCopy.style.padding = '3px 8px';
-                btnCopy.style.fontSize = '10.5px';
-                btnCopy.innerText = '📋 Copy';
+                btnCopy.className = 'btn-prop-sm';
+                btnCopy.innerText = 'Copy';
                 btnCopy.onclick = () => {
                     navigator.clipboard.writeText(code);
-                    btnCopy.innerText = '✓ Copied';
-                    setTimeout(() => { btnCopy.innerText = '📋 Copy'; }, 1500);
+                    btnCopy.innerText = 'Copied';
+                    setTimeout(() => { btnCopy.innerText = 'Copy'; }, 1500);
                 };
 
                 bar.appendChild(btnApply);
@@ -2440,62 +3828,123 @@ class KoraAssistantViewProvider {
 
             const remainingText = text.substring(lastIndex);
             if (remainingText.trim()) {
-                const p = document.createElement('div');
-                p.style.whiteSpace = 'pre-wrap';
-                p.innerText = remainingText;
-                container.appendChild(p);
+                appendMarkdownText(remainingText, container);
             }
         }
 
-        function streamAssistantMessage(fullText, onDone) {
-            removeTypingIndicator();
-            const history = document.getElementById('chat-history');
-            const scrollArea = document.getElementById('chat-scroll-area');
-            const msg = document.createElement('div');
-            msg.className = 'msg-assistant';
+        function appendMarkdownText(text, container) {
+            const p = document.createElement('div');
+            p.style.whiteSpace = 'pre-wrap';
+            p.style.lineHeight = '1.45';
 
-            const textSpan = document.createElement('span');
-            const cursor = document.createElement('span');
-            cursor.className = 'typing-cursor';
+            // Find file links: [label](file://path)
+            const linkRegex = /\[([^\]]+)\]\(file:\/\/([^)]+)\)/g;
+            let lastIdx = 0;
+            let m;
 
-            msg.appendChild(textSpan);
-            msg.appendChild(cursor);
-            history.appendChild(msg);
-
-            function scrollToBottom() {
-                if (scrollArea) {
-                    scrollArea.scrollTop = scrollArea.scrollHeight;
+            while ((m = linkRegex.exec(text)) !== null) {
+                if (m.index > lastIdx) {
+                    p.appendChild(document.createTextNode(text.substring(lastIdx, m.index)));
                 }
+                const pill = document.createElement('span');
+                pill.className = 'file-ref-pill';
+                pill.innerText = m[1];
+                const targetFilePath = m[2];
+                pill.onclick = () => openFile(targetFilePath);
+                p.appendChild(pill);
+                lastIdx = m.index + m[0].length;
             }
-            scrollToBottom();
 
-            let index = 0;
-            const len = fullText.length;
-            const step = len > 1500 ? 12 : (len > 500 ? 6 : (len > 150 ? 3 : 1));
-            const interval = 16;
+            if (lastIdx < text.length) {
+                p.appendChild(document.createTextNode(text.substring(lastIdx)));
+            }
 
-            const timer = setInterval(() => {
-                index += step;
-                if (index >= len) {
-                    clearInterval(timer);
-                    if (cursor.parentNode) cursor.remove();
-                    if (new RegExp('\\x60{3}[a-zA-Z0-9_-]*\\n[\\s\\S]*?\\x60{3}').test(fullText)) {
-                        renderMarkdownWithCodeActions(fullText, msg);
-                    } else {
-                        textSpan.innerText = fullText;
-                    }
-                    scrollToBottom();
-                    if (onDone) onDone();
-                } else {
-                    textSpan.innerText = fullText.slice(0, index);
-                    scrollToBottom();
-                }
-            }, interval);
+            container.appendChild(p);
         }
 
         window.addEventListener('message', event => {
             const msg = event.data;
-            if (msg.type === 'fileUpdated') {
+            if (msg.type === 'agentProgress') {
+                const s = msg.step;
+                showAgentTracker(s.state, s.detail);
+                const stepsBox = document.getElementById('tracker-steps');
+                if (stepsBox && msg.allSteps) {
+                    stepsBox.innerHTML = '';
+                    for (const st of msg.allSteps) {
+                        const line = document.createElement('div');
+                        line.innerText = '[' + st.state + '] ' + st.detail;
+                        stepsBox.appendChild(line);
+                    }
+                }
+            } else if (msg.type === 'filesAttached') {
+                if (msg.paths && Array.isArray(msg.paths)) {
+                    msg.paths.forEach(p => attachFileOrFolder(p));
+                }
+            } else if (msg.type === 'availableContextOptions') {
+                availableContextFiles = msg.files || [];
+            } else if (msg.type === 'proposalCreated') {
+                isGenerating = false;
+                const btnSend = document.getElementById('btn-send');
+                const btnStop = document.getElementById('btn-stop');
+                if (btnSend) btnSend.disabled = false;
+                if (btnStop) btnStop.style.display = 'none';
+                renderProposalCard(msg.proposal, true);
+            } else if (msg.type === 'proposalUpdated') {
+                const oldCard = document.getElementById('card-' + msg.proposal.id);
+                if (oldCard) oldCard.remove();
+                renderProposalCard(msg.proposal, true);
+            } else if (msg.type === 'proposalApplied') {
+                const card = document.getElementById('card-' + msg.proposalId);
+                if (card) {
+                    card.style.borderColor = '#10B981';
+                    const actBox = card.querySelector('.proposal-global-actions');
+                    if (actBox) actBox.innerHTML = '<div style="color: #10b981; font-weight: 600; text-align: center; grid-column: span 2;">Changes Successfully Applied!</div>';
+                }
+            } else if (msg.type === 'proposalRejected') {
+                const card = document.getElementById('card-' + msg.proposalId);
+                if (card) {
+                    card.style.borderColor = '#ef4444';
+                    const actBox = card.querySelector('.proposal-global-actions');
+                    if (actBox) actBox.innerHTML = '<div style="color: #ef4444; font-weight: 600; text-align: center; grid-column: span 2;">Proposal Rejected.</div>';
+                }
+            } else if (msg.type === 'assistantAnswer') {
+                isGenerating = false;
+                const btnSend = document.getElementById('btn-send');
+                const btnStop = document.getElementById('btn-stop');
+                if (btnSend) btnSend.disabled = false;
+                if (btnStop) btnStop.style.display = 'none';
+                removeTypingIndicator();
+                hideAgentTracker();
+                appendMessage('assistant', msg.answer, true);
+                if (msg.provider && msg.provider !== 'embedded') {
+                    document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
+                }
+            } else if (msg.type === 'assistantError') {
+                isGenerating = false;
+                const btnSend = document.getElementById('btn-send');
+                const btnStop = document.getElementById('btn-stop');
+                if (btnSend) btnSend.disabled = false;
+                if (btnStop) btnStop.style.display = 'none';
+                removeTypingIndicator();
+                hideAgentTracker();
+
+                // Preserve user prompt so it is not lost
+                if (msg.originalPrompt && chatInput) {
+                    chatInput.value = msg.originalPrompt;
+                    chatInput.style.height = 'auto';
+                    chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+                }
+
+                appendMessage('assistant', '**AI Request Failed**: ' + msg.error + '\n\n*Your input was preserved below.*', false);
+            } else if (msg.type === 'generationStopped') {
+                isGenerating = false;
+                const btnSend = document.getElementById('btn-send');
+                const btnStop = document.getElementById('btn-stop');
+                if (btnSend) btnSend.disabled = false;
+                if (btnStop) btnStop.style.display = 'none';
+                removeTypingIndicator();
+                hideAgentTracker();
+            } else if (msg.type === 'fileUpdated') {
                 const a = msg.analysis;
                 if (!a) return;
                 document.getElementById('active-filename').innerText = a.fileName;
@@ -2503,15 +3952,15 @@ class KoraAssistantViewProvider {
                 pill.innerText = a.classification;
                 pill.className = 'pill ' + (a.isTestFile ? 'test' : (a.isRunnable ? 'runnable' : 'library'));
 
-                document.getElementById('active-meta').innerText = a.lineCount + ' lines • ' + a.symbols.length + ' symbols • ' + a.imports.length + ' imports';
+                document.getElementById('active-meta').innerText = a.lineCount + ' lines - ' + a.symbols.length + ' symbols - ' + a.imports.length + ' imports';
                 
                 const btnRun = document.getElementById('btn-run');
                 if (a.isTestFile) {
-                    btnRun.innerText = '🧪 Run Test Suite (kora test)';
+                    btnRun.innerText = 'Run Test Suite (kora test)';
                 } else if (a.isRunnable) {
-                    btnRun.innerText = '▶ Run Entrypoint (kora run)';
+                    btnRun.innerText = 'Run Entrypoint (kora run)';
                 } else {
-                    btnRun.innerText = '⚡ Check Module (kora check)';
+                    btnRun.innerText = 'Check Module (kora check)';
                 }
             } else if (msg.type === 'diagnosticsUpdated') {
                 const panel = document.getElementById('diagnostics-panel');
@@ -2534,11 +3983,11 @@ class KoraAssistantViewProvider {
                 container.style.display = 'block';
                 const audit = msg.audit;
                 if (audit.passed) {
-                    text.innerHTML = '<span style="color: #10B981; font-weight: 600;">✓ 100% Rule Compliance:</span> No violations of .agent/rules found.';
+                    text.innerHTML = '<span style="color: #10B981; font-weight: 600;">100% Rule Compliance:</span> No violations of .agent/rules found.';
                 } else {
                     let out = '<span style="color: #ef4444; font-weight: 600;">' + audit.violations + ' Rule Violation(s):</span><br>';
                     audit.findings.forEach(f => {
-                        out += '<div style="margin-top: 4px;">• <b>[' + f.code + '] ' + f.rule + '</b>: ' + f.message + '<br><i>Fix: ' + f.fix + '</i></div>';
+                        out += '<div style="margin-top: 4px;">- <b>[' + f.code + '] ' + f.rule + '</b>: ' + f.message + '<br><i>Fix: ' + f.fix + '</i></div>';
                     });
                     text.innerHTML = out;
                 }
@@ -2565,29 +4014,6 @@ class KoraAssistantViewProvider {
                 const text = document.getElementById('explanation-text');
                 container.style.display = 'block';
                 text.innerText = msg.walkthrough;
-            } else if (msg.type === 'aiFixProposed') {
-                switchTab('copilot');
-                const fix = msg.fix;
-                currentProposedFixCode = fix.fixedCode;
-                currentProposedFixPath = msg.filePath;
-                const container = document.getElementById('ai-fix-container');
-                if (container) {
-                    container.style.display = 'block';
-                    document.getElementById('ai-fix-summary').innerText = fix.summary || 'AI proposed refactoring to resolve diagnostics and satisfy compiler invariants.';
-                    document.getElementById('ai-fix-code').innerText = fix.fixedCode;
-                    const status = document.getElementById('ai-fix-status');
-                    if (status) {
-                        status.innerText = fix.hasChanges ? 'Changes Ready' : 'No Changes Needed';
-                        status.style.color = fix.hasChanges ? '#38bdf8' : '#10B981';
-                        status.style.background = fix.hasChanges ? 'rgba(56, 189, 248, 0.2)' : 'rgba(16, 185, 129, 0.2)';
-                    }
-                    container.scrollIntoView({ behavior: 'smooth' });
-                }
-            } else if (msg.type === 'assistantAnswer') {
-                streamAssistantMessage(msg.answer);
-                if (msg.provider && msg.provider !== 'embedded') {
-                    document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
-                }
             } else if (msg.type === 'testConnectionResult') {
                 const statusDiv = document.getElementById('test-connection-status');
                 if (!statusDiv) return;
@@ -2596,20 +4022,31 @@ class KoraAssistantViewProvider {
                     statusDiv.style.background = 'rgba(16, 185, 129, 0.15)';
                     statusDiv.style.border = '1px solid #10B981';
                     statusDiv.style.color = '#34D399';
-                    statusDiv.innerText = '✅ Connected (' + msg.result.latencyMs + 'ms): ' + msg.result.message;
+                    statusDiv.innerText = 'Connected (' + msg.result.latencyMs + 'ms): ' + msg.result.message;
                 } else {
                     statusDiv.style.background = 'rgba(239, 68, 68, 0.15)';
                     statusDiv.style.border = '1px solid #EF4444';
                     statusDiv.style.color = '#F87171';
-                    statusDiv.innerText = '❌ Connection Error (' + msg.result.provider + '): ' + msg.result.error;
+                    let extra = '';
+                    if (msg.result.recommendation) {
+                        extra = '\nTip: Run ' + msg.result.recommendation;
+                    }
+                    statusDiv.innerText = 'Connection Error (' + msg.result.provider + '): ' + msg.result.error + extra;
                 }
             } else if (msg.type === 'syncConfig') {
                 const select = document.getElementById('copilot-provider-select');
                 if (select) select.value = msg.provider || 'embedded';
+                const pill = document.getElementById('active-model-pill');
+                if (pill) {
+                    if (msg.provider === 'embedded') pill.innerText = 'Embedded';
+                    else if (msg.provider === 'copilot') pill.innerText = 'Copilot';
+                    else if (msg.provider === 'ollama') pill.innerText = (msg.model || 'Ollama');
+                    else pill.innerText = (msg.model || msg.provider);
+                }
                 if (msg.provider && msg.provider !== 'embedded') {
                     document.getElementById('engine-indicator').innerText = 'Connected: ' + msg.provider;
                 } else {
-                    document.getElementById('engine-indicator').innerText = '● Active (Embedded)';
+                    document.getElementById('engine-indicator').innerText = 'Active (Embedded)';
                 }
                 if (msg.model) {
                     const ghModel = document.getElementById('cfg-gh-model');
@@ -2643,34 +4080,62 @@ class KoraAssistantViewProvider {
                     refreshOllamaModels();
                 }
             } else if (msg.type === 'ollamaModelsLoaded') {
-                const olModelSelect = document.getElementById('cfg-ollama-model');
-                if (olModelSelect) {
-                    olModelSelect.innerHTML = '';
-                    const models = msg.models || [];
-                    const defaultModel = msg.envModel || msg.activeModel || (models.length > 0 ? models[0] : 'gemma:2b');
+                const banner = document.getElementById('ollama-alert-banner');
+                const bannerText = document.getElementById('ollama-alert-text');
+                const pill = document.getElementById('active-model-pill');
+                const select = document.getElementById('cfg-ollama-model');
+
+                if (msg.status === 'no_models') {
+                    if (banner && bannerText) {
+                        banner.style.display = 'block';
+                        banner.style.background = 'rgba(239, 68, 68, 0.15)';
+                        banner.style.borderColor = '#ef4444';
+                        bannerText.innerHTML = '<b>0 Ollama models found!</b> Run: <code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px;">ollama pull qwen2.5-coder:7b</code> <button class="btn-prop-sm" onclick="copyText(\'ollama pull qwen2.5-coder:7b\')">Copy</button>';
+                    }
+                    if (pill) pill.innerText = '0 Models (Ollama)';
+                } else if (msg.status === 'fallback') {
+                    if (banner && bannerText) {
+                        banner.style.display = 'block';
+                        banner.style.background = 'rgba(245, 158, 11, 0.15)';
+                        banner.style.borderColor = '#f59e0b';
+                        bannerText.innerHTML = 'Requested model not found. Using best local coding model: <b>' + msg.activeModel + '</b>';
+                    }
+                    if (pill) pill.innerText = msg.activeModel;
+                } else {
+                    if (banner) banner.style.display = 'none';
+                    if (pill && msg.activeModel) pill.innerText = msg.activeModel;
+                }
+
+                if (select) {
+                    select.innerHTML = '';
+                    const models = msg.detailedModels || (msg.models ? msg.models.map(m => ({ name: m })) : []);
                     if (models.length === 0) {
                         const opt = document.createElement('option');
-                        opt.value = defaultModel;
-                        opt.innerText = defaultModel + ' (Default)';
-                        olModelSelect.appendChild(opt);
+                        opt.value = 'auto';
+                        opt.innerText = 'No models found (Run: ollama pull qwen2.5-coder:7b)';
+                        select.appendChild(opt);
                     } else {
+                        const autoOpt = document.createElement('option');
+                        autoOpt.value = 'auto';
+                        autoOpt.innerText = 'Auto-select best model (' + (msg.activeModel || models[0].name) + ')';
+                        select.appendChild(autoOpt);
+
                         models.forEach(m => {
                             const opt = document.createElement('option');
-                            opt.value = m;
-                            opt.innerText = m + ' (Installed)';
-                            if (m === defaultModel || (msg.envModel && m === msg.envModel)) {
+                            opt.value = m.name;
+                            const sizeStr = m.parameterSize ? (' [' + m.parameterSize + ']') : '';
+                            const catStr = m.category === 'coding' ? ' [Coding]' : (m.category === 'agentic' ? ' [Agentic]' : '');
+                            opt.innerText = m.name + sizeStr + catStr;
+                            if (m.name === msg.activeModel) {
                                 opt.selected = true;
                             }
-                            olModelSelect.appendChild(opt);
+                            select.appendChild(opt);
                         });
                     }
                     const optCustom = document.createElement('option');
                     optCustom.value = 'custom';
-                    optCustom.innerText = '✏️ Enter custom model name...';
-                    olModelSelect.appendChild(optCustom);
-                }
-                if (msg.envModel) {
-                    window.koraEnvModel = msg.envModel;
+                    optCustom.innerText = 'Enter custom model name...';
+                    select.appendChild(optCustom);
                 }
             }
         });

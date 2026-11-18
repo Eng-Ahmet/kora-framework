@@ -2,7 +2,7 @@
   "name": "kora-vscode",
   "displayName": "Kora Language Support",
   "description": "Official syntax highlighting, rich language configuration, snippets, and real-time compiler diagnostics for the Kora programming language and framework.",
-  "version": "0.10.3",
+  "version": "0.13.0",
   "publisher": "kora-framework",
   "license": "AGPL-3.0-or-later",
   "author": {
@@ -20,6 +20,7 @@
     "url": "https://github.com/Hwai-technology/kora-framework/issues"
   },
   "scripts": {
+    "test": "python3 ./scripts/run-tests.py",
     "package": "vsce package --no-git-tag-version --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/",
     "install:local": "node ./scripts/install-local.js",
     "publish:vscode": "vsce publish --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/",
@@ -32,6 +33,7 @@
   "icon": "icon.png",
   "main": "./client/extension.js",
   "activationEvents": [
+    "*",
     "onLanguage:kora",
     "workspaceContains:**/*.kora",
     "workspaceContains:**/*.kr",
@@ -52,7 +54,11 @@
     "onCommand:kora.generateDocs",
     "onCommand:kora.validateProject",
     "onCommand:kora.openLearningCenter",
-    "onCommand:kora.openArchitectureExplorer"
+    "onCommand:kora.openArchitectureExplorer",
+    "onCommand:kora.autoFixRefactor",
+    "onCommand:kora.focusChat",
+    "onCommand:kora.acceptProposedChanges",
+    "onCommand:kora.rejectProposedChanges"
   ],
   "categories": [
     "Programming Languages",
@@ -106,7 +112,7 @@
       }
     ],
     "viewsContainers": {
-      "activitybar": [
+      "secondarySideBar": [
         {
           "id": "kora-sidebar",
           "title": "Kora Framework",
@@ -119,7 +125,7 @@
         {
           "type": "webview",
           "id": "kora.assistantView",
-          "name": "Kora AI Copilot & Architecture Assistant"
+          "name": "Kora AI Agent & Architecture Assistant"
         }
       ]
     },
@@ -127,26 +133,22 @@
       {
         "command": "kora.smartRun",
         "title": "Kora: Smart Run (Entrypoint / Test Suite)",
-        "category": "Kora",
-        "icon": "$(play)"
+        "category": "Kora"
       },
       {
         "command": "kora.runFile",
         "title": "Kora: Run File",
-        "category": "Kora",
-        "icon": "$(play)"
+        "category": "Kora"
       },
       {
         "command": "kora.checkFile",
         "title": "Kora: Check File",
-        "category": "Kora",
-        "icon": "$(check)"
+        "category": "Kora"
       },
       {
         "command": "kora.runTests",
         "title": "Kora: Run Test Suite (kora test)",
-        "category": "Kora",
-        "icon": "$(beaker)"
+        "category": "Kora"
       },
       {
         "command": "kora.formatFile",
@@ -156,20 +158,17 @@
       {
         "command": "kora.explainCode",
         "title": "Kora AI: Explain Current Code & Architecture",
-        "category": "Kora",
-        "icon": "$(sparkle)"
+        "category": "Kora"
       },
       {
         "command": "kora.generateTests",
         "title": "Kora AI: Scaffold Unit & Load Tests",
-        "category": "Kora",
-        "icon": "$(beaker)"
+        "category": "Kora"
       },
       {
         "command": "kora.openExamplesExplorer",
         "title": "Kora: Browse & Clone GitHub Examples",
-        "category": "Kora",
-        "icon": "$(cloud-download)"
+        "category": "Kora"
       },
       {
         "command": "kora.fixDiagnostic",
@@ -179,48 +178,66 @@
       {
         "command": "kora.auditFile",
         "title": "Kora AI: Audit File Against .agent Rules",
-        "category": "Kora",
-        "icon": "$(shield)"
+        "category": "Kora"
       },
       {
         "command": "kora.analyzeWorkspace",
         "title": "Kora: Analyze Workspace & Architecture",
-        "category": "Kora",
-        "icon": "$(search)"
+        "category": "Kora"
       },
       {
         "command": "kora.walkthroughSelection",
         "title": "Kora AI: Interactive Code Walkthrough",
-        "category": "Kora",
-        "icon": "$(book)"
+        "category": "Kora"
       },
       {
         "command": "kora.generateDocs",
         "title": "Kora AI: Generate Documentation",
-        "category": "Kora",
-        "icon": "$(file-text)"
+        "category": "Kora"
       },
       {
         "command": "kora.validateProject",
         "title": "Kora: Validate Project (Compiler & Rules)",
-        "category": "Kora",
-        "icon": "$(pass)"
+        "category": "Kora"
       },
       {
         "command": "kora.openLearningCenter",
         "title": "Kora: Open Interactive Learning Center",
-        "category": "Kora",
-        "icon": "$(mortar-board)"
+        "category": "Kora"
       },
       {
         "command": "kora.openArchitectureExplorer",
         "title": "Kora: Open Visual Architecture Explorer",
-        "category": "Kora",
-        "icon": "$(organization)"
+        "category": "Kora"
+      },
+      {
+        "command": "kora.autoFixRefactor",
+        "title": "Kora AI: AI Auto-Fix & Refactor Workspace / File",
+        "category": "Kora"
+      },
+      {
+        "command": "kora.focusChat",
+        "title": "Kora AI: Open Persistent AI Agent Chat",
+        "category": "Kora"
+      },
+      {
+        "command": "kora.acceptProposedChanges",
+        "title": "Kora AI: Accept All Proposed Changes",
+        "category": "Kora"
+      },
+      {
+        "command": "kora.rejectProposedChanges",
+        "title": "Kora AI: Reject All Proposed Changes",
+        "category": "Kora"
       }
     ],
     "menus": {
       "editor/context": [
+        {
+          "command": "kora.autoFixRefactor",
+          "when": "editorLangId == kora",
+          "group": "1_kora@0"
+        },
         {
           "command": "kora.smartRun",
           "when": "editorLangId == kora",
@@ -254,14 +271,24 @@
       ],
       "editor/title": [
         {
-          "command": "kora.smartRun",
+          "command": "kora.focusChat",
+          "when": "editorLangId == kora",
+          "group": "navigation@0"
+        },
+        {
+          "command": "kora.autoFixRefactor",
           "when": "editorLangId == kora",
           "group": "navigation@1"
         },
         {
-          "command": "kora.explainCode",
+          "command": "kora.smartRun",
           "when": "editorLangId == kora",
           "group": "navigation@2"
+        },
+        {
+          "command": "kora.explainCode",
+          "when": "editorLangId == kora",
+          "group": "navigation@3"
         }
       ],
       "editor/title/run": [

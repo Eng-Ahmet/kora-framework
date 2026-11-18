@@ -17,7 +17,7 @@
 
 ---
 
-## 🌟 Overview
+## Overview
 
 **Kora** is a high-throughput, memory-safe backend language and web framework that unifies the developer ergonomics of **TypeScript**, the raw speed and zero-cost abstractions of **Rust**, and the actor/channel concurrency model of **Go**.
 
@@ -25,49 +25,49 @@ This extension turns **Visual Studio Code**, **Cursor**, **VSCodium**, and **Ant
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-### 1. ⚡ Real-Time Compiler Diagnostics & Architectural Linting
+### 1. Real-Time Compiler Diagnostics & Architectural Linting
 - **Continuous Background Validation**: Instant syntax and type-checking with intelligent debouncing (`350ms`) as you type.
-- **Clean Architecture Rules**: Enforces clean layer boundaries (`E5001`–`E5004`) directly in the editor, alerting you when controllers bypass service interfaces or leak database abstractions.
+- **Clean Architecture Rules**: Enforces clean layer boundaries (`E5001`-`E5004`) directly in the editor, alerting you when controllers bypass service interfaces or leak database abstractions.
 
-### 2. ▶ Interactive CodeLens Execution
-- **One-Click Native Execution**: Interactive `▶ Run File` and `⚡ Check File` action buttons appear directly above `fn main()` and top-level entrypoints.
+### 2. Interactive CodeLens Execution
+- **One-Click Native Execution**: Interactive `Run File` and `Check File` action buttons appear directly above `fn main()` and top-level entrypoints.
 - Runs your application in the integrated terminal without manually typing commands.
 
-### 3. 🎨 Canonical Code Formatting (`Shift+Alt+F`)
+### 3. Canonical Code Formatting (`Shift+Alt+F`)
 - **Built-in Formatter**: Registered `DocumentFormattingEditProvider` backed by `kora fmt`.
 - Supports `editor.formatOnSave: true` for zero-configuration, deterministic, team-wide code formatting.
 
-### 4. 🔍 Go To Definition (`F12` / `Ctrl+Click`)
+### 4. Go To Definition (`F12` / `Ctrl+Click`)
 - **Instant Symbol Navigation**: Jump directly to declarations of `model`, `class`, `interface`, `enum`, `fn`, `let`, and `var`.
 - Seamlessly resolves multi-file imports (`import { UserService } from "./services/user_service"`).
 
-### 5. 📑 Document Symbols & Outline View (`Ctrl+Shift+O`)
+### 5. Document Symbols & Outline View (`Ctrl+Shift+O`)
 - **Hierarchical Code Outline**: Renders a complete structural hierarchy of your models, services, methods, and types in the side outline and editor breadcrumbs.
 
-### 6. 💡 Contextual Hover Documentation
+### 6. Contextual Hover Documentation
 - Hover over any language keyword, built-in primitive (`Int`, `Float`, `String`, `Option`, `Result`), decorator (`@entity`, `@unique`, `@index`), or actor construct to view rich Markdown documentation with usage examples.
 
-### 7. ✨ Intelligent Autocompletion & Snippets
+### 7. Intelligent Autocompletion & Snippets
 - Context-aware suggestions for keywords, types, REST route handlers (`get()`, `post()`, `put()`, `delete()`), concurrency primitives (`spawn`, `channel`, `broadcast`), and ORM decorators.
 - Rapid snippet templates: type `class`, `model`, `actor`, `enum`, or `test` and hit `Tab`.
 
-### 8. 📁 Domain-Driven File Icon Theme
+### 8. Domain-Driven File Icon Theme
 - Includes **19 custom vector icons** tailored for clean architecture files:
-  - `*.entity.kora` — Database Entity
-  - `*.dto.kora` — Request/Response DTO
-  - `*.service.kora` — Domain Service
-  - `*.controller.kora` — HTTP Controller / Router
-  - `*.repository.kora` — Database Repository
-  - `*.validator.kora` — RFC Input Validator
-  - `*.test.kora` — Lifecycle Test Suite
-  - `*.event.kora` — Domain Event
+  - `*.entity.kora` - Database Entity
+  - `*.dto.kora` - Request/Response DTO
+  - `*.service.kora` - Domain Service
+  - `*.controller.kora` - HTTP Controller / Router
+  - `*.repository.kora` - Database Repository
+  - `*.validator.kora` - RFC Input Validator
+  - `*.test.kora` - Lifecycle Test Suite
+  - `*.event.kora` - Domain Event
   - And more (`module`, `middleware`, `config`, `enum`, `interface`, `routes`).
 
 ---
 
-## 📖 Kora Syntax at a Glance
+## Kora Syntax at a Glance
 
 ### Clean Architecture & Data Transfer Objects
 ```kora
@@ -136,7 +136,7 @@ fn main() {
 
 ---
 
-## ⌨️ Commands & Shortcuts
+## Commands & Shortcuts
 
 | Command | Title | Default Shortcut |
 |---|---|---|
@@ -146,7 +146,7 @@ fn main() {
 
 ---
 
-## ⚙️ Configuration Settings
+## Configuration Settings
 
 Access settings via `Ctrl+,` (or `Cmd+,` on macOS) and search for `kora`:
 
@@ -168,7 +168,7 @@ Access settings via `Ctrl+,` (or `Cmd+,` on macOS) and search for `kora`:
 
 ---
 
-## 💻 Installation
+## Installation
 
 ### Option 1: Open VSX Registry (VSCodium, Cursor, Antigravity IDE, Gitpod)
 Search for **Kora Language Support** in the Extensions view (`Ctrl+Shift+X`), or install via CLI:
@@ -187,7 +187,7 @@ code --install-extension kora-vscode-0.8.0.vsix
 
 ---
 
-## 🤝 Community & Support
+## Community & Support
 
 - **Repository**: [https://github.com/Hwai-technology/kora-framework](https://github.com/Hwai-technology/kora-framework)
 - **Official Documentation**: [https://kora-lang.dev](https://kora-lang.dev)

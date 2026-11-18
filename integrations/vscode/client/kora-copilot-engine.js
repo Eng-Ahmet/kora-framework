@@ -2,6 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const { WorkspaceContextEngine } = require('./workspace-context-engine');
+const { ChangeReviewManager } = require('./change-review-manager');
+const { OllamaDiscoveryService } = require('./ollama-discovery-service');
 
 /**
  * Built-in Core Knowledge Base derived from:
@@ -16,7 +19,7 @@ const KORA_KNOWLEDGE_BASE = [
         topic: "Clean Architecture Invariants",
         source: ".agent/rules/04-clean-architecture.md",
         keywords: ["clean architecture", "slice", "layer", "e5001", "e5002", "e5003", "e5004", "router", "di", "controller", "service"],
-        content: `### 🏛️ Clean Architecture Invariants & Compiler Enforcement (E5001 - E5004)
+        content: `### Clean Architecture Invariants & Compiler Enforcement (E5001 - E5004)
 Kora strictly enforces Clean Architecture at compile time:
 - **E5001 (Direct Infrastructure Instantiation)**: Controllers and Services must never instantiate database connections, HTTP clients, or raw infrastructure directly inside handler methods. All dependencies must be injected via \`init(...)\`.
 - **E5002 (Missing Interface Abstraction)**: High-level services must depend on \`interface\` abstractions, never on concrete database drivers.
@@ -31,7 +34,7 @@ Kora strictly enforces Clean Architecture at compile time:
         topic: "Language Philosophy & Single-Null Design",
         source: ".agent/rules/01-language-philosophy.md",
         keywords: ["null", "undefined", "single null", "e2005", "philosophy", "zero guessing", "strict typing"],
-        content: `### 🎯 Kora Language Philosophy & Single-Null Design
+        content: `### Kora Language Philosophy & Single-Null Design
 - **Single-Null Design**: Kora has \`null\` and \`Option<T>\` (\`Some(val)\` | \`None\`). The JavaScript/TypeScript \`undefined\` construct is **strictly prohibited** (\`E2005\`).
 - **Zero Value Guessing**: The compiler and runtime strictly forbid arbitrary default fallbacks (\`|| ''\`, \`|| 0\`, \`|| false\`) masking missing data.
 - **Affine Ownership & Memory Safety**: Inspired by Rust, values are tracked without a stop-the-world Garbage Collector.
@@ -41,7 +44,7 @@ Kora strictly enforces Clean Architecture at compile time:
         topic: "Multi-Engine Database ORM & Decorators",
         source: ".agent/rules/07-database-multi-engine-orm.md",
         keywords: ["database", "orm", "table", "collection", "mysql", "postgres", "sqlite", "mongodb", "redis", "entity", "decorator", "@table", "@entity", "@primary"],
-        content: `### 🗄️ Multi-Engine Database ORM & Decorator Architecture
+        content: `### Multi-Engine Database ORM & Decorator Architecture
 Kora provides native compile-time support for three database paradigms:
 1. **Relational SQL (PostgreSQL, MySQL, SQLite)**:
    - Annotated with \`@entity\` and \`@table("table_name")\`.
@@ -58,7 +61,7 @@ Kora provides native compile-time support for three database paradigms:
         topic: "Concurrency, Actors & Non-Blocking Streams",
         source: ".agent/rules/08-concurrency-actors-streams.md",
         keywords: ["actor", "concurrency", "mailbox", "tell", "ask", "channel", "broadcast", "spawn", "tokio", "stream", "taskgroup"],
-        content: `### ⚡ Concurrency, Actors & Non-Blocking Message Passing
+        content: `### Concurrency, Actors & Non-Blocking Message Passing
 - **Stateful Actors**: Isolated units of concurrency executing on Tokio worker threads with non-blocking mailboxes.
   - \`actor.tell(msg)\`: Fire-and-forget message dispatch.
   - \`actor.ask(msg)\`: Request-response asynchronous query with built-in timeout protection.
@@ -71,7 +74,7 @@ Kora provides native compile-time support for three database paradigms:
         topic: "Testing Standards, Load Tests & Mandatory Teardown",
         source: ".agent/rules/10-testing-and-verification.md",
         keywords: ["test", "testing", "unit test", "load test", "teardown", "cleanup", "assert", "benchmark", "stress"],
-        content: `### 🧪 Testing Standards & Mandatory Teardown
+        content: `### Testing Standards & Mandatory Teardown
 All Kora projects and generated features must provide automated test coverage:
 1. **Unit Test Suites (\`*_unit.test.kora\`)**:
    - Class-based suite: \`class FeatureUnitTestSuite { init(...) {} }\`.
@@ -87,7 +90,7 @@ All Kora projects and generated features must provide automated test coverage:
         topic: "Kora CLI Tooling & Scaffold Commands",
         source: "docs/cli/tooling.md",
         keywords: ["cli", "kora create", "kora new", "kora g feature", "kora check", "kora run", "kora test", "kora example", "generator"],
-        content: `### 🛠️ Kora CLI Toolchain Commands
+        content: `### Kora CLI Toolchain Commands
 - \`kora check <file.kora>\`: Type-checks, enforces Clean Architecture, and verifies ownership without compilation.
 - \`kora run <file.kora>\`: Compiles and executes native release binary.
 - \`kora test [dir]\`: Runs the automated test runner across all unit, load, and lifecycle test suites.
@@ -102,7 +105,7 @@ All Kora projects and generated features must provide automated test coverage:
         topic: "VS Code Extension & Tooling (Rule 11)",
         source: ".agent/rules/11-vscode-extension-and-tooling.md",
         keywords: ["vscode", "extension", "ide", "lsp", "copilot", "hover", "autocomplete", "definition", "symbols", "quick fix", "audit", "learning center", "architecture explorer"],
-        content: `### 💻 VS Code Extension & IDE Tooling (Rule 11)
+        content: `### VS Code Extension & IDE Tooling (Rule 11)
 The official Kora VS Code Extension (\`integrations/vscode/\`) provides:
 - **Native Language Providers**:
   - \`CompletionItemProvider\`: Context-aware keywords, decorators, types, and dot-member autocompletion (\`user.\`).
@@ -121,59 +124,134 @@ The official Kora VS Code Extension (\`integrations/vscode/\`) provides:
     }
 ];
 
+/**
+ * Antigravity-style agent lifecycle states
+ */
+const AgentState = {
+    IDLE: 'Idle',
+    UNDERSTANDING: 'UnderstandingRequest',
+    EXPLORING: 'ExploringWorkspace',
+    ANALYZING: 'AnalyzingFiles',
+    PLANNING: 'PlanningChanges',
+    GENERATING: 'GeneratingChanges',
+    REVIEWING: 'ReviewingChanges',
+    AWAITING_APPROVAL: 'AwaitingApproval',
+    APPLYING: 'ApplyingChanges',
+    VALIDATING: 'ValidatingChanges',
+    COMPLETED: 'Completed',
+    FAILED: 'Failed'
+};
+
 class KoraCopilotEngine {
-    constructor(vscodeInstance = null) {
-        this.vscode = vscodeInstance;
-        this.workspaceDocs = [];
+    constructor(extensionUriOrVscode = null, vscodeInstance = null) {
+        let extensionUri = null;
+        let vsc = null;
+        if (extensionUriOrVscode && extensionUriOrVscode.fsPath) {
+            extensionUri = extensionUriOrVscode;
+            vsc = vscodeInstance;
+        } else if (extensionUriOrVscode && extensionUriOrVscode.workspace) {
+            vsc = extensionUriOrVscode;
+            extensionUri = vscodeInstance;
+        } else {
+            extensionUri = extensionUriOrVscode;
+            vsc = vscodeInstance;
+        }
+        this.extensionUri = extensionUri;
+        this.vscode = vsc;
         this.knowledgeFiles = [];
-        this.workspaceRoot = null;
-
-        // Auto-index extension's built-in knowledge directory
-        const builtInKnowledge = path.join(__dirname, '..', 'knowledge');
-        if (fs.existsSync(builtInKnowledge)) {
-            this._scanKnowledgeDir(builtInKnowledge);
-        }
-    }
-
-    setVsCode(vscodeInstance) {
-        this.vscode = vscodeInstance;
-    }
-
-    /**
-     * Scans and indexes markdown documentation from the active workspace.
-     */
-    indexWorkspace(workspaceRoot) {
-        if (!workspaceRoot) return;
-        this.workspaceRoot = workspaceRoot;
         this.workspaceDocs = [];
+        this.currentState = AgentState.IDLE;
+        this.currentSteps = [];
 
-        const targetDirs = [
-            path.join(workspaceRoot, '.agent', 'rules'),
-            path.join(workspaceRoot, '.agent', 'standards'),
-            path.join(workspaceRoot, 'docs'),
-            path.join(workspaceRoot, 'documentation'),
-            path.join(workspaceRoot, 'integrations', 'vscode', 'knowledge')
-        ];
+        this.workspaceEngine = new WorkspaceContextEngine(this.vscode);
+        this.reviewManager = new ChangeReviewManager(this.vscode);
+        this.ollamaService = new OllamaDiscoveryService();
 
-        for (const dir of targetDirs) {
-            this._scanDirectory(dir);
-        }
+        this._loadKnowledgeFiles();
     }
 
-    _scanKnowledgeDir(dir) {
-        if (!fs.existsSync(dir)) return;
+    async indexWorkspace(workspaceRoot) {
+        if (!workspaceRoot) return null;
+        return await this.workspaceEngine.scanWorkspace([workspaceRoot]);
+    }
+
+    walkthroughCode(selection) {
+        if (!selection || !selection.trim()) {
+            return "Please select a block of Kora code to generate an architectural walkthrough.";
+        }
+        const lines = selection.split('\n');
+        let out = `### Interactive Code Walkthrough\n\n`;
+        out += `- **Selected Lines**: ${lines.length}\n`;
+
+        const hasClass = /class\s+([A-Za-z0-9_]+)/.exec(selection);
+        const hasActor = /actor\s+([A-Za-z0-9_]+)|class\s+([A-Za-z0-9_]+Actor)/.exec(selection);
+        const hasModel = /model\s+([A-Za-z0-9_]+)/.exec(selection);
+        const hasInit = /init\s*\(([^)]*)\)/.exec(selection);
+
+        if (hasActor) {
+            out += `#### Actor Component (\`${hasActor[1] || hasActor[2]}\`)\n`;
+            out += `This component represents a stateful concurrency actor executing over Tokio worker threads. Messages are received sequentially through non-blocking mailboxes (Rule 08).\n\n`;
+        } else if (hasClass) {
+            out += `#### Service / Application Class (\`${hasClass[1]}\`)\n`;
+            out += `Application logic layer component. Must enforce Clean Architecture dependency inversion.\n\n`;
+        } else if (hasModel) {
+            out += `#### Pure DTO Model (\`${hasModel[1]}\`)\n`;
+            out += `Immutable payload structure used across network and boundary interfaces (Rule 04).\n\n`;
+        }
+
+        if (hasInit) {
+            out += `**Dependencies (Injected via \`init\`):**\n`;
+            out += `\`${hasInit[1].trim() || 'None'}\`\n\n`;
+        }
+
+        if (selection.includes('undefined')) {
+            out += `**Notice**: Contains illegal \`undefined\` keyword. In Kora, use \`null\` or \`Option<T>\` (Rule 01).\n`;
+        }
+
+        return out;
+    }
+
+    generateDocumentation(code, lang = 'kora') {
+        if (!code || !code.trim()) return "/**\n * @module\n */\n";
+        const fnMatch = code.match(/fn\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)(?:\s*->\s*([A-Za-z0-9_<>\[\]]+))?/);
+        if (fnMatch) {
+            const name = fnMatch[1];
+            const params = fnMatch[2].split(',').map(p => p.trim()).filter(Boolean);
+            const ret = fnMatch[3] || 'Unit';
+            let doc = `/**\n * Executes \`${name}\`.\n`;
+            for (const p of params) {
+                const pName = p.split(':')[0].trim();
+                doc += ` * @param {${p.split(':')[1] ? p.split(':')[1].trim() : 'Any'}} ${pName}\n`;
+            }
+            doc += ` * @returns {${ret}}\n */\n`;
+            return doc;
+        }
+        return `/**\n * Kora Component\n * @module\n */\n`;
+    }
+
+    _loadKnowledgeFiles() {
+        if (!this.extensionUri) return;
+        try {
+            const knowledgeDir = path.join(this.extensionUri.fsPath, 'knowledge');
+            if (fs.existsSync(knowledgeDir)) {
+                this._indexDirectory(knowledgeDir);
+            }
+        } catch (e) {}
+    }
+
+    _indexDirectory(dir) {
         try {
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (const entry of entries) {
                 const fullPath = path.join(dir, entry.name);
                 if (entry.isDirectory()) {
-                    this._scanKnowledgeDir(fullPath);
-                } else if (entry.isFile()) {
+                    this._indexDirectory(fullPath);
+                } else if (entry.isFile() && (entry.name.endsWith('.json') || entry.name.endsWith('.md'))) {
                     try {
-                        const content = fs.readFileSync(fullPath, 'utf-8');
+                        const content = fs.readFileSync(fullPath, 'utf8');
                         this.knowledgeFiles.push({
-                            name: entry.name,
                             path: fullPath,
+                            name: entry.name,
                             content: content
                         });
                     } catch (e) {}
@@ -182,321 +260,395 @@ class KoraCopilotEngine {
         } catch (e) {}
     }
 
-    _scanDirectory(dir) {
-        if (!fs.existsSync(dir)) return;
-        try {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                if (entry.isDirectory()) {
-                    this._scanDirectory(fullPath);
-                } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.html') || entry.name.endsWith('.json'))) {
-                    this._indexFile(fullPath);
-                }
-            }
-        } catch (e) {}
-    }
-
-    _indexFile(filePath) {
-        try {
-            const content = fs.readFileSync(filePath, 'utf-8');
-            const relativePath = this.workspaceRoot ? path.relative(this.workspaceRoot, filePath) : filePath;
-            const fileName = path.basename(filePath);
-
-            let title = fileName;
-            const titleMatch = content.match(/^#\s+(.+)$/m);
-            if (titleMatch) {
-                title = titleMatch[1];
-            }
-
-            this.workspaceDocs.push({
-                title,
-                path: relativePath,
-                fullPath: filePath,
-                content: content.slice(0, 4000)
-            });
-        } catch (e) {}
+    setState(state, detail = '', onProgress = null) {
+        this.currentState = state;
+        const step = {
+            state,
+            detail,
+            timestamp: Date.now()
+        };
+        this.currentSteps.push(step);
+        if (onProgress) {
+            onProgress(step, this.currentSteps);
+        }
     }
 
     /**
-     * Audits a Kora source document against .agent rules.
+     * Deterministic rule-based audit for a document against .agent/rules/
      */
     auditDocument(document) {
-        const text = document.getText();
-        const fileName = path.basename(document.fileName);
+        const text = typeof document.getText === 'function' ? document.getText() : (document.content || String(document));
+        const fileName = document.fileName ? path.basename(document.fileName) : 'document.kora';
+        const lines = text.split('\n');
         const findings = [];
 
-        // Check 1: Undefined used (Rule 01: Single-null design)
-        if (/\bundefined\b/.test(text)) {
+        // Rule 01: Single-Null Check (No undefined)
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (/\bundefined\b/.test(line)) {
+                findings.push({
+                    code: 'E2005',
+                    rule: 'Rule 01: Single-Null Design',
+                    line: i + 1,
+                    message: "Use of forbidden 'undefined' keyword. Kora enforces single-null design.",
+                    fix: "Replace 'undefined' with 'null' or wrap type in Option<T>."
+                });
+            }
+        }
+
+        // Rule 04: Clean Architecture DI check (No raw Database() calls in Services/Controllers)
+        const isServiceOrController = fileName.includes('Service') || fileName.includes('Controller') || /class\s+[A-Za-z0-9_]+(Service|Controller)/.test(text);
+        if (isServiceOrController) {
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (/\bDatabase\(\)/.test(line) && !line.includes('//') && !line.includes('init(')) {
+                    findings.push({
+                        code: 'E5001',
+                        rule: 'Rule 04: Clean Architecture Dependency Inversion',
+                        line: i + 1,
+                        message: "Direct infrastructure instantiation inside application logic.",
+                        fix: "Inject database dependency via constructor: init(db: Database) { this.db = db }"
+                    });
+                }
+            }
+        }
+
+        // Rule 07 & 04: Directory Segregation check
+        const lowerFile = fileName.toLowerCase();
+        if ((lowerFile.includes('model') || lowerFile.includes('dto')) && (/@table\b/.test(text) || /@collection\b/.test(text))) {
             findings.push({
-                severity: "Error",
-                rule: "Rule 01: Single-Null Design",
-                code: "E2005",
-                message: "Use of `undefined` detected. Kora strictly forbids `undefined` in favor of `null` and `Option<T>`.",
-                fix: "Replace `undefined` with `null`."
+                code: 'E5003',
+                rule: 'Rule 04 & 07: Layer Directory Segregation',
+                line: 1,
+                message: "DTO model decorated with database persistence attribute (@table).",
+                fix: "Move persisted database entities into entities/ directory and keep models/ strictly for pure payloads."
             });
         }
 
-        // Check 2: Raw Infrastructure in Class Handler (Rule 04: Clean Architecture E5001)
-        if (/class\s+[A-Za-z0-9_]+/.test(text) && /\b(Database\(\)|HttpClient\(\)|ConnectionPool\(\))/.test(text)) {
-            findings.push({
-                severity: "Warning",
-                rule: "Rule 04: Clean Architecture Invariants",
-                code: "E5001",
-                message: "Direct infrastructure instantiation inside service/controller. Clean Architecture requires injecting dependencies via `init(...)`.",
-                fix: "Move instantiation into `init(...)` parameters."
-            });
-        }
-
-        // Check 3: Entity inside models folder (Rule 04: Directory Segregation)
-        if (document.fileName.includes('/models/') && (text.includes('@table') || text.includes('@entity') || text.includes('@collection'))) {
-            findings.push({
-                severity: "Warning",
-                rule: "Rule 04: Directory Segregation",
-                code: "E5003",
-                message: "Database table entity `@table` defined inside `models/`. Persisted entities must reside exclusively in `entities/`.",
-                fix: "Move model to `entities/*.entity.kora`."
-            });
-        }
-
-        // Check 4: Test file missing teardown (Rule 10: Testing Standards)
-        if (fileName.includes('load.test') && !text.includes('teardown')) {
-            findings.push({
-                severity: "Warning",
-                rule: "Rule 10: Testing Standards",
-                code: "T1001",
-                message: "Load test suite lacks explicit `teardown()` method to release synthetic allocations.",
-                fix: "Implement `fn teardown() -> Unit` to guarantee zero memory leakage."
-            });
+        // Rule 10: Load tests must include teardown()
+        if (lowerFile.includes('load') && lowerFile.includes('test')) {
+            if (!/\bfn\s+teardown\s*\(/.test(text)) {
+                findings.push({
+                    code: 'R1001',
+                    rule: 'Rule 10: Mandatory Load Test Teardown',
+                    line: 1,
+                    message: "Load test suite lacks explicit teardown() cleanup method.",
+                    fix: "Implement fn teardown() -> Unit to release synthetic connections and purge memory."
+                });
+            }
         }
 
         return {
             fileName,
-            totalChecks: 6,
-            violations: findings.length,
             passed: findings.length === 0,
+            violations: findings.length,
             findings
         };
     }
 
     /**
-     * Interactive Code Walkthrough: Breaks down line-by-line execution flow and dependencies.
+     * Answers a user prompt with comprehensive workspace intelligence and rules.
      */
-    walkthroughCode(code) {
-        if (!code || code.trim().length === 0) return "No code selected for walkthrough.";
+    async answerPrompt(prompt, activeDoc, config, options = {}) {
+        const query = (prompt || '').trim();
+        this.currentSteps = [];
 
-        let walkthrough = `### 🔍 Interactive Code Walkthrough\n\n`;
-        const lines = code.split('\n');
-
-        let hasAsync = code.includes('async');
-        let hasDb = code.includes('db.') || code.includes('Database');
-        let hasActor = code.includes('actor') || code.includes('tell') || code.includes('ask');
-        let hasPattern = code.includes('match');
-
-        walkthrough += `**Architectural Profile**:\n`;
-        walkthrough += `- **Concurrency Model**: ${hasActor ? 'Actor Mailbox' : hasAsync ? 'Non-Blocking Async Future (Tokio)' : 'Synchronous Block'}\n`;
-        walkthrough += `- **Persistence**: ${hasDb ? 'Direct DB or Injected Repository' : 'Pure In-Memory / Domain Logic'}\n`;
-        walkthrough += `- **Pattern Matching**: ${hasPattern ? 'Exhaustive ADT Matching' : 'Standard Control Flow'}\n\n`;
-
-        walkthrough += `**Execution Trace**:\n`;
-        let step = 1;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line || line.startsWith('//')) continue;
-
-            if (line.startsWith('fn ') || line.startsWith('async fn ')) {
-                walkthrough += `**Step ${step++} (Function Entry)**: \`${line}\`\n- Establishes stack frame and initializes parameter bindings.\n\n`;
-            } else if (line.startsWith('init(')) {
-                walkthrough += `**Step ${step++} (Dependency Injection)**: \`${line}\`\n- Receives interface dependencies injected by application container.\n\n`;
-            } else if (line.startsWith('let ') || line.startsWith('var ')) {
-                walkthrough += `**Step ${step++} (Binding Allocation)**: \`${line}\`\n- Allocates memory with compile-time ownership tracking.\n\n`;
-            } else if (line.startsWith('match ')) {
-                walkthrough += `**Step ${step++} (Pattern Match)**: \`${line}\`\n- Exhaustive algebraic branch evaluation.\n\n`;
-            } else if (line.startsWith('return ')) {
-                walkthrough += `**Step ${step++} (Exit & Teardown)**: \`${line}\`\n- Returns typed value, releasing scoped variables deterministically.\n\n`;
-            }
+        // 1. Scan workspace if not scanned recently
+        this.setState(AgentState.EXPLORING, 'Discovering project structure and module relationships...', options.onProgress);
+        let workspaceRoots = [];
+        if (this.vscode && this.vscode.workspace && this.vscode.workspace.workspaceFolders) {
+            workspaceRoots = this.vscode.workspace.workspaceFolders.map(f => f.uri.fsPath);
+        } else if (activeDoc && activeDoc.fileName) {
+            workspaceRoots = [path.dirname(activeDoc.fileName)];
         }
+        await this.workspaceEngine.scanWorkspace(workspaceRoots);
 
-        return walkthrough;
-    }
+        // 2. Build intelligent context for this query
+        this.setState(AgentState.ANALYZING, 'Analyzing workspace context and symbols for query...', options.onProgress);
+        const context = this.workspaceEngine.buildContextForQuery(query, {
+            activeFilePath: activeDoc ? activeDoc.fileName : null,
+            selectedFiles: options.selectedFiles
+        });
 
-    /**
-     * Generates structured docstrings for a Kora function or class.
-     */
-    generateDocumentation(code) {
-        if (!code || code.trim().length === 0) return "// Please select a function or class to document";
-
-        const fnMatch = code.match(/(async\s+)?fn\s+([A-Za-z0-9_]+)\s*\((.*?)\)(\s*->\s*([A-Za-z0-9_?<>\[\]]+))?/);
-        if (fnMatch) {
-            const isAsync = !!fnMatch[1];
-            const name = fnMatch[2];
-            const rawParams = fnMatch[3];
-            const returnType = fnMatch[5] || 'Unit';
-
-            let doc = `/**\n * Executes \`${name}\` operation.\n *\n`;
-            if (rawParams && rawParams.trim()) {
-                const params = rawParams.split(',');
-                for (const p of params) {
-                    const parts = p.trim().split(':');
-                    const pName = parts[0].trim();
-                    const pType = parts[1] ? parts[1].trim() : 'Any';
-                    doc += ` * @param ${pName} [${pType}] - Description for ${pName}\n`;
-                }
+        // 3. Check if query is an audit or check request
+        const lowerQuery = query.toLowerCase();
+        if (lowerQuery.includes('audit') || lowerQuery.includes('check rules') || lowerQuery.includes('verify file')) {
+            if (activeDoc) {
+                this.setState(AgentState.COMPLETED, 'Audit completed', options.onProgress);
+                return this._generateEmbeddedResponse(query, activeDoc, context);
             }
-            doc += ` * @returns [${returnType}] - Operation result\n`;
-            if (isAsync) doc += ` * @async - Non-blocking Tokio worker execution\n`;
-            doc += ` */\n`;
-            return doc;
-        }
-
-        const classMatch = code.match(/class\s+([A-Za-z0-9_]+)(\s+implements\s+([A-Za-z0-9_]+))?/);
-        if (classMatch) {
-            const name = classMatch[1];
-            const iface = classMatch[3];
-            let doc = `/**\n * \`${name}\` Service Layer Component\n *\n * Architectural Role: Application Domain Service\n`;
-            if (iface) doc += ` * Implements: \`${iface}\`\n`;
-            doc += ` * Invariant: All dependencies must be injected via \`init(...)\` (Rule 04)\n */\n`;
-            return doc;
-        }
-
-        return `/**\n * Kora Component\n * @module\n */\n`;
-    }
-
-    /**
-     * Answers a user prompt with authoritative knowledge from .agent/rules/ and docs/.
-     */
-    async answerPrompt(prompt, activeDoc, config) {
-        const query = (prompt || '').toLowerCase();
-
-        // 1. If prompt asks to audit rules or verify active file, perform deterministic compiler audit
-        if (query.includes('audit') || query.includes('check rules') || query.includes('verify file')) {
-            if (!activeDoc) {
-                return `### 🛡️ Kora Architecture & Rules Audit\n\n⚠️ **No active Kora file open in editor.**\nPlease open a \`.kora\` or \`.kr\` file in the editor to audit its code against official invariants in \`.agent/rules/\`.`;
-            }
-            return this._generateEmbeddedResponse(prompt, activeDoc);
+            // Workspace-wide audit
+            return this.auditWorkspace(options.onProgress);
         }
 
         const provider = (config && config.provider) ? config.provider.toLowerCase() : 'embedded';
 
+        this.setState(AgentState.GENERATING, `Synthesizing response via ${provider}...`, options.onProgress);
+
+        let answer = '';
         if (provider === 'copilot') {
             try {
-                return await this._callCopilotLm(prompt, activeDoc, config);
+                answer = await this._callCopilotLm(query, activeDoc, config, context);
             } catch (err) {
-                const fallbackResponse = this._generateEmbeddedResponse(prompt, activeDoc);
-                return `> ⚠️ **Copilot Notice**: Native GitHub Copilot request failed (${err.message}).\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
+                const fallbackResponse = this._generateEmbeddedResponse(query, activeDoc, context);
+                answer = `> **Copilot Notice**: Native GitHub Copilot request failed (${err.message}).\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
             }
-        }
-
-        if (provider !== 'embedded') {
+        } else if (provider !== 'embedded') {
             try {
-                return await this._callExternalLlm(prompt, activeDoc, config);
+                answer = await this._callExternalLlm(query, activeDoc, config, context);
             } catch (err) {
-                const fallbackResponse = this._generateEmbeddedResponse(prompt, activeDoc);
-                return `> ⚠️ **Provider Notice**: External LLM (${provider}) was unreachable: ${err.message}.\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
+                const fallbackResponse = this._generateEmbeddedResponse(query, activeDoc, context);
+                answer = `> **Provider Notice**: External LLM (${provider}) was unreachable: ${err.message}.\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
             }
+        } else {
+            answer = this._generateEmbeddedResponse(query, activeDoc, context);
         }
 
-        return this._generateEmbeddedResponse(prompt, activeDoc);
+        this.setState(AgentState.COMPLETED, 'Response ready', options.onProgress);
+        return answer;
     }
 
     /**
-     * Analyzes code errors, compiler diagnostics, and rule violations to synthesize a corrected version.
+     * Workspace-wide audit across all indexed files.
+     */
+    auditWorkspace(onProgress = null) {
+        this.setState(AgentState.ANALYZING, 'Auditing workspace files against Kora invariants...', onProgress);
+        const allFindings = [];
+        let totalFiles = 0;
+
+        for (const [fPath, meta] of this.workspaceEngine.indexedFiles) {
+            if (!meta.content || meta.isTooLarge) continue;
+            totalFiles++;
+            const audit = this.auditDocument({ fileName: fPath, getText: () => meta.content });
+            if (!audit.passed) {
+                allFindings.push({
+                    relPath: meta.relPath,
+                    fullPath: fPath,
+                    violations: audit.findings
+                });
+            }
+        }
+
+        this.setState(AgentState.COMPLETED, 'Workspace audit completed', onProgress);
+
+        let out = `### Kora Workspace Architecture & Rules Audit\n\n`;
+        out += `- **Total Files Scanned**: ${totalFiles}\n`;
+        out += `- **Files with Invariant Violations**: ${allFindings.length}\n\n`;
+
+        if (allFindings.length === 0) {
+            out += `**100% Rule Compliance!** All files in the workspace strictly adhere to official rules in \`.agent/rules/\`.\n`;
+        } else {
+            for (const item of allFindings) {
+                out += `#### [\`${item.relPath}\`](file://${item.fullPath})\n`;
+                for (const v of item.violations) {
+                    out += `- **[${v.code}] ${v.rule}** (Line ${v.line}): ${v.message}\n  *Fix*: \`${v.fix}\`\n`;
+                }
+                out += `\n`;
+            }
+            out += `> Click **AI Auto-Fix & Refactor** to coordinate multi-file fixes across all affected components.\n`;
+        }
+
+        return out;
+    }
+
+    /**
+     * Workspace-Aware Auto-Fix and Refactor across single or multiple files.
+     * Generates a multi-file proposal and registers it with ChangeReviewManager.
+     */
+    async generateWorkspaceRefactor(goal = 'Fix all compiler diagnostics and rule violations', options = {}, onProgress = null) {
+        this.currentSteps = [];
+        this.setState(AgentState.EXPLORING, 'Scanning workspace and analyzing architecture...', onProgress);
+
+        let workspaceRoots = [];
+        if (this.vscode && this.vscode.workspace && this.vscode.workspace.workspaceFolders) {
+            workspaceRoots = this.vscode.workspace.workspaceFolders.map(f => f.uri.fsPath);
+        } else if (options.targetFiles && options.targetFiles.length > 0) {
+            workspaceRoots = [path.dirname(options.targetFiles[0])];
+        }
+        await this.workspaceEngine.scanWorkspace(workspaceRoots);
+
+        this.setState(AgentState.ANALYZING, 'Auditing files and identifying affected components...', onProgress);
+
+        // Determine candidate files
+        let candidatePaths = [];
+        if (options.targetFiles && options.targetFiles.length > 0) {
+            candidatePaths = options.targetFiles.map(f => path.resolve(f));
+        } else if (options.activeFilePath) {
+            // Target active file AND its direct dependencies/callers
+            const activeNorm = path.resolve(options.activeFilePath);
+            candidatePaths = [activeNorm];
+            const related = this.workspaceEngine.getRelatedFiles(activeNorm);
+            for (const r of related) {
+                candidatePaths.push(r.fullPath);
+            }
+        } else {
+            // Workspace-wide: find all files with audit violations or matching goal
+            for (const [fPath, meta] of this.workspaceEngine.indexedFiles) {
+                if (!meta.content || meta.isTooLarge) continue;
+                const audit = this.auditDocument({ fileName: fPath, getText: () => meta.content });
+                if (!audit.passed) {
+                    candidatePaths.push(fPath);
+                }
+            }
+        }
+
+        if (candidatePaths.length === 0) {
+            // If no files had violations, pick up active file or all kora files
+            if (options.activeFilePath) candidatePaths.push(path.resolve(options.activeFilePath));
+            else {
+                for (const [fPath] of this.workspaceEngine.indexedFiles) {
+                    if (candidatePaths.length < 5) candidatePaths.push(fPath);
+                }
+            }
+        }
+
+        this.setState(AgentState.PLANNING, `Planning refactoring across ${candidatePaths.length} file(s)...`, onProgress);
+
+        const proposedFiles = [];
+        const provider = (options.config && options.config.provider) ? options.config.provider.toLowerCase() : 'embedded';
+
+        this.setState(AgentState.GENERATING, `Generating coordinated refactoring changes...`, onProgress);
+
+        for (const filePath of candidatePaths) {
+            let originalCode = '';
+            if (fs.existsSync(filePath)) {
+                try {
+                    originalCode = fs.readFileSync(filePath, 'utf8');
+                } catch (e) {
+                    continue;
+                }
+            }
+
+            const fileName = path.basename(filePath);
+            const audit = this.auditDocument({ fileName, getText: () => originalCode });
+            const diags = (options.diagnostics && options.diagnostics[filePath]) ? options.diagnostics[filePath] : [];
+
+            let fixedCode = originalCode;
+            const fixesApplied = [];
+
+            // 1. Rule 01 Single-Null
+            if (/\bundefined\b/.test(fixedCode)) {
+                fixedCode = fixedCode.replace(/\bundefined\b/g, 'null');
+                fixesApplied.push('Single-Null Design: replaced `undefined` with `null`');
+            }
+
+            // 2. Rule 04 DI Constructor Injection
+            if (/class\s+[A-Za-z0-9_]+(Service|Controller)/.test(fixedCode) && /\bDatabase\(\)/.test(fixedCode)) {
+                fixedCode = fixedCode.replace(/let\s+([A-Za-z0-9_]+)\s*=\s*Database\(\);?/g, '// [Injected via init]\n        let $1 = this.db;');
+                if (!/init\s*\(/.test(fixedCode)) {
+                    fixedCode = fixedCode.replace(/(class\s+[A-Za-z0-9_]+[^{]*\{)/, '$1\n    db: Database\n\n    init(db: Database) {\n        this.db = db\n    }\n');
+                }
+                fixesApplied.push('Clean Architecture: enforced Constructor Dependency Injection');
+            }
+
+            // 3. Rule 10 Load Test Teardown
+            if (fileName.toLowerCase().includes('load') && fileName.toLowerCase().includes('test') && !/\bfn\s+teardown\s*\(/.test(fixedCode)) {
+                const teardownSnippet = `\n    fn teardown() -> Unit {\n        print("  ${fileName}: Teardown synthetic allocations purged")\n    }\n`;
+                const lastBraceIndex = fixedCode.lastIndexOf('}');
+                if (lastBraceIndex > 0) {
+                    fixedCode = fixedCode.slice(0, lastBraceIndex) + teardownSnippet + fixedCode.slice(lastBraceIndex);
+                    fixesApplied.push('Testing Standards: implemented mandatory `teardown()` cleanup');
+                }
+            }
+
+            // 4. LLM contextual refactoring if external provider configured
+            if (provider !== 'embedded' && (diags.length > 0 || !audit.passed || goal)) {
+                try {
+                    const llmResult = await this._callLlmForFileFix(fileName, originalCode, diags, audit, goal, options.config);
+                    if (llmResult && llmResult.trim().length > 15) {
+                        fixedCode = llmResult;
+                        fixesApplied.push(`AI Refactoring via ${provider}`);
+                    }
+                } catch (e) {}
+            }
+
+            if (fixedCode !== originalCode) {
+                proposedFiles.push({
+                    filePath,
+                    originalContent: originalCode,
+                    proposedContent: fixedCode,
+                    summary: fixesApplied.join('; ')
+                });
+            }
+        }
+
+        this.setState(AgentState.REVIEWING, `Reviewing diffs across ${proposedFiles.length} file(s)...`, onProgress);
+
+        const proposal = this.reviewManager.createProposal(
+            goal || 'Kora Workspace Refactoring & Auto-Fix',
+            proposedFiles
+        );
+
+        this.setState(AgentState.AWAITING_APPROVAL, `${proposedFiles.length} file(s) modified. Awaiting review and approval.`, onProgress);
+
+        return {
+            proposal: this.reviewManager.serializeProposal(proposal.id),
+            rawProposal: proposal,
+            steps: this.currentSteps,
+            filesCount: proposedFiles.length
+        };
+    }
+
+    /**
+     * Backward-compatible generateCodeFix for a single file.
      */
     async generateCodeFix(fileName, originalCode, diagnostics = [], audit = null, config = {}) {
-        let fixedCode = originalCode;
-        let fixesApplied = [];
+        const dummyPath = path.resolve(fileName);
+        const result = await this.generateWorkspaceRefactor(`Fix ${fileName}`, {
+            targetFiles: [dummyPath],
+            diagnostics: { [dummyPath]: diagnostics },
+            config
+        });
 
-        // 1. Deterministic Rule Fixes (Rule 01: Single-Null)
-        if (/\bundefined\b/.test(fixedCode)) {
-            fixedCode = fixedCode.replace(/\bundefined\b/g, 'null');
-            fixesApplied.push('Replaced illegal `undefined` with `null` (Rule 01 Single-Null)');
-        }
+        const fileChange = result.rawProposal.files[0];
+        return {
+            fileName,
+            fixedCode: fileChange ? fileChange.proposedContent : originalCode,
+            summary: fileChange ? (fileChange.additions + ' additions, ' + fileChange.deletions + ' deletions') : 'No changes needed',
+            hasChanges: fileChange ? fileChange.proposedContent !== originalCode : false,
+            proposalId: result.rawProposal.id
+        };
+    }
 
-        // 2. Deterministic Rule 04: Class Constructor Injection
-        if (/class\s+[A-Za-z0-9_]+/.test(fixedCode) && /\bDatabase\(\)/.test(fixedCode)) {
-            fixedCode = fixedCode.replace(/let\s+([A-Za-z0-9_]+)\s*=\s*Database\(\);?/g, '// [Refactored: Database injected via init]\n        let $1 = this.db;');
-            fixesApplied.push('Enforced Dependency Injection for Database (Rule 04)');
-        }
+    async _callLlmForFileFix(fileName, originalCode, diagnostics, audit, goal, config) {
+        const diagsSummary = diagnostics.length > 0
+            ? diagnostics.map(d => `- Line ${d.line || 1}: ${d.message}`).join('\n')
+            : 'No compiler diagnostics';
+        const auditSummary = audit && audit.findings && audit.findings.length > 0
+            ? audit.findings.map(f => `- Rule [${f.code}]: ${f.message} (Fix: ${f.fix})`).join('\n')
+            : 'No rule violations';
 
-        // 3. If external LLM or Copilot is configured, request contextual refactoring
-        const provider = (config && config.provider) ? config.provider.toLowerCase() : 'embedded';
-        if (provider !== 'embedded') {
-            const diagsSummary = diagnostics.length > 0
-                ? diagnostics.map(d => `- Line ${d.line || 1}: ${d.message}`).join('\n')
-                : 'No compiler diagnostics';
-            const auditSummary = audit && audit.findings && audit.findings.length > 0
-                ? audit.findings.map(f => `- Rule [${f.code}]: ${f.message} (Fix: ${f.fix})`).join('\n')
-                : 'No rule violations';
+        const prompt = `Goal: ${goal}
+Refactor the Kora file \`${fileName}\` ensuring 100% compliance with Kora invariants:
+- Single-Null design: strictly no 'undefined'.
+- Clean Architecture: constructor DI via init(...).
+- Output ONLY the final complete compile-ready Kora code inside a \`\`\`kora codeblock.
 
-            const prompt = `Refactor and fix all issues in the Kora file \`${fileName}\`.
 Issues to fix:
 ${diagsSummary}
 ${auditSummary}
 
-Original source code:
+Original Source:
 \`\`\`kora
 ${originalCode}
-\`\`\`
+\`\`\``;
 
-Instructions:
-Fix all compile errors, type mismatches, and architectural violations.
-Output ONLY the final, complete, compile-ready Kora code inside a \`\`\`kora block.`;
-
-            try {
-                let answer;
-                if (provider === 'copilot') {
-                    answer = await this._callCopilotLm(prompt, null, config);
-                } else {
-                    answer = await this._callExternalLlm(prompt, null, config);
-                }
-                const match = answer.match(/```(?:kora|rust)?\s*\n([\s\S]*?)\n```/);
-                if (match && match[1].trim().length > 10) {
-                    fixedCode = match[1].trim();
-                    fixesApplied.push(`AI Contextual Refactor applied via ${provider}`);
-                }
-            } catch (e) {
-                // Keep deterministic fixes if external fails
-            }
+        const provider = (config.provider || '').toLowerCase();
+        let answer = '';
+        if (provider === 'copilot') {
+            answer = await this._callCopilotLm(prompt, null, config);
+        } else {
+            answer = await this._callExternalLlm(prompt, null, config);
         }
 
-        if (fixesApplied.length === 0) {
-            fixesApplied.push('Code formatted and verified against all invariants.');
-        }
-
-        return {
-            fileName,
-            fixedCode,
-            summary: fixesApplied.join(' • '),
-            hasChanges: fixedCode !== originalCode
-        };
+        const match = answer.match(/```(?:kora|rust)?\s*\n([\s\S]*?)\n```/);
+        return match ? match[1].trim() : null;
     }
 
-    _generateEmbeddedResponse(prompt, activeDoc) {
+    _generateEmbeddedResponse(prompt, activeDoc, context = null) {
         const query = prompt.toLowerCase();
 
-        // 1. Audit check
-        if (query.includes('audit') || query.includes('check rules') || query.includes('verify')) {
-            if (activeDoc) {
-                const audit = this.auditDocument(activeDoc);
-                let res = `### 🛡️ Kora Architecture & Rules Audit: \`${audit.fileName}\`\n\n`;
-                if (audit.passed) {
-                    res += `✅ **100% Compliant!** This file strictly adheres to all invariants defined in \`.agent/rules/\`:\n`;
-                    res += `- Single-Null design verified (no \`undefined\`).\n`;
-                    res += `- Clean Architecture dependency boundaries respected.\n`;
-                    res += `- Directory segregation (\`entities/\` vs \`models/\`) strictly enforced.\n`;
-                } else {
-                    res += `⚠️ **Found ${audit.violations} Architectural Rule Violation(s)**:\n\n`;
-                    for (const v of audit.findings) {
-                        res += `#### [${v.code}] ${v.rule}\n`;
-                        res += `- **Issue**: ${v.message}\n`;
-                        res += `- **Fix**: \`${v.fix}\`\n\n`;
-                    }
-                }
-                return res;
-            }
-        }
-
-        // 2. Search embedded knowledge base
+        // Check if query matches specific rule topics
         let bestMatch = null;
         let highestScore = 0;
 
@@ -511,44 +663,68 @@ Output ONLY the final, complete, compile-ready Kora code inside a \`\`\`kora blo
             }
         }
 
-        // 3. Search indexed knowledge files (JSON & Markdown in knowledge/)
-        for (const kf of this.knowledgeFiles) {
-            const nameLower = kf.name.toLowerCase();
-            if (query.split(' ').some(w => w.length > 3 && nameLower.includes(w))) {
-                return `### 📖 Kora Knowledge: \`${kf.name}\`\n\n\`\`\`${kf.name.endsWith('.json') ? 'json' : 'markdown'}\n${kf.content.slice(0, 2500)}\n\`\`\`\n\n📚 **Source Reference**: \`${kf.path}\``;
-            }
-        }
-
-        // 4. Search indexed workspace docs (.agent/rules, docs)
-        let docCitation = "";
-        for (const doc of this.workspaceDocs) {
-            const titleLower = doc.title.toLowerCase();
-            if (query.split(' ').some(w => w.length > 3 && titleLower.includes(w))) {
-                docCitation = `\n\n📚 **Source Reference**: [\`${doc.path}\`](${doc.path})`;
-                break;
+        let contextSection = '';
+        if (context && context.files && context.files.length > 0) {
+            contextSection = `\n\n#### Relevant Workspace Files Identified:\n`;
+            for (const f of context.files.slice(0, 5)) {
+                contextSection += `- [\`${f.relPath}\`](file://${f.filePath}) (*${f.role}* - ${f.reason})\n`;
             }
         }
 
         if (bestMatch && highestScore > 0) {
-            return `${bestMatch.content}\n\n📚 **Rule Reference**: \`${bestMatch.source}\`${docCitation}`;
+            return `${bestMatch.content}\n\n**Rule Reference**: \`${bestMatch.source}\`${contextSection}`;
         }
 
-        // Default comprehensive overview
-        return `### 💡 Kora Framework Knowledge Assistant
+        // Default overview
+        return `### Kora AI Agent & Architecture Assistant
 
-I understand the complete Kora Language specification, Clean Architecture invariants, and \`.agent/\` development rules:
+I understand the entire Kora project structure, Clean Architecture invariants, and language specifications:
 
-- **Clean Architecture (\`.agent/rules/04-clean-architecture.md\`)**: Class DI, Router pipeline, \`entities/\` vs \`models/\`, compile-time diagnostics \`E5001\`-\`E5004\`.
-- **Multi-Engine ORM (\`.agent/rules/07-database-multi-engine-orm.md\`)**: Relational \`@table\`, NoSQL \`@collection\`, Redis KV caching.
-- **Concurrency (\`.agent/rules/08-concurrency-actors-streams.md\`)**: Stateful actors with mailboxes (\`tell\`/\`ask\`), non-blocking channels, Tokio runtimes.
-- **Testing Standards (\`.agent/rules/10-testing-and-verification.md\`)**: Unit test suites and load stress tests with guaranteed \`teardown()\`.
-- **Single-Null Design (\`.agent/rules/01-language-philosophy.md\`)**: \`null\` and \`Option<T>\` supported; \`undefined\` is strictly forbidden.
+- **Clean Architecture (\`.agent/rules/04-clean-architecture.md\`)**: Constructor Dependency Injection (\`init\`), bounded contexts, \`entities/\` vs \`models/\`.
+- **Single-Null Design (\`.agent/rules/01-language-philosophy.md\`)**: \`null\` and \`Option<T>\` supported; \`undefined\` strictly prohibited (\`E2005\`).
+- **Multi-Engine ORM (\`.agent/rules/07-database-multi-engine-orm.md\`)**: SQL \`@table\`, NoSQL \`@collection\`, Redis caching.
+- **Actor Concurrency (\`.agent/rules/08-concurrency-actors-streams.md\`)**: Stateful actors with mailboxes (\`tell\`, \`ask\`), non-blocking channels.
+- **Testing & Teardown (\`.agent/rules/10-testing-and-verification.md\`)**: Unit test suites and load stress tests with mandatory \`teardown()\`.${contextSection}
 
 **Try asking**:
-- *"How do I write an Actor with mailboxes?"*
-- *"Explain Rule 04 Clean Architecture violations"*
-- *"Show me MySQL ORM decorators and transactions"*
-- *"Audit current file against .agent standards"*`;
+- *"Analyze project architecture"*
+- *"Refactor authentication service and its callers"*
+- *"Auto-fix all rule violations across workspace"*
+- *"Scaffold unit tests for active models"*`;
+    }
+
+    _buildSystemPrompt(prompt, activeDoc, context = null) {
+        const query = prompt.toLowerCase();
+        let relevantContext = '';
+        for (const item of KORA_KNOWLEDGE_BASE) {
+            if (item.keywords.some(kw => query.includes(kw))) {
+                relevantContext += `\n\n[Official Kora Rule Reference (${item.source})]:\n${item.content}\n`;
+                break;
+            }
+        }
+
+        let workspaceContextStr = '';
+        if (context) {
+            workspaceContextStr = `\n\n[Workspace Context Information]:\n${this.workspaceEngine.formatContextForPrompt(context)}`;
+        } else if (activeDoc) {
+            const fileName = path.basename(activeDoc.fileName);
+            const codeSnippet = (typeof activeDoc.getText === 'function' ? activeDoc.getText() : String(activeDoc)).slice(0, 3500);
+            workspaceContextStr = `\n\n[Current Active File: ${fileName}]\n\`\`\`kora\n${codeSnippet}\n\`\`\``;
+        }
+
+        return `You are the Official Kora Framework AI Coding Agent & Compiler Assistant.
+Kora combines high DX with Rust-level memory safety, Go-inspired actor concurrency, and strict Clean Architecture enforcement.
+
+CORE INVARIANTS:
+1. Single-Null Design: Kora supports null and Option<T>. 'undefined' is STRICTLY FORBIDDEN (E2005).
+2. Clean Architecture: All Services and Controllers MUST declare dependencies via constructor init(...).
+3. Directory Segregation: Relational & NoSQL entities belong strictly in entities/. DTOs belong in models/.
+4. Stateful Actors: Isolated mailboxes with tell and ask.
+5. Testing: Load stress tests require explicit teardown() to release simulated resources.
+
+INSTRUCTIONS:
+- Answer technical queries directly and provide compile-ready idiomatic Kora code.
+- Always be workspace-aware and understand relationships between files and layers.${relevantContext}${workspaceContextStr}`;
     }
 
     _resolveEndpoint(provider, customEndpoint) {
@@ -557,9 +733,7 @@ I understand the complete Kora Language specification, Clean Architecture invari
             try {
                 const u = new URL(customEndpoint);
                 if (u.hostname === 'models.inference.ai.azure.com') {
-                    if (!u.pathname.endsWith('/chat/completions')) {
-                        u.pathname = '/chat/completions';
-                    }
+                    if (!u.pathname.endsWith('/chat/completions')) u.pathname = '/chat/completions';
                     return u.toString();
                 }
                 return customEndpoint;
@@ -572,9 +746,7 @@ I understand the complete Kora Language specification, Clean Architecture invari
             try {
                 const u = new URL(raw);
                 if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
-                    if (!u.pathname.startsWith('/api/')) {
-                        u.pathname = '/api/generate';
-                    }
+                    if (!u.pathname.startsWith('/api/')) u.pathname = '/api/generate';
                     return u.toString();
                 }
                 return raw;
@@ -604,86 +776,20 @@ I understand the complete Kora Language specification, Clean Architecture invari
         return customEndpoint || '';
     }
 
-    /**
-     * Lists models installed locally in Ollama via GET /api/tags
-     */
     async listOllamaModels(endpoint = 'http://localhost:11434') {
-        return new Promise((resolve) => {
-            let urlObj;
-            try {
-                let base = endpoint || 'http://localhost:11434';
-                if (!base.startsWith('http://') && !base.startsWith('https://')) {
-                    base = 'http://' + base;
-                }
-                urlObj = new URL(base);
-                urlObj.pathname = '/api/tags';
-            } catch {
-                urlObj = new URL('http://localhost:11434/api/tags');
-            }
-
-            const client = urlObj.protocol === 'https:' ? https : http;
-            const req = client.get(urlObj, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => {
-                    try {
-                        const json = JSON.parse(data);
-                        if (json && Array.isArray(json.models)) {
-                            const names = json.models.map(m => m.name || m.model).filter(Boolean);
-                            return resolve(names);
-                        }
-                    } catch {}
-                    resolve([]);
-                });
-            });
-
-            req.on('error', () => resolve([]));
-            req.setTimeout(4000, () => {
-                req.destroy();
-                resolve([]);
-            });
-        });
+        try {
+            const models = await this.ollamaService.discoverInstalledModels(endpoint);
+            return models.map(m => m.name);
+        } catch {
+            return [];
+        }
     }
 
-    _buildSystemPrompt(prompt, activeDoc) {
-        const query = prompt.toLowerCase();
-        let relevantContext = '';
-        for (const item of KORA_KNOWLEDGE_BASE) {
-            if (item.keywords.some(kw => query.includes(kw))) {
-                relevantContext += `\n\n[Official Kora Rule Reference (${item.source})]:\n${item.content}\n`;
-                break;
-            }
-        }
-
-        let fileContext = '';
-        if (activeDoc) {
-            const fileName = path.basename(activeDoc.fileName);
-            const codeSnippet = activeDoc.getText().slice(0, 3500);
-            fileContext = `\n\n[Current Active File: ${fileName}]\n\`\`\`kora\n${codeSnippet}\n\`\`\``;
-        }
-
-        return `You are the Official Kora Framework AI Copilot & Compiler Assistant.
-Kora is a high-performance backend language combining TypeScript-like DX with Rust-level memory safety and Go-inspired concurrency.
-
-CORE KORA INVARIANTS & ARCHITECTURAL RULES:
-1. Strict Single-Null Design: Kora supports \`null\` and \`Option<T>\`. The JavaScript/TypeScript concept of \`undefined\` is STRICTLY FORBIDDEN.
-2. Clean Architecture: All Services and Controllers MUST use constructor Dependency Injection via \`init(...)\`. Acyclic dependencies only.
-3. Layer Directory Segregation: Relational and NoSQL entities (@table, @collection) belong exclusively in \`entities/\`. DTO payloads belong in \`models/\`.
-4. Concurrency: Built-in actor model with mailboxes (\`tell\` for non-blocking send, \`ask\` for async request-reply), channels, and Tokio worker thread execution.
-5. Testing Standards: Load stress tests require an explicit \`teardown()\` method to release simulated resources.
-6. Provide idiomatic, clean, compile-ready Kora code with proper type annotations.
-
-STRICT INSTRUCTIONS:
-- NEVER output generic assistant introductions, boilerplate resumes, or self-descriptions.
-- Answer the user's specific technical question or code prompt directly, immediately, and concisely.${relevantContext}${fileContext}`;
-    }
-
-    async _callCopilotLm(prompt, activeDoc, config) {
+    async _callCopilotLm(prompt, activeDoc, config, context = null) {
         if (!this.vscode || !this.vscode.lm) {
-            throw new Error("VS Code Language Model API (vscode.lm) is not available in this editor environment.");
+            throw new Error("VS Code Language Model API (vscode.lm) is not available in this environment.");
         }
 
-        // 1. Select Copilot chat models
         let models = [];
         try {
             models = await this.vscode.lm.selectChatModels({ vendor: 'copilot' });
@@ -699,15 +805,13 @@ STRICT INSTRUCTIONS:
             throw new Error("No active GitHub Copilot Language Model found. Please ensure GitHub Copilot is installed and signed in.");
         }
 
-        // 2. Pick appropriate model
         let selectedModel = models[0];
         if (config && config.model && config.model !== 'default') {
             const found = models.find(m => m.name === config.model || m.id === config.model || m.family === config.model);
             if (found) selectedModel = found;
         }
 
-        // 3. Formulate prompt
-        const systemPrompt = this._buildSystemPrompt(prompt, activeDoc);
+        const systemPrompt = this._buildSystemPrompt(prompt, activeDoc, context);
         const fullUserMessage = `${systemPrompt}\n\nUser Request:\n${prompt}`;
 
         let chatMessages;
@@ -767,21 +871,28 @@ STRICT INSTRUCTIONS:
         }
         if (provider === 'ollama') {
             try {
-                const models = await this.listOllamaModels(config.endpoint);
-                const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : null;
-                const actualModel = (config.model && config.model !== 'gpt-4o-mini' && config.model !== 'default')
-                    ? config.model
-                    : (envModel || (models.length > 0 ? models[0] : 'gemma:2b'));
+                const resolution = await this.ollamaService.resolveBestModel('chat', config.model, config.endpoint);
+                if (resolution.status === 'no_models') {
+                    return {
+                        success: false,
+                        latencyMs: Date.now() - start,
+                        provider: 'ollama',
+                        error: resolution.message,
+                        recommendation: resolution.recommendation
+                    };
+                }
+                const actualModel = resolution.model;
                 const testCfg = Object.assign({}, config, { model: actualModel });
                 await this._callExternalLlm('Respond with OK.', null, testCfg);
                 const latencyMs = Date.now() - start;
-                const modelListStr = models.length > 0 ? ` [Available: ${models.join(', ')}]` : '';
+                const note = resolution.status === 'fallback' ? ` (fallback from requested '${config.model}')` : '';
                 return {
                     success: true,
                     latencyMs,
                     provider: 'ollama',
                     model: actualModel,
-                    message: `Successfully connected to local Ollama (${actualModel}) in ${latencyMs}ms!${modelListStr}`
+                    message: `Successfully connected to local Ollama (${actualModel}) in ${latencyMs}ms!${note}`,
+                    resolution
                 };
             } catch (err) {
                 return {
@@ -812,11 +923,21 @@ STRICT INSTRUCTIONS:
         }
     }
 
-    _callExternalLlm(prompt, activeDoc, config) {
+    async _callExternalLlm(prompt, activeDoc, config, context = null) {
+        const provider = (config.provider || 'embedded').toLowerCase();
+        let effectiveModel = config.model;
+
+        if (provider === 'ollama') {
+            const resolution = await this.ollamaService.resolveBestModel('chat', config.model, config.endpoint);
+            if (resolution.status === 'no_models') {
+                throw new Error(resolution.message || "No models installed in Ollama. Run: ollama pull qwen2.5-coder:7b");
+            }
+            effectiveModel = resolution.model;
+        }
+
         return new Promise((resolve, reject) => {
-            const provider = (config.provider || 'embedded').toLowerCase();
             const endpointUrl = this._resolveEndpoint(provider, config.endpoint);
-            const systemPrompt = this._buildSystemPrompt(prompt, activeDoc);
+            const systemPrompt = this._buildSystemPrompt(prompt, activeDoc, context);
 
             let postData = '';
             let headers = { 'Content-Type': 'application/json' };
@@ -827,8 +948,7 @@ STRICT INSTRUCTIONS:
                     return reject(new Error("GitHub Token required. Set 'kora.copilot.githubToken' in VS Code settings or paste your GitHub Personal Access Token."));
                 }
                 headers['Authorization'] = `Bearer ${token}`;
-
-                const model = config.model && config.model !== 'llama3' ? config.model : 'gpt-4o-mini';
+                const model = effectiveModel && effectiveModel !== 'llama3' ? effectiveModel : 'gpt-4o-mini';
                 postData = JSON.stringify({
                     model: model,
                     messages: [
@@ -838,12 +958,8 @@ STRICT INSTRUCTIONS:
                     temperature: 0.2
                 });
             } else if (provider === 'ollama') {
-                const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : null;
-                const model = (config.model && config.model !== 'gpt-4o-mini' && config.model !== 'default')
-                    ? config.model
-                    : (envModel || 'gemma:2b');
                 postData = JSON.stringify({
-                    model: model,
+                    model: effectiveModel,
                     system: systemPrompt,
                     prompt: prompt,
                     stream: false
@@ -867,9 +983,7 @@ STRICT INSTRUCTIONS:
                 postData = JSON.stringify({
                     model: config.model || 'claude-3-5-sonnet-20241022',
                     system: systemPrompt,
-                    messages: [
-                        { role: 'user', content: prompt }
-                    ],
+                    messages: [{ role: 'user', content: prompt }],
                     max_tokens: 2048
                 });
             } else if (provider === 'openai' || provider === 'custom') {
@@ -894,7 +1008,6 @@ STRICT INSTRUCTIONS:
             }
 
             const client = urlObj.protocol === 'https:' ? https : http;
-
             const req = client.request(urlObj, {
                 method: 'POST',
                 headers: Object.assign(headers, { 'Content-Length': Buffer.byteLength(postData) })
@@ -910,6 +1023,8 @@ STRICT INSTRUCTIONS:
                             resolve(json.message.content);
                         } else if (json.choices && json.choices[0] && json.choices[0].message) {
                             resolve(json.choices[0].message.content);
+                        } else if (json.content && Array.isArray(json.content) && json.content[0] && json.content[0].text) {
+                            resolve(json.content[0].text);
                         } else if (json.error) {
                             reject(new Error(typeof json.error === 'string' ? json.error : (json.error.message || JSON.stringify(json.error))));
                         } else {
@@ -937,4 +1052,4 @@ STRICT INSTRUCTIONS:
     }
 }
 
-module.exports = { KoraCopilotEngine, KORA_KNOWLEDGE_BASE };
+module.exports = { KoraCopilotEngine, KORA_KNOWLEDGE_BASE, AgentState };

@@ -11,7 +11,7 @@ const vsixName = `kora-vscode-${version}.vsix`;
 const vsixPath = path.join(rootDir, vsixName);
 const distDir = path.resolve(rootDir, '../../dist');
 
-console.log(`📦 1. Building VSIX package for Kora v${version}...`);
+console.log(`[Package] 1. Building VSIX package for Kora v${version}...`);
 execSync(`npx --yes @vscode/vsce package --no-git-tag-version --baseImagesUrl https://raw.githubusercontent.com/Hwai-technology/kora-framework/main/integrations/vscode/`, {
     cwd: rootDir,
     stdio: 'inherit'
@@ -19,7 +19,7 @@ execSync(`npx --yes @vscode/vsce package --no-git-tag-version --baseImagesUrl ht
 
 if (fs.existsSync(distDir)) {
     fs.copyFileSync(vsixPath, path.join(distDir, vsixName));
-    console.log(`✓ Copied ${vsixName} to dist/`);
+    console.log(`[Success] Copied ${vsixName} to dist/`);
 }
 
 const unpackDir = path.join(os.tmpdir(), `kora_install_${Date.now()}`);
@@ -34,7 +34,7 @@ if (fs.existsSync(agyExtDir)) {
     const targetAgy = path.join(agyExtDir, `kora-framework.kora-vscode-${version}-universal`);
     fs.rmSync(targetAgy, { recursive: true, force: true });
     fs.cpSync(sourceExt, targetAgy, { recursive: true });
-    console.log(`✓ Installed to Antigravity IDE: ${targetAgy}`);
+    console.log(`[Success] Installed to Antigravity IDE: ${targetAgy}`);
 
     // Clean .obsolete
     const obsoletePath = path.join(agyExtDir, '.obsolete');
@@ -75,7 +75,7 @@ if (fs.existsSync(agyExtDir)) {
                 }
             });
             fs.writeFileSync(extJsonPath, JSON.stringify(list));
-            console.log(`✓ Registered in Antigravity extensions.json`);
+            console.log(`[Success] Registered in Antigravity extensions.json`);
         } catch (e) {}
     }
 }
@@ -86,9 +86,9 @@ if (fs.existsSync(vscodeExtDir)) {
     const targetVsCode = path.join(vscodeExtDir, `kora-framework.kora-vscode-${version}`);
     fs.rmSync(targetVsCode, { recursive: true, force: true });
     fs.cpSync(sourceExt, targetVsCode, { recursive: true });
-    console.log(`✓ Installed to VS Code: ${targetVsCode}`);
+    console.log(`[Success] Installed to VS Code: ${targetVsCode}`);
 }
 
 fs.rmSync(unpackDir, { recursive: true, force: true });
-console.log(`\n🎉 Kora Language Support v${version} built and locally installed successfully!`);
+console.log(`\n[Done] Kora Language Support v${version} built and locally installed successfully!`);
 
