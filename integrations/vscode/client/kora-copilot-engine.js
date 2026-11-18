@@ -452,6 +452,111 @@ class KoraCopilotEngine {
     }
 
     /**
+     * Analyzes workspace and builds an actionable Refactoring Plan with intent understanding
+     * and step-by-step invariant checks WITHOUT modifying files.
+     */
+    async planWorkspaceRefactor(goal = 'Auto-Fix and refactor Kora invariants', options = {}, onProgress = null) {
+        this.currentSteps = [];
+        this.setState(AgentState.EXPLORING, 'Scanning workspace and analyzing architecture...', onProgress);
+
+        let workspaceRoots = [];
+        if (this.vscode && this.vscode.workspace && this.vscode.workspace.workspaceFolders) {
+            workspaceRoots = this.vscode.workspace.workspaceFolders.map(f => f.uri.fsPath);
+        } else if (options.targetFiles && options.targetFiles.length > 0) {
+            workspaceRoots = [path.dirname(options.targetFiles[0])];
+        }
+        await this.workspaceEngine.scanWorkspace(workspaceRoots);
+
+        this.setState(AgentState.ANALYZING, 'Auditing files and identifying affected components...', onProgress);
+
+        let candidatePaths = [];
+        if (options.targetFiles && options.targetFiles.length > 0) {
+            candidatePaths = options.targetFiles.map(f => path.resolve(f));
+        } else if (options.activeFilePath && options.scope === 'active') {
+            candidatePaths = [path.resolve(options.activeFilePath)];
+        } else if (options.activeFilePath) {
+            const activeNorm = path.resolve(options.activeFilePath);
+            candidatePaths = [activeNorm];
+            const related = this.workspaceEngine.getRelatedFiles(activeNorm);
+            for (const r of related) {
+                candidatePaths.push(r.fullPath);
+            }
+        } else {
+            for (const [fPath, meta] of this.workspaceEngine.indexedFiles) {
+                if (!meta.content || meta.isTooLarge) continue;
+                const audit = this.auditDocument({ fileName: fPath, getText: () => meta.content });
+                if (!audit.passed) {
+                    candidatePaths.push(fPath);
+                }
+            }
+        }
+
+        if (candidatePaths.length === 0) {
+            if (options.activeFilePath) candidatePaths.push(path.resolve(options.activeFilePath));
+            else {
+                for (const [fPath] of this.workspaceEngine.indexedFiles) {
+                    if (candidatePaths.length < 5) candidatePaths.push(fPath);
+                }
+            }
+        }
+
+        const steps = [];
+        for (const filePath of candidatePaths) {
+            let originalCode = '';
+            if (fs.existsSync(filePath)) {
+                try {
+                    originalCode = fs.readFileSync(filePath, 'utf8');
+                } catch (e) {
+                    continue;
+                }
+            }
+
+            const fileName = path.basename(filePath);
+            const audit = this.auditDocument({ fileName, getText: () => originalCode });
+            const plannedChanges = [];
+
+            if (/\bundefined\b/.test(originalCode)) {
+                plannedChanges.push('Enforce Rule 01 (Single-Null Design): Replace `undefined` with `null`');
+            }
+            if (/class\s+[A-Za-z0-9_]+(Service|Controller)/.test(originalCode) && /\bDatabase\(\)/.test(originalCode)) {
+                plannedChanges.push('Enforce Rule 04 (Clean Architecture): Convert direct Database instantiation to Constructor Injection via init(...)');
+            }
+            if (fileName.toLowerCase().includes('load') && fileName.toLowerCase().includes('test') && !/\bfn\s+teardown\s*\(/.test(originalCode)) {
+                plannedChanges.push('Enforce Rule 10 (Testing Standards): Implement mandatory teardown() cleanup method');
+            }
+            if (!audit.passed && audit.findings) {
+                for (const f of audit.findings) {
+                    if (!plannedChanges.some(p => p.includes(f.code))) {
+                        plannedChanges.push(`Fix [${f.code}] ${f.rule}: ${f.message}`);
+                    }
+                }
+            }
+
+            if (plannedChanges.length > 0) {
+                steps.push({
+                    filePath,
+                    fileName,
+                    plannedChanges
+                });
+            }
+        }
+
+        this.setState(AgentState.AWAITING_APPROVAL, `Refactoring plan generated for ${steps.length} file(s). Awaiting user approval.`, onProgress);
+
+        return {
+            id: 'plan_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            goal,
+            scope: options.scope || (options.targetFiles ? 'active' : 'workspace'),
+            targetPath: options.activeFilePath || (options.targetFiles ? options.targetFiles[0] : null),
+            understanding: steps.length > 0
+                ? `Analyzed workspace for '${goal}'. Identified ${steps.length} component(s) requiring clean architecture and invariant adjustments.`
+                : `Analyzed workspace for '${goal}'. All scanned components strictly satisfy Clean Architecture invariants!`,
+            filesCount: steps.length,
+            steps
+        };
+    }
+
+    /**
      * Workspace-Aware Auto-Fix and Refactor across single or multiple files.
      * Generates a multi-file proposal and registers it with ChangeReviewManager.
      */

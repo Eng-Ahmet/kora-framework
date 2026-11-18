@@ -120,7 +120,10 @@ ${cssContent}
                     <option value="github">GitHub Models API (PAT)</option>
                 </select>
             </div>
-            <button class="btn-config-toggle" data-action="toggleConfigPanel" title="Configure Engine Settings">Configure</button>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <button class="btn-config-toggle btn-new-chat" data-action="newChat" title="Start a fresh chat conversation (Clear history)">+ New Chat</button>
+                <button class="btn-config-toggle" data-action="toggleConfigPanel" title="Configure Engine Settings">Configure</button>
+            </div>
         </div>
 
         <div id="ollama-alert-banner" style="display: none; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; font-size: 10px; line-height: 1.4;">
@@ -227,6 +230,7 @@ ${cssContent}
                     <span>Auto-Fix & Refactor</span>
                 </button>
                 <div style="display: flex; align-items: center; gap: 4px;">
+                    <button class="btn-attach" data-action="newChat" title="Clear conversation & start new chat">New Chat</button>
                     <button class="btn-attach" id="btn-attach" data-action="triggerFilePicker" title="Attach File or Folder (Drag & Drop also supported)">Attach</button>
                     <button class="btn-stop-gen" id="btn-stop" style="display: none;" data-action="stopGeneration" title="Stop Generation">
                         <span>Stop</span>

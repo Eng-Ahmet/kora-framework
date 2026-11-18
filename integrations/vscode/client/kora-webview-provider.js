@@ -160,7 +160,32 @@ class KoraAssistantViewProvider {
                         const activeFile = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document)
                             ? vscode.window.activeTextEditor.document.fileName
                             : (this.currentAnalysis ? this.currentAnalysis.filePath : null);
+                        const goal = message.goal || 'Auto-Fix and refactor Kora invariants';
+                        const lower = goal.toLowerCase();
+                        const isAnalysisIntent = lower.includes('analyze') || lower.includes('analysis') || lower.includes('audit') || lower.includes('explain') || lower.includes('inspect') || lower.includes('check') || lower.includes('show') || lower.includes('what') || lower.includes('why') || lower.includes('how') || /حلل|فحص|اشرح|استكشف|طبقات|معمارية|ما هي|ما هو/.test(lower);
+
+                        if (isAnalysisIntent) {
+                            await this.answerKoraPrompt(goal, message.scope || 'workspace');
+                        } else {
+                            await this.planWorkspaceRefactor(message.targetPath || activeFile, goal, message.scope || 'workspace');
+                        }
+                    }
+                    break;
+                case 'executeRefactorPlan':
+                    {
+                        const activeFile = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document)
+                            ? vscode.window.activeTextEditor.document.fileName
+                            : null;
                         await this.triggerWorkspaceRefactor(message.targetPath || activeFile, message.goal || 'Auto-Fix and refactor Kora invariants');
+                    }
+                    break;
+                case 'newChat':
+                    {
+                        this.activeProposal = null;
+                        this.currentAnalysis = null;
+                        if (this.view) {
+                            this.view.webview.postMessage({ type: 'chatCleared' });
+                        }
                     }
                     break;
                 case 'acceptProposal':
@@ -433,6 +458,42 @@ class KoraAssistantViewProvider {
                     webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
                 }
             } catch (e) {}
+        }
+    }
+
+    async planWorkspaceRefactor(targetPath = null, goal = 'Auto-Fix and refactor Kora invariants', scope = 'workspace') {
+        const onProgress = (step, allSteps) => {
+            if (this.view) {
+                this.view.webview.postMessage({
+                    type: 'agentProgress',
+                    step: step,
+                    allSteps: allSteps
+                });
+            }
+        };
+
+        const targetFiles = (targetPath && scope === 'active') ? [targetPath] : [];
+        try {
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `Kora AI: Analyzing architecture and planning refactor...`,
+                cancellable: false
+            }, async () => {
+                const plan = await this.engine.planWorkspaceRefactor(goal, {
+                    targetFiles: targetFiles.length > 0 ? targetFiles : null,
+                    activeFilePath: targetPath,
+                    scope: scope
+                }, onProgress);
+
+                if (this.view) {
+                    this.view.webview.postMessage({
+                        type: 'refactorPlanCreated',
+                        plan: plan
+                    });
+                }
+            });
+        } catch (err) {
+            vscode.window.showErrorMessage(`Kora AI Plan Error: ${err.message}`);
         }
     }
 
@@ -800,8 +861,11 @@ class KoraAssistantViewProvider {
         };
 
         const lower = (prompt || '').toLowerCase();
-        if (scope === 'refactor' || lower.startsWith('/fix') || lower.startsWith('/refactor') || lower.includes('refactor file') || lower.includes('auto-fix')) {
-            await this.triggerWorkspaceRefactor(doc ? doc.fileName : null, prompt);
+        const isAnalysisIntent = lower.includes('analyze') || lower.includes('analysis') || lower.includes('audit') || lower.includes('explain') || lower.includes('inspect') || lower.includes('check') || lower.includes('show') || lower.includes('what') || lower.includes('why') || lower.includes('how') || /حلل|فحص|اشرح|استكشف|طبقات|معمارية|ما هي|ما هو/.test(lower);
+        const isExplicitRefactor = (lower.startsWith('/fix') || lower.startsWith('/refactor') || lower.startsWith('refactor ') || lower.startsWith('fix ') || scope === 'refactor') && !isAnalysisIntent;
+
+        if (isExplicitRefactor) {
+            await this.planWorkspaceRefactor(doc ? doc.fileName : null, prompt, scope);
             return;
         }
 

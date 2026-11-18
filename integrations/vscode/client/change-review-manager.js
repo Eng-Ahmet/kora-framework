@@ -113,8 +113,8 @@ class ChangeReviewManager {
         const proposal = this.getProposal(proposalId);
         if (!proposal) return null;
 
-        const normTarget = path.resolve(filePath);
-        const file = proposal.files.find(f => f.filePath === normTarget);
+        const normTarget = filePath ? path.resolve(filePath) : null;
+        const file = proposal.files.find(f => (normTarget && path.resolve(f.filePath) === normTarget) || f.filePath === filePath || f.fileName === path.basename(filePath || ''));
         if (file) {
             file.status = status;
         }
@@ -162,11 +162,18 @@ class ChangeReviewManager {
         const proposal = this.getProposal(proposalId);
         if (!proposal) throw new Error('No active proposal found to diff');
 
-        const normTarget = path.resolve(filePath);
-        const fileChange = proposal.files.find(f => f.filePath === normTarget);
-        if (!fileChange) throw new Error(`File ${filePath} not in proposal`);
+        const normTarget = filePath ? path.resolve(filePath) : null;
+        let fileChange = null;
+        if (normTarget) {
+            fileChange = proposal.files.find(f => (normTarget && path.resolve(f.filePath) === normTarget) || f.filePath === filePath || f.fileName === path.basename(filePath));
+        }
+        if (!fileChange && proposal.files.length > 0) {
+            fileChange = proposal.files[0];
+        }
+        if (!fileChange) throw new Error(`File ${filePath || ''} not in proposal`);
 
-        const fileName = path.basename(normTarget);
+        const resolvedTarget = fileChange.filePath ? path.resolve(fileChange.filePath) : normTarget;
+        const fileName = path.basename(resolvedTarget);
         const subDir = path.join(this.storagePath, proposal.id);
         if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
 
@@ -174,7 +181,7 @@ class ChangeReviewManager {
         fs.writeFileSync(proposedFilePath, fileChange.proposedContent, 'utf8');
 
         if (this.vscode && this.vscode.commands && this.vscode.Uri) {
-            const origUri = this.vscode.Uri.file(normTarget);
+            const origUri = this.vscode.Uri.file(resolvedTarget);
             const proposedUri = this.vscode.Uri.file(proposedFilePath);
             const title = `${fileName} (Current) <-> ${fileName} (AI Proposed Refactor)`;
             await this.vscode.commands.executeCommand('vscode.diff', origUri, proposedUri, title);
@@ -326,7 +333,9 @@ class ChangeReviewManager {
                 isDeleted: f.isDeleted,
                 additions: f.additions,
                 deletions: f.deletions,
-                codePreview: f.proposedContent.slice(0, 1000)
+                originalContent: f.originalContent || '',
+                proposedContent: f.proposedContent || '',
+                codePreview: f.proposedContent || ''
             }))
         };
     }

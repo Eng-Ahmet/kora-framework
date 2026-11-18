@@ -84,6 +84,89 @@
                         if (slug) cloneExample(slug);
                     }
                     break;
+                case 'openFile':
+                    if (targetEl) {
+                        const fp = targetEl.getAttribute('data-filepath');
+                        if (fp) openFile(fp);
+                    }
+                    break;
+                case 'previewDiff':
+                    if (targetEl) {
+                        const fp = targetEl.getAttribute('data-filepath');
+                        const pid = targetEl.getAttribute('data-proposal-id');
+                        previewDiff(fp, pid);
+                    }
+                    break;
+                case 'toggleInlineDiff':
+                    if (targetEl) {
+                        const targetId = targetEl.getAttribute('data-target');
+                        const el = document.getElementById(targetId);
+                        if (el) {
+                            const isHidden = el.style.display === 'none' || !el.style.display;
+                            el.style.display = isHidden ? 'block' : 'none';
+                            targetEl.innerText = isHidden ? 'Hide' : 'View';
+                        }
+                    }
+                    break;
+                case 'setFileStatus':
+                    if (targetEl) {
+                        const pid = targetEl.getAttribute('data-proposal-id');
+                        const fp = targetEl.getAttribute('data-filepath');
+                        const status = targetEl.getAttribute('data-status');
+                        if (pid && fp && status) setFileStatus(pid, fp, status);
+                    }
+                    break;
+                case 'acceptProposal':
+                    if (targetEl) {
+                        const pid = targetEl.getAttribute('data-proposal-id');
+                        if (pid) acceptProposal(pid);
+                    }
+                    break;
+                case 'rejectProposal':
+                    if (targetEl) {
+                        const pid = targetEl.getAttribute('data-proposal-id');
+                        if (pid) rejectProposal(pid);
+                    }
+                    break;
+                case 'copyText':
+                    if (targetEl) {
+                        const txt = targetEl.getAttribute('data-text');
+                        if (txt) copyText(txt);
+                    }
+                    break;
+                case 'newChat':
+                    startNewChat();
+                    break;
+                case 'executeRefactorPlan':
+                    if (targetEl) {
+                        const goal = targetEl.getAttribute('data-goal');
+                        const targetPath = targetEl.getAttribute('data-target-path');
+                        const planId = targetEl.getAttribute('data-plan-id');
+                        showAgentTracker('ExecutingPlan', 'Generating coordinated code refactoring and diffs...');
+                        vscode.postMessage({
+                            type: 'executeRefactorPlan',
+                            planId: planId,
+                            goal: goal,
+                            targetPath: targetPath
+                        });
+                        const planCard = document.getElementById('plan-' + planId);
+                        if (planCard) {
+                            const actBox = planCard.querySelector('.proposal-global-actions');
+                            if (actBox) actBox.innerHTML = '<div style="color: #60a5fa; font-weight: 600; text-align: center; grid-column: span 2;">Plan Approved - Generating Diffs...</div>';
+                        }
+                    }
+                    break;
+                case 'cancelRefactorPlan':
+                    if (targetEl) {
+                        const planId = targetEl.getAttribute('data-plan-id');
+                        const planCard = document.getElementById('plan-' + planId);
+                        if (planCard) {
+                            planCard.style.borderColor = '#ef4444';
+                            const actBox = planCard.querySelector('.proposal-global-actions');
+                            if (actBox) actBox.innerHTML = '<div style="color: #ef4444; font-weight: 600; text-align: center; grid-column: span 2;">Plan Cancelled by User. No files were modified.</div>';
+                        }
+                    }
+                    break;
                 default:
                     if (typeof window[actionName] === 'function') {
                         window[actionName]();
@@ -435,6 +518,7 @@
                     try {
                         if (item.type === 'message') appendMessage(item.role, item.text, false);
                         else if (item.type === 'proposal') renderProposalCard(item.proposal, false);
+                        else if (item.type === 'plan') renderRefactorPlanCard(item.plan, false);
                     } catch (e) {}
                 });
             }
@@ -989,6 +1073,173 @@
             if (tracker) tracker.style.display = 'none';
         }
 
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function generateInlineDiffHtml(origText, newText) {
+            if (!origText && !newText) {
+                return '<div class="diff-code-wrapper"><div class="diff-line diff-line-ctx">No content</div></div>';
+            }
+            if (!origText && newText) {
+                return '<div class="diff-code-wrapper">' +
+                    newText.split(/\r?\n/).map(l => '<div class="diff-line diff-line-add"><span class="diff-marker">+</span> ' + (escapeHtml(l) || '&nbsp;') + '</div>').join('') +
+                    '</div>';
+            }
+            if (origText === newText) {
+                return '<div class="diff-code-wrapper"><div class="diff-line diff-line-ctx">No text differences found between original and proposed content.</div></div>';
+            }
+
+            const origLines = (origText || '').split(/\r?\n/);
+            const newLines = (newText || '').split(/\r?\n/);
+
+            const maxLines = 400;
+            const oSample = origLines.slice(0, maxLines);
+            const nSample = newLines.slice(0, maxLines);
+
+            const dp = Array.from({ length: oSample.length + 1 }, () => new Int32Array(nSample.length + 1));
+            for (let i = 0; i < oSample.length; i++) {
+                for (let j = 0; j < nSample.length; j++) {
+                    if (oSample[i] === nSample[j]) {
+                        dp[i + 1][j + 1] = dp[i][j] + 1;
+                    } else {
+                        dp[i + 1][j + 1] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+                    }
+                }
+            }
+
+            const diffLines = [];
+            let i = oSample.length;
+            let j = nSample.length;
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && oSample[i - 1] === nSample[j - 1]) {
+                    diffLines.push({ type: 'ctx', text: oSample[i - 1] });
+                    i--;
+                    j--;
+                } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                    diffLines.push({ type: 'add', text: nSample[j - 1] });
+                    j--;
+                } else if (i > 0) {
+                    diffLines.push({ type: 'del', text: oSample[i - 1] });
+                    i--;
+                }
+            }
+            diffLines.reverse();
+
+            let html = '<div class="diff-code-wrapper">';
+            for (const item of diffLines) {
+                const esc = escapeHtml(item.text);
+                if (item.type === 'add') {
+                    html += '<div class="diff-line diff-line-add"><span class="diff-marker">+</span> ' + (esc || '&nbsp;') + '</div>';
+                } else if (item.type === 'del') {
+                    html += '<div class="diff-line diff-line-del"><span class="diff-marker">-</span> ' + (esc || '&nbsp;') + '</div>';
+                } else {
+                    html += '<div class="diff-line diff-line-ctx"><span class="diff-marker"> </span> ' + (esc || '&nbsp;') + '</div>';
+                }
+            }
+            if (origLines.length > maxLines || newLines.length > maxLines) {
+                html += '<div class="diff-line diff-line-ctx" style="opacity: 0.6;">... (truncated) Click Diff for full comparison</div>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function startNewChat() {
+            const history = document.getElementById('chat-history');
+            if (history) history.innerHTML = '';
+            removeTypingIndicator();
+            hideAgentTracker();
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput) {
+                chatInput.value = '';
+                chatInput.style.height = 'auto';
+            }
+            if (typeof attachedFiles !== 'undefined' && attachedFiles.clear) {
+                attachedFiles.clear();
+                if (typeof updateAttachedFilesBar === 'function') updateAttachedFilesBar();
+            }
+            const scopeSelect = document.getElementById('chat-scope');
+            if (scopeSelect) scopeSelect.value = 'workspace';
+
+            const s = vscode.getState() || {};
+            s.history = [];
+            s.proposals = [];
+            vscode.setState(s);
+
+            vscode.postMessage({ type: 'newChat' });
+        }
+
+        function renderRefactorPlanCard(plan, persist = true) {
+            removeTypingIndicator();
+            hideAgentTracker();
+
+            const history = document.getElementById('chat-history');
+            const scrollArea = document.getElementById('chat-scroll-area');
+
+            const card = document.createElement('div');
+            card.className = 'proposal-card plan-card';
+            card.id = 'plan-' + plan.id;
+
+            let stepRows = '';
+            if (plan.steps && plan.steps.length > 0) {
+                for (const s of plan.steps) {
+                    stepRows += '<div class="plan-file-item">' +
+                        '<div style="font-weight: 600; color: #38bdf8; margin-bottom: 2px;">' + escapeHtml(s.fileName) + '</div>' +
+                        '<ul style="margin: 0; padding-left: 16px; opacity: 0.9; font-size: 10px;">' +
+                            s.plannedChanges.map(c => '<li>' + escapeHtml(c) + '</li>').join('') +
+                        '</ul>' +
+                    '</div>';
+                }
+            } else {
+                stepRows = '<div style="font-size: 10.5px; opacity: 0.85; padding: 4px;">All checked components adhere to Kora clean architecture invariants. No modifications needed.</div>';
+            }
+
+            const actionButtons = (plan.steps && plan.steps.length > 0)
+                ? '<div class="proposal-global-actions">' +
+                      '<button class="btn-accept-all" data-action="executeRefactorPlan" data-plan-id="' + escapeHtml(plan.id) + '" data-goal="' + escapeHtml(plan.goal) + '" data-target-path="' + escapeHtml(plan.targetPath || '') + '">Approve & Execute Plan</button>' +
+                      '<button class="btn-reject-all" data-action="cancelRefactorPlan" data-plan-id="' + escapeHtml(plan.id) + '">Cancel Plan</button>' +
+                  '</div>'
+                : '';
+
+            card.innerHTML = '<div class="proposal-card-header">' +
+                '<span class="proposal-title" style="color: #60a5fa;">Proposed Refactoring Plan</span>' +
+                '<span class="badge" style="background: rgba(96, 165, 250, 0.2); color: #60a5fa;">' + plan.filesCount + ' files planned</span>' +
+            '</div>' +
+            '<div style="font-size: 11px; margin-bottom: 6px; line-height: 1.4;">' +
+                '<b>Goal:</b> ' + escapeHtml(plan.goal) + '<br/>' +
+                '<span style="opacity: 0.85;">' + escapeHtml(plan.understanding) + '</span>' +
+            '</div>' +
+            '<div style="font-size: 10px; font-weight: 600; opacity: 0.8; margin-bottom: 4px;">Planned Invariant Adjustments (Requires approval before changing code):</div>' +
+            '<div class="plan-steps-list" style="margin-bottom: 8px;">' + stepRows + '</div>' +
+            actionButtons;
+
+            const existingCard = document.getElementById('plan-' + plan.id);
+            if (existingCard) {
+                existingCard.replaceWith(card);
+            } else {
+                history.appendChild(card);
+            }
+            if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
+
+            if (persist) {
+                const s = vscode.getState() || { history: [] };
+                s.history = s.history || [];
+                const existingIndex = s.history.findIndex(item => item.type === 'plan' && item.plan && item.plan.id === plan.id);
+                if (existingIndex >= 0) {
+                    s.history[existingIndex] = { type: 'plan', plan };
+                } else {
+                    s.history.push({ type: 'plan', plan });
+                }
+                vscode.setState(s);
+            }
+        }
+
         function renderProposalCard(proposal, persist = true) {
             removeTypingIndicator();
             hideAgentTracker();
@@ -1001,37 +1252,59 @@
             card.id = 'card-' + proposal.id;
 
             let fileRows = '';
-            for (const f of proposal.files) {
+            for (let idx = 0; idx < (proposal.files || []).length; idx++) {
+                const f = proposal.files[idx];
                 const statusColor = f.status === 'accepted' ? '#10b981' : (f.status === 'rejected' ? '#ef4444' : '#38bdf8');
+                const diffTargetId = 'inline-diff-' + proposal.id + '-' + idx;
+                const diffContentHtml = generateInlineDiffHtml(f.originalContent, f.proposedContent || f.codePreview);
+
                 fileRows += '<div class="proposal-file-row">' +
-                    '<span class="proposal-file-name" onclick="openFile(\'' + f.filePath + '\')" title="Click to open ' + f.fileName + '">' + f.fileName + '</span>' +
+                    '<span class="proposal-file-name" data-action="openFile" data-filepath="' + escapeHtml(f.filePath) + '" title="Click to open ' + escapeHtml(f.fileName) + '">' + escapeHtml(f.fileName) + '</span>' +
                     '<span class="diff-stat-add">+' + f.additions + '</span>' +
                     '<span class="diff-stat-del">-' + f.deletions + '</span>' +
-                    '<span style="font-size: 9.5px; color:' + statusColor + ';">' + f.status + '</span>' +
-                    '<button class="btn-prop-sm" onclick="previewDiff(\'' + f.filePath + '\', \'' + proposal.id + '\')">Diff</button>' +
-                    '<button class="btn-prop-sm" style="color: #10b981;" onclick="setFileStatus(\'' + proposal.id + '\', \'' + f.filePath + '\', \'accepted\')" title="Accept this file">Accept</button>' +
-                    '<button class="btn-prop-sm" style="color: #ef4444;" onclick="setFileStatus(\'' + proposal.id + '\', \'' + f.filePath + '\', \'rejected\')" title="Reject this file">Reject</button>' +
+                    '<span style="font-size: 9.5px; color:' + statusColor + '; font-weight: 600;">' + escapeHtml(f.status) + '</span>' +
+                    '<button class="btn-prop-sm" data-action="previewDiff" data-filepath="' + escapeHtml(f.filePath) + '" data-proposal-id="' + escapeHtml(proposal.id) + '" title="Open native side-by-side diff in editor">Diff</button>' +
+                    '<button class="btn-prop-sm" data-action="toggleInlineDiff" data-target="' + diffTargetId + '" title="Inspect proposed changes inline">View</button>' +
+                    '<button class="btn-prop-sm" style="color: #10b981;" data-action="setFileStatus" data-proposal-id="' + escapeHtml(proposal.id) + '" data-filepath="' + escapeHtml(f.filePath) + '" data-status="accepted" title="Accept this file">Accept</button>' +
+                    '<button class="btn-prop-sm" style="color: #ef4444;" data-action="setFileStatus" data-proposal-id="' + escapeHtml(proposal.id) + '" data-filepath="' + escapeHtml(f.filePath) + '" data-status="rejected" title="Reject this file">Reject</button>' +
+                '</div>' +
+                '<div id="' + diffTargetId + '" class="inline-diff-container">' +
+                    '<div class="inline-diff-header">' +
+                        '<span>Diff for ' + escapeHtml(f.fileName) + '</span>' +
+                        '<button class="btn-prop-sm" data-action="previewDiff" data-filepath="' + escapeHtml(f.filePath) + '" data-proposal-id="' + escapeHtml(proposal.id) + '">Open Native Diff</button>' +
+                    '</div>' +
+                    diffContentHtml +
                 '</div>';
             }
 
             card.innerHTML = '<div class="proposal-card-header">' +
-                '<span class="proposal-title">' + proposal.title + '</span>' +
+                '<span class="proposal-title">' + escapeHtml(proposal.title) + '</span>' +
                 '<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">' + proposal.totalFiles + ' files</span>' +
             '</div>' +
-            '<div style="font-size: 10.5px; opacity: 0.85; margin-bottom: 6px;">Coordinated changes proposed across multiple project files. Click <b>Diff</b> to inspect native side-by-side comparison.</div>' +
+            '<div style="font-size: 10.5px; opacity: 0.85; margin-bottom: 6px;">Coordinated changes proposed across multiple project files. Click <b>Diff</b> for native comparison or <b>View</b> to inspect inline.</div>' +
             '<div class="proposal-files-list">' + fileRows + '</div>' +
             '<div class="proposal-global-actions">' +
-                '<button class="btn-accept-all" onclick="acceptProposal(\'' + proposal.id + '\')">Accept All Changes</button>' +
-                '<button class="btn-reject-all" onclick="rejectProposal(\'' + proposal.id + '\')">Reject All</button>' +
+                '<button class="btn-accept-all" data-action="acceptProposal" data-proposal-id="' + escapeHtml(proposal.id) + '">Accept All Changes</button>' +
+                '<button class="btn-reject-all" data-action="rejectProposal" data-proposal-id="' + escapeHtml(proposal.id) + '">Reject All</button>' +
             '</div>';
 
-            history.appendChild(card);
+            const existingCard = document.getElementById('card-' + proposal.id);
+            if (existingCard) {
+                existingCard.replaceWith(card);
+            } else {
+                history.appendChild(card);
+            }
             if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
 
             if (persist) {
                 const s = vscode.getState() || { history: [] };
                 s.history = s.history || [];
-                s.history.push({ type: 'proposal', proposal });
+                const existingIndex = s.history.findIndex(item => item.type === 'proposal' && item.proposal && item.proposal.id === proposal.id);
+                if (existingIndex >= 0) {
+                    s.history[existingIndex] = { type: 'proposal', proposal };
+                } else {
+                    s.history.push({ type: 'proposal', proposal });
+                }
                 vscode.setState(s);
             }
         }
@@ -1218,6 +1491,15 @@
                 }
             } else if (msg.type === 'availableContextOptions') {
                 availableContextFiles = msg.files || [];
+            } else if (msg.type === 'refactorPlanCreated') {
+                isGenerating = false;
+                const btnSend = document.getElementById('btn-send');
+                const btnStop = document.getElementById('btn-stop');
+                if (btnSend) btnSend.disabled = false;
+                if (btnStop) btnStop.style.display = 'none';
+                renderRefactorPlanCard(msg.plan, true);
+            } else if (msg.type === 'chatCleared') {
+                // Chat was cleared by startNewChat
             } else if (msg.type === 'proposalCreated') {
                 isGenerating = false;
                 const btnSend = document.getElementById('btn-send');
@@ -1495,7 +1777,7 @@
                         banner.style.display = 'block';
                         banner.style.background = 'rgba(239, 68, 68, 0.15)';
                         banner.style.borderColor = '#ef4444';
-                        bannerText.innerHTML = '<b>0 Ollama models found!</b> Run: <code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px;">ollama pull qwen2.5-coder:7b</code> <button class="btn-prop-sm" onclick="copyText(\'ollama pull qwen2.5-coder:7b\')">Copy</button>';
+                        bannerText.innerHTML = '<b>0 Ollama models found!</b> Run: <code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px;">ollama pull qwen2.5-coder:7b</code> <button class="btn-prop-sm" data-action="copyText" data-text="ollama pull qwen2.5-coder:7b">Copy</button>';
                     }
                     if (pill) pill.innerText = '0 Models (Ollama)';
                 } else if (msg.status === 'error') {
