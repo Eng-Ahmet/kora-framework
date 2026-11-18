@@ -3,6 +3,20 @@ const path = require('path');
 const fs = require('fs');
 const { EXAMPLES_CATALOG, getNonce, getWebviewHtml } = require('./kora-webview-html');
 
+function isCloudEndpoint(urlStr) {
+    if (!urlStr || typeof urlStr !== 'string') return false;
+    try {
+        const raw = urlStr.trim();
+        const fullUrl = (raw.startsWith('http://') || raw.startsWith('https://')) ? raw : ('http://' + raw);
+        const parsed = new URL(fullUrl);
+        const host = parsed.hostname.toLowerCase();
+        const cloudDomains = ['azure.com', 'openai.com', 'anthropic.com', 'googleapis.com', 'github.com'];
+        return cloudDomains.some(d => host === d || host.endsWith('.' + d));
+    } catch (e) {
+        return false;
+    }
+}
+
 /**
  * Kora Assistant Webview View Provider
  * Manages the AI Copilot side panel, chat sessions, diff reviews, and compiler diagnostics.
@@ -1109,8 +1123,7 @@ class KoraAssistantViewProvider {
             
             let rawEndpoint = config.get('endpoint', '');
             if (provider === 'ollama' && rawEndpoint) {
-                const lower = rawEndpoint.toLowerCase();
-                if (lower.includes('azure.com') || lower.includes('openai.com') || lower.includes('anthropic.com') || lower.includes('googleapis.com')) {
+                if (isCloudEndpoint(rawEndpoint)) {
                     rawEndpoint = '';
                 }
             }

@@ -419,6 +419,20 @@
         let mentionSelectedIndex = 0;
         let activeMentionFilter = '';
 
+        function isCloudEndpoint(urlStr) {
+            if (!urlStr || typeof urlStr !== 'string') return false;
+            try {
+                const raw = urlStr.trim();
+                const fullUrl = (raw.startsWith('http://') || raw.startsWith('https://')) ? raw : ('http://' + raw);
+                const parsed = new URL(fullUrl);
+                const host = parsed.hostname.toLowerCase();
+                const cloudDomains = ['azure.com', 'openai.com', 'anthropic.com', 'googleapis.com', 'github.com'];
+                return cloudDomains.some(d => host === d || host.endsWith('.' + d));
+            } catch (e) {
+                return false;
+            }
+        }
+
         // Drag & Drop File and Folder Attachment Handler
         const dropOverlay = document.getElementById('drop-overlay');
         const attachedBar = document.getElementById('attached-files-bar');
@@ -1056,8 +1070,7 @@
                 const inpEnd = document.getElementById('cfg-input-endpoint');
                 const candidate = (olEnd && olEnd.value.trim()) || (inpEnd && inpEnd.value.trim());
                 if (candidate) {
-                    const low = candidate.toLowerCase();
-                    if (!low.includes('azure.com') && !low.includes('openai.com') && !low.includes('anthropic.com') && !low.includes('googleapis.com')) {
+                    if (!isCloudEndpoint(candidate)) {
                         endpoint = candidate;
                     }
                 }
@@ -1149,8 +1162,7 @@
                     modelInput.value = window.koraLastDetectedOllamaModel || 'qwen2.5-coder:7b';
                 }
                 if (endInput) {
-                    const cur = (endInput.value || '').toLowerCase();
-                    if (!endInput.value || cur.includes('azure.com') || cur.includes('openai.com') || cur.includes('googleapis.com')) {
+                    if (!endInput.value || isCloudEndpoint(endInput.value)) {
                         endInput.value = 'http://localhost:11434';
                     }
                 }
@@ -1641,16 +1653,16 @@
 
         function formatInlineMarkdown(str) {
             if (!str) return '';
-            let s = str
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
+            let s = escapeHtml(str);
 
             s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
             s = s.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #F3F4F6;">$1</strong>');
             s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
             s = s.replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 10.5px; color: #FBBF24;">$1</code>');
-            s = s.replace(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/g, '<span class="file-ref-pill" data-path="$2" title="Click to open">$1</span>');
+            s = s.replace(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/g, (match, label, p) => {
+                const safePath = escapeHtml(encodeURI(p.replace(/&amp;/g, '&')));
+                return `<span class="file-ref-pill" data-path="${safePath}" title="Click to open">${label}</span>`;
+            });
 
             return s;
         }
@@ -1882,15 +1894,28 @@
                 const container = document.getElementById('audit-container');
                 const text = document.getElementById('audit-text');
                 container.style.display = 'block';
-                const audit = msg.audit;
+                const audit = msg.audit || {};
+                text.textContent = '';
                 if (audit.passed) {
-                    text.innerHTML = '<span style="color: #10B981; font-weight: 600;">100% Rule Compliance:</span> No violations of .agent/rules found.';
+                    const okSpan = document.createElement('span');
+                    okSpan.style.color = '#10B981';
+                    okSpan.style.fontWeight = '600';
+                    okSpan.textContent = '100% Rule Compliance: ';
+                    text.appendChild(okSpan);
+                    text.appendChild(document.createTextNode('No violations of .agent/rules found.'));
                 } else {
-                    let out = '<span style="color: #ef4444; font-weight: 600;">' + audit.violations + ' Rule Violation(s):</span><br>';
-                    audit.findings.forEach(f => {
-                        out += '<div style="margin-top: 4px;">- <b>[' + f.code + '] ' + f.rule + '</b>: ' + f.message + '<br><i>Fix: ' + f.fix + '</i></div>';
+                    const errSpan = document.createElement('span');
+                    errSpan.style.color = '#ef4444';
+                    errSpan.style.fontWeight = '600';
+                    errSpan.textContent = (audit.violations || 0) + ' Rule Violation(s):';
+                    text.appendChild(errSpan);
+                    text.appendChild(document.createElement('br'));
+                    (audit.findings || []).forEach(f => {
+                        const row = document.createElement('div');
+                        row.style.marginTop = '4px';
+                        row.textContent = `- [${f.code || ''}] ${f.rule || ''}: ${f.message || ''} (Fix: ${f.fix || ''})`;
+                        text.appendChild(row);
                     });
-                    text.innerHTML = out;
                 }
             } else if (msg.type === 'explanationResult') {
                 const container = document.getElementById('explanation-container');
@@ -1997,8 +2022,7 @@
                     const inpEnd = document.getElementById('cfg-input-endpoint');
                     if (olEnd) olEnd.value = msg.endpoint;
                     if (inpEnd) {
-                        const cur = (inpEnd.value || '').toLowerCase();
-                        if (!inpEnd.value || cur.includes('azure.com') || cur.includes('openai.com') || cur.includes('googleapis.com')) {
+                        if (!inpEnd.value || isCloudEndpoint(inpEnd.value)) {
                             inpEnd.value = msg.endpoint;
                         }
                     }
@@ -2029,7 +2053,23 @@
                         banner.style.display = 'block';
                         banner.style.background = 'rgba(239, 68, 68, 0.15)';
                         banner.style.borderColor = '#ef4444';
-                        bannerText.innerHTML = '<b>0 Ollama models found!</b> Run: <code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px;">ollama pull qwen2.5-coder:7b</code> <button class="btn-prop-sm" data-action="copyText" data-text="ollama pull qwen2.5-coder:7b">Copy</button>';
+                        bannerText.textContent = '';
+                        const bTag = document.createElement('b');
+                        bTag.textContent = '0 Ollama models found! ';
+                        bannerText.appendChild(bTag);
+                        bannerText.appendChild(document.createTextNode('Run: '));
+                        const codeTag = document.createElement('code');
+                        codeTag.style.background = 'rgba(0,0,0,0.3)';
+                        codeTag.style.padding = '2px 4px';
+                        codeTag.style.borderRadius = '3px';
+                        codeTag.textContent = 'ollama pull qwen2.5-coder:7b ';
+                        bannerText.appendChild(codeTag);
+                        const copyBtn = document.createElement('button');
+                        copyBtn.className = 'btn-prop-sm';
+                        copyBtn.setAttribute('data-action', 'copyText');
+                        copyBtn.setAttribute('data-text', 'ollama pull qwen2.5-coder:7b');
+                        copyBtn.textContent = 'Copy';
+                        bannerText.appendChild(copyBtn);
                     }
                     if (pill) pill.innerText = '0 Models (Ollama)';
                 } else if (msg.status === 'error') {
@@ -2037,7 +2077,12 @@
                         banner.style.display = 'block';
                         banner.style.background = 'rgba(239, 68, 68, 0.15)';
                         banner.style.borderColor = '#ef4444';
-                        bannerText.innerHTML = '<b>Ollama Error:</b> ' + (msg.resolution ? msg.resolution.message : 'Could not connect to Ollama');
+                        bannerText.textContent = '';
+                        const bTag = document.createElement('b');
+                        bTag.textContent = 'Ollama Error: ';
+                        bannerText.appendChild(bTag);
+                        const errMsg = (msg.resolution && msg.resolution.message) ? msg.resolution.message : 'Could not connect to Ollama';
+                        bannerText.appendChild(document.createTextNode(errMsg));
                     }
                     if (pill) pill.innerText = 'Ollama Error';
                 } else {

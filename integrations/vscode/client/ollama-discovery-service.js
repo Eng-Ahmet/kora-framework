@@ -85,6 +85,20 @@ class OllamaDiscoveryService {
         });
     }
 
+    _isCloudEndpoint(urlStr) {
+        if (!urlStr || typeof urlStr !== 'string') return false;
+        try {
+            const raw = urlStr.trim();
+            const fullUrl = (raw.startsWith('http://') || raw.startsWith('https://')) ? raw : ('http://' + raw);
+            const parsed = new URL(fullUrl);
+            const host = parsed.hostname.toLowerCase();
+            const cloudDomains = ['azure.com', 'openai.com', 'anthropic.com', 'googleapis.com', 'github.com'];
+            return cloudDomains.some(d => host === d || host.endsWith('.' + d));
+        } catch (e) {
+            return false;
+        }
+    }
+
     /**
      * Auto-detects an active Ollama endpoint across preferred URL, environment variables,
      * and standard local addresses (127.0.0.1, localhost, 0.0.0.0).
@@ -95,11 +109,7 @@ class OllamaDiscoveryService {
         // 1. If preferredEndpoint provided and is not an external cloud URL
         if (preferredEndpoint && typeof preferredEndpoint === 'string' && preferredEndpoint.trim()) {
             const raw = preferredEndpoint.trim();
-            const lower = raw.toLowerCase();
-            const isCloudUrl = lower.includes('azure.com') || lower.includes('openai.com') ||
-                               lower.includes('anthropic.com') || lower.includes('googleapis.com') ||
-                               lower.includes('github.com');
-            if (!isCloudUrl) {
+            if (!this._isCloudEndpoint(raw)) {
                 candidates.push(this._normalizeEndpoint(raw));
             }
         }
