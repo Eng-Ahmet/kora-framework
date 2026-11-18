@@ -21,6 +21,8 @@ class KoraAssistantViewProvider {
         this.view = webviewView;
         webviewView.webview.options = {
             enableScripts: true,
+            enableCommandUris: true,
+            enableForms: true,
             localResourceRoots: [this.extensionUri]
         };
 

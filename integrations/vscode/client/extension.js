@@ -207,7 +207,7 @@ function activate(context) {
     // 3. Register Kora AI Assistant & Copilot Webview View Provider
     assistantViewProvider = new KoraAssistantViewProvider(context.extensionUri, copilotEngine);
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider('kora.assistantView', assistantViewProvider)
+        vscode.window.registerWebviewViewProvider('kora.assistantView', assistantViewProvider, { webviewOptions: { retainContextWhenHidden: true } })
     );
 
     // 4. Intelligent Autocompletion Provider

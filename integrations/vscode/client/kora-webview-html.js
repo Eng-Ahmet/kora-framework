@@ -65,7 +65,7 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource};">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob: vscode-webview:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob: vscode-webview:; style-src * 'unsafe-inline'; img-src * data: https: vscode-webview:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kora AI Agent</title>
 <style>
@@ -1274,7 +1274,7 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
     </div>
 
     
-    <script nonce="${nonce}">
+    <script>
 
         function dispatchAction(actionName, targetEl, event) {
             if (!actionName) return;

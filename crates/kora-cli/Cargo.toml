@@ -3,6 +3,8 @@ name = "kora-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "kora"
@@ -18,18 +20,9 @@ kora-hir.workspace = true
 kora-ty.workspace = true
 kora-ownership.workspace = true
 kora-codegen.workspace = true
-kora-runtime.workspace = true
-kora-http.workspace = true
-kora-orm.workspace = true
-kora-auth.workspace = true
-kora-queue.workspace = true
-kora-realtime.workspace = true
-kora-observability.workspace = true
 kora-pkg.workspace = true
 kora-fmt.workspace = true
 kora-lsp.workspace = true
-kora-testing.workspace = true
-kora-profiler.workspace = true
 kora-bench.workspace = true
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

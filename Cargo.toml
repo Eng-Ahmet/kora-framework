@@ -40,6 +40,11 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+[workspace.lints.cargo]
+unused_dependencies = "allow"
+unused_workspace_dependencies = "allow"
+unused_workspace_package_fields = "allow"
+
 [workspace.dependencies]
 kora-span = { path = "crates/kora-span" }
 kora-diagnostics = { path = "crates/kora-diagnostics" }
