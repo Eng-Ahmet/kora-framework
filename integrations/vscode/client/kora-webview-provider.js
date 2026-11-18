@@ -100,6 +100,7 @@ class KoraAssistantViewProvider {
         this.currentAnalysis = null;
         this.currentDiagnostics = [];
         this.activeProposal = null;
+        this.activeAttachments = new Map();
     }
 
     resolveWebviewView(webviewView, context, token) {
@@ -183,8 +184,10 @@ class KoraAssistantViewProvider {
                     {
                         this.activeProposal = null;
                         this.currentAnalysis = null;
+                        this.activeAttachments.clear();
                         if (this.view) {
                             this.view.webview.postMessage({ type: 'chatCleared' });
+                            this.view.webview.postMessage({ type: 'attachmentsResolved', attachments: [] });
                         }
                     }
                     break;
@@ -204,6 +207,29 @@ class KoraAssistantViewProvider {
                         vscode.window.showErrorMessage(`Failed to open visual diff: ${e.message}`);
                     }
                     break;
+                case 'resolveDroppedAttachments':
+                    await this.handleResolveDroppedAttachments(message.rawPaths, message.droppedItems);
+                    break;
+                case 'removeAttachment':
+                    if (message.id) {
+                        this.activeAttachments.delete(message.id);
+                        if (this.view) {
+                            this.view.webview.postMessage({
+                                type: 'attachmentsResolved',
+                                attachments: Array.from(this.activeAttachments.values())
+                            });
+                        }
+                    }
+                    break;
+                case 'clearAttachments':
+                    this.activeAttachments.clear();
+                    if (this.view) {
+                        this.view.webview.postMessage({
+                            type: 'attachmentsResolved',
+                            attachments: []
+                        });
+                    }
+                    break;
                 case 'selectFilesToAttach':
                     try {
                         const uris = await vscode.window.showOpenDialog({
@@ -214,12 +240,7 @@ class KoraAssistantViewProvider {
                         });
                         if (uris && uris.length > 0) {
                             const paths = uris.map(u => u.fsPath);
-                            if (this.view) {
-                                this.view.webview.postMessage({
-                                    type: 'filesAttached',
-                                    paths: paths
-                                });
-                            }
+                            await this.handleResolveDroppedAttachments(paths, []);
                         }
                     } catch (e) {}
                     break;
@@ -377,20 +398,45 @@ class KoraAssistantViewProvider {
                         const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
                             ? vscode.workspace.workspaceFolders[0].uri.fsPath
                             : process.cwd();
-                        await this.engine.workspaceEngine.discoverContext(wsRoot, '');
+                        await this.engine.workspaceEngine.scanWorkspace([wsRoot]);
                         const files = [];
                         for (const [fPath, meta] of this.engine.workspaceEngine.indexedFiles) {
                             files.push({
                                 label: meta.relPath,
                                 path: fPath,
-                                role: meta.role
+                                role: meta.role || 'file',
+                                isDirectory: false
                             });
                         }
+                        const folders = [];
+                        for (const [folderPath, meta] of this.engine.workspaceEngine.indexedFolders) {
+                            folders.push({
+                                label: meta.relPath,
+                                path: folderPath,
+                                role: 'folder',
+                                isDirectory: true
+                            });
+                        }
+                        const activeDocName = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document)
+                            ? path.basename(vscode.window.activeTextEditor.document.fileName)
+                            : '';
                         if (this.view) {
                             this.view.webview.postMessage({
                                 type: 'availableContextOptions',
-                                files: files
+                                files: files,
+                                folders: folders,
+                                activeFile: activeDocName
                             });
+                        }
+                    }
+                    break;
+                case 'attachActiveFile':
+                    {
+                        const editor = vscode.window.activeTextEditor;
+                        if (editor && editor.document && editor.document.fileName) {
+                            await this.handleResolveDroppedAttachments([editor.document.fileName], []);
+                        } else {
+                            vscode.window.showWarningMessage('No active editor file is currently open to attach.');
                         }
                     }
                     break;
@@ -758,7 +804,10 @@ class KoraAssistantViewProvider {
             const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
                 ? vscode.workspace.workspaceFolders[0].uri.fsPath
                 : process.cwd();
-            const context = await this.engine.workspaceEngine.discoverContext(wsRoot, prompt);
+            if (this.engine.workspaceEngine.indexedFiles.size === 0) {
+                await this.engine.workspaceEngine.scanWorkspace([wsRoot]);
+            }
+            const context = this.engine.workspaceEngine.buildContextForQuery(prompt, { workspaceRoots: [wsRoot] });
             attachments.push({
                 type: 'workspace',
                 title: `@workspace (${this.engine.workspaceEngine.indexedFiles.size} indexed files)`,
@@ -814,6 +863,135 @@ class KoraAssistantViewProvider {
         return { mentions, attachments };
     }
 
+    async handleResolveDroppedAttachments(rawPaths = [], droppedItems = []) {
+        const wsRoot = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0)
+            ? vscode.workspace.workspaceFolders[0].uri.fsPath
+            : process.cwd();
+
+        for (const raw of (rawPaths || [])) {
+            if (!raw || typeof raw !== 'string') continue;
+            let clean = raw.trim().replace(/^file:\/\//, '');
+            try {
+                clean = decodeURIComponent(clean);
+            } catch (e) {}
+
+            const fullPath = path.isAbsolute(clean) ? clean : path.resolve(wsRoot, clean);
+            if (!fs.existsSync(fullPath)) continue;
+
+            // Deduplicate if already attached by path
+            const existing = Array.from(this.activeAttachments.values()).find(a => a.path === fullPath);
+            if (existing) continue;
+
+            const stat = fs.statSync(fullPath);
+            const baseName = path.basename(fullPath);
+            const relPath = path.relative(wsRoot, fullPath) || baseName;
+
+            if (stat.isDirectory()) {
+                const filesList = [];
+                this._scanDirectoryRecursive(fullPath, fullPath, filesList, 80);
+                const treeStr = this._buildDirectoryTreeString(fullPath, filesList.slice(0, 40));
+
+                let keyContents = '';
+                let readCount = 0;
+                for (const f of filesList) {
+                    if (readCount >= 5) break;
+                    if (f.ext === '.kora' || f.ext === '.kr' || f.name === 'kora.toml' || f.ext === '.json' || f.ext === '.md') {
+                        try {
+                            const content = fs.readFileSync(f.fullPath, 'utf8');
+                            keyContents += `\n--- File: ${f.relPath} ---\n${content.slice(0, 2000)}\n`;
+                            readCount++;
+                        } catch (e) {}
+                    }
+                }
+
+                const id = 'folder_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+                this.activeAttachments.set(id, {
+                    id,
+                    type: 'folder',
+                    isDirectory: true,
+                    name: baseName,
+                    relPath: relPath,
+                    path: fullPath,
+                    fileCount: filesList.length,
+                    tree: treeStr,
+                    summary: `Directory ${relPath} containing ${filesList.length} file(s)`,
+                    content: keyContents
+                });
+            } else if (stat.isFile()) {
+                let content = '';
+                try {
+                    content = fs.readFileSync(fullPath, 'utf8');
+                } catch (e) {}
+                const id = 'file_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+                this.activeAttachments.set(id, {
+                    id,
+                    type: 'file',
+                    isDirectory: false,
+                    name: baseName,
+                    relPath: relPath,
+                    path: fullPath,
+                    size: stat.size,
+                    lineCount: content.split('\n').length,
+                    content: content.slice(0, 10000),
+                    summary: `File ${relPath} (${(stat.size / 1024).toFixed(1)} KB, ${content.split('\n').length} lines)`
+                });
+            }
+        }
+
+        for (const item of (droppedItems || [])) {
+            if (!item || !item.name) continue;
+            const id = 'drop_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            this.activeAttachments.set(id, {
+                id,
+                type: item.isDirectory ? 'folder' : 'file',
+                isDirectory: Boolean(item.isDirectory),
+                name: item.name,
+                path: item.path || item.name,
+                size: item.size || 0,
+                content: (item.content || '').slice(0, 10000),
+                summary: `${item.isDirectory ? 'Directory' : 'File'} ${item.name}`
+            });
+        }
+
+        if (this.view) {
+            this.view.webview.postMessage({
+                type: 'attachmentsResolved',
+                attachments: Array.from(this.activeAttachments.values())
+            });
+        }
+    }
+
+    _scanDirectoryRecursive(currentDir, rootDir, results, maxFiles = 80) {
+        if (results.length >= maxFiles) return;
+        try {
+            const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (results.length >= maxFiles) break;
+                if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'target') continue;
+                const fullPath = path.join(currentDir, entry.name);
+                const relPath = path.relative(rootDir, fullPath);
+                if (entry.isDirectory()) {
+                    this._scanDirectoryRecursive(fullPath, rootDir, results, maxFiles);
+                } else if (entry.isFile()) {
+                    results.push({
+                        name: entry.name,
+                        fullPath,
+                        relPath,
+                        ext: path.extname(entry.name).toLowerCase()
+                    });
+                }
+            }
+        } catch (e) {}
+    }
+
+    _buildDirectoryTreeString(rootDir, filesList) {
+        const lines = [`${path.basename(rootDir)}/`];
+        for (const f of filesList) {
+            lines.push(`  ├── ${f.relPath}`);
+        }
+        return lines.join('\n');
+    }
+
     async answerKoraPrompt(prompt, scope = 'workspace') {
         const doc = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document : null;
         const config = vscode.workspace.getConfiguration('kora.copilot');
@@ -860,9 +1038,13 @@ class KoraAssistantViewProvider {
             }
         };
 
+        const intent = this.engine.intentEngine.classify(prompt || '', {
+            attachments: Array.from(this.activeAttachments.values()),
+            activeDoc: doc
+        });
+
         const lower = (prompt || '').toLowerCase();
-        const isAnalysisIntent = lower.includes('analyze') || lower.includes('analysis') || lower.includes('audit') || lower.includes('explain') || lower.includes('inspect') || lower.includes('check') || lower.includes('show') || lower.includes('what') || lower.includes('why') || lower.includes('how') || /حلل|فحص|اشرح|استكشف|طبقات|معمارية|ما هي|ما هو/.test(lower);
-        const isExplicitRefactor = (lower.startsWith('/fix') || lower.startsWith('/refactor') || lower.startsWith('refactor ') || lower.startsWith('fix ') || scope === 'refactor') && !isAnalysisIntent;
+        const isExplicitRefactor = (lower.startsWith('/fix') || lower.startsWith('/refactor') || scope === 'refactor') && !intent.isReadOnly;
 
         if (isExplicitRefactor) {
             await this.planWorkspaceRefactor(doc ? doc.fileName : null, prompt, scope);
@@ -891,7 +1073,8 @@ class KoraAssistantViewProvider {
             const answer = await this.engine.answerPrompt(enrichedPrompt, doc, runtimeConfig, {
                 scope,
                 onProgress,
-                onChunk
+                onChunk,
+                attachments: Array.from(this.activeAttachments.values())
             });
 
             if (this.isGenerationStopped) return;

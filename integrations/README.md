@@ -73,6 +73,13 @@ mkdir -p ~/.vscode/extensions/kora-lang
 cp -r integrations/vscode/* ~/.vscode/extensions/kora-lang/
 ```
 
+#### Native Explorer-to-AI-Agent Drag & Drop:
+The Kora AI Assistant features true native drag-and-drop integration directly from the VS Code / Antigravity Explorer:
+- **Direct Explorer Drops**: Drag any single file, multiple files, or entire folders directly from the workspace Explorer or Editor tabs into the AI conversation window.
+- **Immediate Context Indexing**: The agent automatically resolves workspace-relative paths, extracts line counts and symbols, and recursively scans folder hierarchies (with automated limits for binary and sensitive files).
+- **Interactive Multi-Resource Context**: Dropped items appear as interactive pills with real-time removal buttons (`×`), persistent context across follow-up queries, and full awareness across both external LLMs and the embedded offline reasoning engine.
+- **Context Menu Integration**: You can also right-click any file or folder in the Explorer and choose **`Kora: Attach to AI Chat`** for one-click attachment.
+
 ### Vim & Neovim
 Copy the syntax and filetype detection files to your runtime directory:
 ```bash

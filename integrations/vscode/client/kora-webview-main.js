@@ -134,6 +134,9 @@
                         if (txt) copyText(txt);
                     }
                     break;
+                case 'attachActiveFile':
+                    vscode.postMessage({ type: 'attachActiveFile' });
+                    break;
                 case 'newChat':
                     startNewChat();
                     break;
@@ -411,45 +414,53 @@
         let isGenerating = false;
         let lastSentPrompt = '';
         let availableContextFiles = [];
+        let availableContextFolders = [];
+        let currentActiveEditorFileName = '';
         let mentionSelectedIndex = 0;
         let activeMentionFilter = '';
 
         // Drag & Drop File and Folder Attachment Handler
         const dropOverlay = document.getElementById('drop-overlay');
         const attachedBar = document.getElementById('attached-files-bar');
-        let attachedPaths = [];
+        let currentAttachments = [];
 
         function renderAttachedPills() {
             if (!attachedBar) return;
-            if (attachedPaths.length === 0) {
+            if (!currentAttachments || currentAttachments.length === 0) {
                 attachedBar.style.display = 'none';
                 attachedBar.innerHTML = '';
                 return;
             }
             attachedBar.style.display = 'flex';
             attachedBar.innerHTML = '';
-            attachedPaths.forEach((itemPath, index) => {
+
+            currentAttachments.forEach((att) => {
                 const pill = document.createElement('span');
                 pill.className = 'attached-file-pill';
-                const isFolder = itemPath.endsWith('/') || !itemPath.includes('.');
-                const icon = isFolder ? '[Folder]' : '[File]';
-                const shortName = itemPath.split(/[/\\]/).filter(Boolean).pop() || itemPath;
-                pill.innerHTML = '<span>' + icon + ' ' + shortName + '</span><span class="attached-file-remove" data-idx="' + index + '" title="Remove attachment">x</span>';
+                const isFolder = att.type === 'folder' || att.isDirectory;
+                const icon = isFolder ? '📁' : '📄';
+                const label = isFolder 
+                    ? `${icon} ${escapeHtml(att.name)} (${att.fileCount || 0} files)`
+                    : `${icon} ${escapeHtml(att.name)}`;
+                pill.innerHTML = `<span>${label}</span><span class="attached-file-remove" data-id="${escapeHtml(att.id)}" title="Remove attachment">×</span>`;
                 pill.querySelector('.attached-file-remove').onclick = (e) => {
                     e.stopPropagation();
-                    attachedPaths.splice(index, 1);
-                    renderAttachedPills();
+                    vscode.postMessage({ type: 'removeAttachment', id: att.id });
                 };
                 attachedBar.appendChild(pill);
             });
-        }
 
-        function attachFileOrFolder(rawPath) {
-            if (!rawPath) return;
-            const clean = rawPath.trim().replace(/^file:\/\//, '');
-            if (!attachedPaths.includes(clean)) {
-                attachedPaths.push(clean);
-                renderAttachedPills();
+            if (currentAttachments.length > 1) {
+                const clearBtn = document.createElement('span');
+                clearBtn.className = 'attached-file-pill';
+                clearBtn.style.background = 'rgba(239, 68, 68, 0.2)';
+                clearBtn.style.color = '#f87171';
+                clearBtn.style.cursor = 'pointer';
+                clearBtn.textContent = 'Clear All';
+                clearBtn.onclick = () => {
+                    vscode.postMessage({ type: 'clearAttachments' });
+                };
+                attachedBar.appendChild(clearBtn);
             }
         }
 
@@ -457,53 +468,202 @@
             vscode.postMessage({ type: 'selectFilesToAttach' });
         }
 
+        async function readFileAsText(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result || '');
+                reader.onerror = () => resolve('');
+                reader.readAsText(file.slice(0, 128 * 1024));
+            });
+        }
+
+        async function traverseDirectoryEntry(dirEntry, results, maxFiles = 60) {
+            if (!dirEntry || results.length >= maxFiles) return;
+            const reader = dirEntry.createReader();
+            const readEntries = () => new Promise(resolve => reader.readEntries(resolve, () => resolve([])));
+            const entries = await readEntries();
+            for (const entry of entries) {
+                if (results.length >= maxFiles) break;
+                if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'target') continue;
+                if (entry.isFile) {
+                    await new Promise(resolve => {
+                        entry.file(async file => {
+                            if (file.size <= 256 * 1024) {
+                                const content = await readFileAsText(file);
+                                results.push({
+                                    name: file.name,
+                                    path: entry.fullPath || file.name,
+                                    size: file.size,
+                                    content: content,
+                                    isDirectory: false
+                                });
+                            }
+                            resolve();
+                        }, () => resolve());
+                    });
+                } else if (entry.isDirectory) {
+                    await traverseDirectoryEntry(entry, results, maxFiles);
+                }
+            }
+        }
+
         let dragCounter = 0;
-        window.addEventListener('dragenter', (e) => {
+
+        function handleDragEnter(e) {
             e.preventDefault();
             dragCounter++;
+            if (e.dataTransfer) {
+                e.dataTransfer.dropEffect = 'copy';
+            }
             if (dropOverlay) dropOverlay.style.display = 'flex';
-        });
+        }
 
-        window.addEventListener('dragleave', (e) => {
+        function handleDragOver(e) {
+            e.preventDefault();
+            if (e.dataTransfer) {
+                e.dataTransfer.dropEffect = 'copy';
+            }
+            if (dropOverlay && dropOverlay.style.display === 'none') {
+                dropOverlay.style.display = 'flex';
+            }
+        }
+
+        function handleDragLeave(e) {
             e.preventDefault();
             dragCounter--;
             if (dragCounter <= 0 && dropOverlay) {
                 dropOverlay.style.display = 'none';
                 dragCounter = 0;
             }
-        });
+        }
 
-        window.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-            if (dropOverlay && dropOverlay.style.display === 'none') {
-                dropOverlay.style.display = 'flex';
-            }
-        });
+        async function processDataTransfer(dataTransfer) {
+            if (!dataTransfer) return;
+            const rawPaths = [];
+            const droppedItems = [];
 
-        window.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dragCounter = 0;
-            if (dropOverlay) dropOverlay.style.display = 'none';
-
-            if (e.dataTransfer) {
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    for (let i = 0; i < e.dataTransfer.files.length; i++) {
-                        const file = e.dataTransfer.files[i];
-                        const pathStr = file.path || file.name;
-                        attachFileOrFolder(pathStr);
+            // 1. VS Code Explorer URI list (text/uri-list)
+            const uriList = dataTransfer.getData('text/uri-list');
+            if (uriList) {
+                const lines = uriList.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                for (const line of lines) {
+                    try {
+                        const decoded = decodeURIComponent(line.replace(/^file:\/\//, ''));
+                        if (decoded) rawPaths.push(decoded);
+                    } catch (err) {
+                        rawPaths.push(line.replace(/^file:\/\//, ''));
                     }
                 }
-                const uriList = e.dataTransfer.getData('text/uri-list');
-                if (uriList) {
-                    const lines = uriList.split(/\r?\n/).filter(Boolean);
-                    lines.forEach(l => attachFileOrFolder(l));
-                }
-                const textPath = e.dataTransfer.getData('text/plain');
-                if (textPath && !uriList) {
-                    textPath.split(/\r?\n/).filter(Boolean).forEach(p => attachFileOrFolder(p));
+            }
+
+            // 2. Tree explorer MIME type
+            const treeData = dataTransfer.getData('application/vnd.code.tree.explorer');
+            if (treeData && typeof treeData === 'string') {
+                try {
+                    const parsed = JSON.parse(treeData);
+                    if (Array.isArray(parsed)) {
+                        for (const item of parsed) {
+                            if (item.resourceUri && item.resourceUri.fsPath) {
+                                rawPaths.push(item.resourceUri.fsPath);
+                            } else if (item.fsPath) {
+                                rawPaths.push(item.fsPath);
+                            }
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // 3. Plain text
+            const textPath = dataTransfer.getData('text/plain');
+            if (textPath) {
+                const lines = textPath.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                for (const line of lines) {
+                    if (line.includes('/') || line.includes('\\') || line.includes('.')) {
+                        try {
+                            const decoded = decodeURIComponent(line.replace(/^file:\/\//, ''));
+                            rawPaths.push(decoded);
+                        } catch (err) {
+                            rawPaths.push(line);
+                        }
+                    }
                 }
             }
+
+            // 4. HTML5 File/Directory Items API
+            if (dataTransfer.items && dataTransfer.items.length > 0) {
+                for (let i = 0; i < dataTransfer.items.length; i++) {
+                    const item = dataTransfer.items[i];
+                    if (item.kind === 'file') {
+                        const file = item.getAsFile();
+                        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                        if (file && file.path) {
+                            rawPaths.push(file.path);
+                        } else if (entry) {
+                            if (entry.isDirectory) {
+                                await traverseDirectoryEntry(entry, droppedItems);
+                            } else if (entry.isFile && file) {
+                                const content = await readFileAsText(file);
+                                droppedItems.push({
+                                    name: file.name,
+                                    path: entry.fullPath || file.name,
+                                    size: file.size,
+                                    content: content,
+                                    isDirectory: false
+                                });
+                            }
+                        } else if (file) {
+                            const content = await readFileAsText(file);
+                            droppedItems.push({
+                                name: file.name,
+                                path: file.name,
+                                size: file.size,
+                                content: content,
+                                isDirectory: false
+                            });
+                        }
+                    }
+                }
+            } else if (dataTransfer.files && dataTransfer.files.length > 0) {
+                for (let i = 0; i < dataTransfer.files.length; i++) {
+                    const file = dataTransfer.files[i];
+                    if (file.path) {
+                        rawPaths.push(file.path);
+                    } else {
+                        const content = await readFileAsText(file);
+                        droppedItems.push({
+                            name: file.name,
+                            path: file.name,
+                            size: file.size,
+                            content: content,
+                            isDirectory: false
+                        });
+                    }
+                }
+            }
+
+            vscode.postMessage({
+                type: 'resolveDroppedAttachments',
+                rawPaths: Array.from(new Set(rawPaths)),
+                droppedItems: droppedItems
+            });
+        }
+
+        async function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter = 0;
+            if (dropOverlay) dropOverlay.style.display = 'none';
+            if (e.dataTransfer) {
+                await processDataTransfer(e.dataTransfer);
+            }
+        }
+
+        [window, document, document.body].forEach(target => {
+            if (!target) return;
+            target.addEventListener('dragenter', handleDragEnter);
+            target.addEventListener('dragover', handleDragOver);
+            target.addEventListener('dragleave', handleDragLeave);
+            target.addEventListener('drop', handleDrop);
         });
 
         // Request available files for context mention autocomplete and auto-discover models
@@ -533,6 +693,25 @@
         const mentionList = document.getElementById('mention-items-list');
 
         if (chatInput) {
+            chatInput.addEventListener('dragenter', handleDragEnter);
+            chatInput.addEventListener('dragover', handleDragOver);
+            chatInput.addEventListener('drop', handleDrop);
+            chatInput.addEventListener('paste', async (e) => {
+                const text = (e.clipboardData || window.clipboardData).getData('text');
+                if (text && (text.startsWith('file:///') || (/^[\/\\~A-Za-z]:?[\\\/]/.test(text) && /\.(kora|kr|toml|json|md|rs|ts|js|py)$/i.test(text)))) {
+                    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                    const paths = lines.map(l => {
+                        try { return decodeURIComponent(l.replace(/^file:\/\//, '')); }
+                        catch { return l.replace(/^file:\/\//, ''); }
+                    });
+                    vscode.postMessage({
+                        type: 'resolveDroppedAttachments',
+                        rawPaths: paths,
+                        droppedItems: []
+                    });
+                }
+            });
+
             chatInput.addEventListener('input', function() {
                 this.style.height = 'auto';
                 this.style.height = Math.min(this.scrollHeight, 120) + 'px';
@@ -581,38 +760,74 @@
             }
         }
 
+        function updateActiveEditorButton(fileName) {
+            currentActiveEditorFileName = fileName || '';
+            const btn = document.getElementById('btn-attach-active');
+            if (!btn) return;
+            if (currentActiveEditorFileName) {
+                btn.style.display = 'inline-flex';
+                btn.textContent = `📎 + ${currentActiveEditorFileName}`;
+                btn.title = `Attach ${currentActiveEditorFileName} as context`;
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+
         function showMentionMenu(filter = '') {
             if (!mentionMenu || !mentionList) return;
 
             const baseOptions = [
-                { token: '@workspace', label: '@workspace', desc: 'Full workspace analysis & Clean Architecture layers' },
-                { token: '@selection', label: '@selection', desc: 'Reference current code selection in editor' },
+                { token: '@workspace', label: '@workspace', desc: 'Full workspace architecture & layers' },
+                { token: '@selection', label: '@selection', desc: 'Reference current editor code selection' },
                 { token: '@problems', label: '@problems', desc: 'Reference active compiler diagnostics & errors' },
-                { token: '@terminal', label: '@terminal', desc: 'Reference active terminal sessions' },
-                { token: '@file:', label: '@file:<path>', desc: 'Include specific project file content' },
-                { token: '@folder:', label: '@folder:<path>', desc: 'Inspect directory file hierarchy' }
+                { token: '@terminal', label: '@terminal', desc: 'Reference active terminal sessions' }
             ];
 
-            const fileOptions = availableContextFiles.map(f => ({
+            const fileOptions = (availableContextFiles || []).map(f => ({
                 token: '@file:' + f.label,
-                label: '@file:' + f.label,
-                desc: (f.role || 'file') + ' - ' + f.path
+                label: f.label,
+                desc: '📄 ' + f.label
             }));
 
-            const all = baseOptions.concat(fileOptions);
-            const filtered = filter ? all.filter(o => o.token.toLowerCase().includes(filter) || o.label.toLowerCase().includes(filter)) : all;
+            const folderOptions = (availableContextFolders || []).map(f => ({
+                token: '@folder:' + f.label,
+                label: f.label,
+                desc: '📁 ' + f.label
+            }));
 
-            if (filtered.length === 0) {
+            let all = [];
+            const cleanFilter = (filter || '').trim().toLowerCase();
+
+            if (cleanFilter.startsWith('file:') || cleanFilter.startsWith('file')) {
+                const subFilter = cleanFilter.replace(/^file:?/, '').trim();
+                all = subFilter
+                    ? fileOptions.filter(f => f.label.toLowerCase().includes(subFilter) || f.token.toLowerCase().includes(subFilter))
+                    : fileOptions;
+            } else if (cleanFilter.startsWith('folder:') || cleanFilter.startsWith('folder')) {
+                const subFilter = cleanFilter.replace(/^folder:?/, '').trim();
+                all = subFilter
+                    ? folderOptions.filter(f => f.label.toLowerCase().includes(subFilter) || f.token.toLowerCase().includes(subFilter))
+                    : folderOptions;
+            } else if (cleanFilter) {
+                const matchedBase = baseOptions.filter(b => b.token.toLowerCase().includes(cleanFilter) || b.label.toLowerCase().includes(cleanFilter));
+                const matchedFiles = fileOptions.filter(f => f.label.toLowerCase().includes(cleanFilter));
+                const matchedFolders = folderOptions.filter(f => f.label.toLowerCase().includes(cleanFilter));
+                all = matchedBase.concat(matchedFiles).concat(matchedFolders);
+            } else {
+                all = baseOptions.concat(fileOptions.slice(0, 15)).concat(folderOptions.slice(0, 10));
+            }
+
+            if (all.length === 0) {
                 hideMentionMenu();
                 return;
             }
 
             mentionSelectedIndex = 0;
             mentionList.innerHTML = '';
-            filtered.slice(0, 10).forEach((item, idx) => {
+            all.slice(0, 12).forEach((item, idx) => {
                 const div = document.createElement('div');
                 div.className = 'mention-item' + (idx === 0 ? ' selected' : '');
-                div.innerHTML = '<span class="mention-token">' + item.token + '</span><span class="mention-desc">' + item.desc + '</span>';
+                div.innerHTML = '<span class="mention-token">' + escapeHtml(item.token) + '</span><span class="mention-desc">' + escapeHtml(item.desc) + '</span>';
                 div.onclick = () => {
                     applyMentionSelection(item.token);
                 };
@@ -676,7 +891,11 @@
             chatInput.selectionStart = chatInput.selectionEnd = pos + sep.length + token.length + 1;
             chatInput.style.height = 'auto';
             chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
-            hideMentionMenu();
+            if (token === '@file:' || token === '@folder:') {
+                showMentionMenu(token.replace(/^@/, ''));
+            } else {
+                hideMentionMenu();
+            }
         }
 
         function toggleTrackerSteps() {
@@ -985,16 +1204,18 @@
         function sendPrompt() {
             const input = document.getElementById('chat-input');
             let prompt = input.value.trim();
-            if ((!prompt && attachedPaths.length === 0) || isGenerating) return;
+            if ((!prompt && currentAttachments.length === 0) || isGenerating) return;
 
-            if (attachedPaths.length > 0) {
-                const attachmentTokens = attachedPaths.map(p => {
-                    const isFolder = p.endsWith('/') || !p.includes('.');
-                    return isFolder ? ('@folder:' + p) : ('@file:' + p);
+            if (currentAttachments.length > 0) {
+                const attachmentTokens = currentAttachments.map(att => {
+                    const isFolder = att.type === 'folder' || att.isDirectory;
+                    return isFolder ? (`@folder:${att.path || att.name}`) : (`@file:${att.path || att.name}`);
                 }).join(' ');
-                prompt = (prompt ? (prompt + ' ') : '') + attachmentTokens;
-                attachedPaths = [];
-                renderAttachedPills();
+                if (!prompt) {
+                    prompt = `Analyze attached components: ${attachmentTokens}`;
+                } else {
+                    prompt = prompt + ' ' + attachmentTokens;
+                }
             }
 
             lastSentPrompt = prompt;
@@ -1186,8 +1407,20 @@
             card.className = 'proposal-card plan-card';
             card.id = 'plan-' + plan.id;
 
-            let stepRows = '';
-            if (plan.steps && plan.steps.length > 0) {
+            if (!plan.steps || plan.steps.length === 0) {
+                card.innerHTML = '<div class="proposal-card-header">' +
+                    '<span class="proposal-title" style="color: #10b981;">✅ 100% Rule Compliance</span>' +
+                    '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">0 violations</span>' +
+                '</div>' +
+                '<div style="font-size: 11px; margin-bottom: 6px; line-height: 1.5;">' +
+                    '<b>Goal:</b> ' + escapeHtml(plan.goal) + '<br/>' +
+                    '<span style="opacity: 0.9;">' + escapeHtml(plan.understanding) + '</span>' +
+                '</div>' +
+                '<div style="font-size: 10.5px; opacity: 0.85; padding: 4px; color: #10b981;">' +
+                    'No code modifications required or proposed.' +
+                '</div>';
+            } else {
+                let stepRows = '';
                 for (const s of plan.steps) {
                     stepRows += '<div class="plan-file-item">' +
                         '<div style="font-weight: 600; color: #38bdf8; margin-bottom: 2px;">' + escapeHtml(s.fileName) + '</div>' +
@@ -1196,28 +1429,24 @@
                         '</ul>' +
                     '</div>';
                 }
-            } else {
-                stepRows = '<div style="font-size: 10.5px; opacity: 0.85; padding: 4px;">All checked components adhere to Kora clean architecture invariants. No modifications needed.</div>';
+
+                const actionButtons = '<div class="proposal-global-actions">' +
+                    '<button class="btn-accept-all" data-action="executeRefactorPlan" data-plan-id="' + escapeHtml(plan.id) + '" data-goal="' + escapeHtml(plan.goal) + '" data-target-path="' + escapeHtml(plan.targetPath || '') + '">Approve & Execute Plan</button>' +
+                    '<button class="btn-reject-all" data-action="cancelRefactorPlan" data-plan-id="' + escapeHtml(plan.id) + '">Cancel Plan</button>' +
+                '</div>';
+
+                card.innerHTML = '<div class="proposal-card-header">' +
+                    '<span class="proposal-title" style="color: #60a5fa;">Proposed Refactoring Plan</span>' +
+                    '<span class="badge" style="background: rgba(96, 165, 250, 0.2); color: #60a5fa;">' + plan.filesCount + ' files planned</span>' +
+                '</div>' +
+                '<div style="font-size: 11px; margin-bottom: 6px; line-height: 1.4;">' +
+                    '<b>Goal:</b> ' + escapeHtml(plan.goal) + '<br/>' +
+                    '<span style="opacity: 0.85;">' + escapeHtml(plan.understanding) + '</span>' +
+                '</div>' +
+                '<div style="font-size: 10px; font-weight: 600; opacity: 0.8; margin-bottom: 4px;">Planned Invariant Adjustments (Requires approval before changing code):</div>' +
+                '<div class="plan-steps-list" style="margin-bottom: 8px;">' + stepRows + '</div>' +
+                actionButtons;
             }
-
-            const actionButtons = (plan.steps && plan.steps.length > 0)
-                ? '<div class="proposal-global-actions">' +
-                      '<button class="btn-accept-all" data-action="executeRefactorPlan" data-plan-id="' + escapeHtml(plan.id) + '" data-goal="' + escapeHtml(plan.goal) + '" data-target-path="' + escapeHtml(plan.targetPath || '') + '">Approve & Execute Plan</button>' +
-                      '<button class="btn-reject-all" data-action="cancelRefactorPlan" data-plan-id="' + escapeHtml(plan.id) + '">Cancel Plan</button>' +
-                  '</div>'
-                : '';
-
-            card.innerHTML = '<div class="proposal-card-header">' +
-                '<span class="proposal-title" style="color: #60a5fa;">Proposed Refactoring Plan</span>' +
-                '<span class="badge" style="background: rgba(96, 165, 250, 0.2); color: #60a5fa;">' + plan.filesCount + ' files planned</span>' +
-            '</div>' +
-            '<div style="font-size: 11px; margin-bottom: 6px; line-height: 1.4;">' +
-                '<b>Goal:</b> ' + escapeHtml(plan.goal) + '<br/>' +
-                '<span style="opacity: 0.85;">' + escapeHtml(plan.understanding) + '</span>' +
-            '</div>' +
-            '<div style="font-size: 10px; font-weight: 600; opacity: 0.8; margin-bottom: 4px;">Planned Invariant Adjustments (Requires approval before changing code):</div>' +
-            '<div class="plan-steps-list" style="margin-bottom: 8px;">' + stepRows + '</div>' +
-            actionButtons;
 
             const existingCard = document.getElementById('plan-' + plan.id);
             if (existingCard) {
@@ -1251,42 +1480,52 @@
             card.className = 'proposal-card';
             card.id = 'card-' + proposal.id;
 
-            let fileRows = '';
-            for (let idx = 0; idx < (proposal.files || []).length; idx++) {
-                const f = proposal.files[idx];
-                const statusColor = f.status === 'accepted' ? '#10b981' : (f.status === 'rejected' ? '#ef4444' : '#38bdf8');
-                const diffTargetId = 'inline-diff-' + proposal.id + '-' + idx;
-                const diffContentHtml = generateInlineDiffHtml(f.originalContent, f.proposedContent || f.codePreview);
-
-                fileRows += '<div class="proposal-file-row">' +
-                    '<span class="proposal-file-name" data-action="openFile" data-filepath="' + escapeHtml(f.filePath) + '" title="Click to open ' + escapeHtml(f.fileName) + '">' + escapeHtml(f.fileName) + '</span>' +
-                    '<span class="diff-stat-add">+' + f.additions + '</span>' +
-                    '<span class="diff-stat-del">-' + f.deletions + '</span>' +
-                    '<span style="font-size: 9.5px; color:' + statusColor + '; font-weight: 600;">' + escapeHtml(f.status) + '</span>' +
-                    '<button class="btn-prop-sm" data-action="previewDiff" data-filepath="' + escapeHtml(f.filePath) + '" data-proposal-id="' + escapeHtml(proposal.id) + '" title="Open native side-by-side diff in editor">Diff</button>' +
-                    '<button class="btn-prop-sm" data-action="toggleInlineDiff" data-target="' + diffTargetId + '" title="Inspect proposed changes inline">View</button>' +
-                    '<button class="btn-prop-sm" style="color: #10b981;" data-action="setFileStatus" data-proposal-id="' + escapeHtml(proposal.id) + '" data-filepath="' + escapeHtml(f.filePath) + '" data-status="accepted" title="Accept this file">Accept</button>' +
-                    '<button class="btn-prop-sm" style="color: #ef4444;" data-action="setFileStatus" data-proposal-id="' + escapeHtml(proposal.id) + '" data-filepath="' + escapeHtml(f.filePath) + '" data-status="rejected" title="Reject this file">Reject</button>' +
+            if (!proposal.files || proposal.files.length === 0) {
+                card.innerHTML = '<div class="proposal-card-header">' +
+                    '<span class="proposal-title" style="color: #10b981;">✅ 100% Clean & Rule-Compliant</span>' +
+                    '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">0 violations</span>' +
                 '</div>' +
-                '<div id="' + diffTargetId + '" class="inline-diff-container">' +
-                    '<div class="inline-diff-header">' +
-                        '<span>Diff for ' + escapeHtml(f.fileName) + '</span>' +
-                        '<button class="btn-prop-sm" data-action="previewDiff" data-filepath="' + escapeHtml(f.filePath) + '" data-proposal-id="' + escapeHtml(proposal.id) + '">Open Native Diff</button>' +
+                '<div style="font-size: 11px; opacity: 0.9; line-height: 1.5; padding: 4px 0;">' +
+                    'All inspected components strictly adhere to Kora Clean Architecture, Single-Null semantics, and compiler rules. <b>No changes required or performed.</b>' +
+                '</div>';
+            } else {
+                let fileRows = '';
+                for (let idx = 0; idx < (proposal.files || []).length; idx++) {
+                    const f = proposal.files[idx];
+                    const statusColor = f.status === 'accepted' ? '#10b981' : (f.status === 'rejected' ? '#ef4444' : '#38bdf8');
+                    const diffTargetId = 'inline-diff-' + proposal.id + '-' + idx;
+                    const diffContentHtml = generateInlineDiffHtml(f.originalContent, f.proposedContent || f.codePreview);
+
+                    fileRows += '<div class="proposal-file-row">' +
+                        '<span class="proposal-file-name" data-action="openFile" data-filepath="' + escapeHtml(f.filePath) + '" title="Click to open ' + escapeHtml(f.fileName) + '">' + escapeHtml(f.fileName) + '</span>' +
+                        '<span class="diff-stat-add">+' + f.additions + '</span>' +
+                        '<span class="diff-stat-del">-' + f.deletions + '</span>' +
+                        '<span style="font-size: 9.5px; color:' + statusColor + '; font-weight: 600;">' + escapeHtml(f.status) + '</span>' +
+                        '<button class="btn-prop-sm" data-action="previewDiff" data-filepath="' + escapeHtml(f.filePath) + '" data-proposal-id="' + escapeHtml(proposal.id) + '" title="Open native side-by-side diff in editor">Diff</button>' +
+                        '<button class="btn-prop-sm" data-action="toggleInlineDiff" data-target="' + diffTargetId + '" title="Inspect proposed changes inline">View</button>' +
+                        '<button class="btn-prop-sm" style="color: #10b981;" data-action="setFileStatus" data-proposal-id="' + escapeHtml(proposal.id) + '" data-filepath="' + escapeHtml(f.filePath) + '" data-status="accepted" title="Accept this file">Accept</button>' +
+                        '<button class="btn-prop-sm" style="color: #ef4444;" data-action="setFileStatus" data-proposal-id="' + escapeHtml(proposal.id) + '" data-filepath="' + escapeHtml(f.filePath) + '" data-status="rejected" title="Reject this file">Reject</button>' +
                     '</div>' +
-                    diffContentHtml +
+                    '<div id="' + diffTargetId + '" class="inline-diff-container">' +
+                        '<div class="inline-diff-header">' +
+                            '<span>Diff for ' + escapeHtml(f.fileName) + '</span>' +
+                            '<button class="btn-prop-sm" data-action="previewDiff" data-filepath="' + escapeHtml(f.filePath) + '" data-proposal-id="' + escapeHtml(proposal.id) + '">Open Native Diff</button>' +
+                        '</div>' +
+                        diffContentHtml +
+                    '</div>';
+                }
+
+                card.innerHTML = '<div class="proposal-card-header">' +
+                    '<span class="proposal-title">' + escapeHtml(proposal.title) + '</span>' +
+                    '<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">' + proposal.totalFiles + ' files</span>' +
+                '</div>' +
+                '<div style="font-size: 10.5px; opacity: 0.85; margin-bottom: 6px;">Coordinated changes proposed across multiple project files. Click <b>Diff</b> for native comparison or <b>View</b> to inspect inline.</div>' +
+                '<div class="proposal-files-list">' + fileRows + '</div>' +
+                '<div class="proposal-global-actions">' +
+                    '<button class="btn-accept-all" data-action="acceptProposal" data-proposal-id="' + escapeHtml(proposal.id) + '">Accept All Changes</button>' +
+                    '<button class="btn-reject-all" data-action="rejectProposal" data-proposal-id="' + escapeHtml(proposal.id) + '">Reject All</button>' +
                 '</div>';
             }
-
-            card.innerHTML = '<div class="proposal-card-header">' +
-                '<span class="proposal-title">' + escapeHtml(proposal.title) + '</span>' +
-                '<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">' + proposal.totalFiles + ' files</span>' +
-            '</div>' +
-            '<div style="font-size: 10.5px; opacity: 0.85; margin-bottom: 6px;">Coordinated changes proposed across multiple project files. Click <b>Diff</b> for native comparison or <b>View</b> to inspect inline.</div>' +
-            '<div class="proposal-files-list">' + fileRows + '</div>' +
-            '<div class="proposal-global-actions">' +
-                '<button class="btn-accept-all" data-action="acceptProposal" data-proposal-id="' + escapeHtml(proposal.id) + '">Accept All Changes</button>' +
-                '<button class="btn-reject-all" data-action="rejectProposal" data-proposal-id="' + escapeHtml(proposal.id) + '">Reject All</button>' +
-            '</div>';
 
             const existingCard = document.getElementById('card-' + proposal.id);
             if (existingCard) {
@@ -1485,12 +1724,25 @@
                         stepsBox.appendChild(line);
                     }
                 }
+            } else if (msg.type === 'attachmentsResolved') {
+                currentAttachments = msg.attachments || [];
+                renderAttachedPills();
             } else if (msg.type === 'filesAttached') {
                 if (msg.paths && Array.isArray(msg.paths)) {
-                    msg.paths.forEach(p => attachFileOrFolder(p));
+                    vscode.postMessage({
+                        type: 'resolveDroppedAttachments',
+                        rawPaths: msg.paths,
+                        droppedItems: []
+                    });
                 }
             } else if (msg.type === 'availableContextOptions') {
                 availableContextFiles = msg.files || [];
+                availableContextFolders = msg.folders || [];
+                if (msg.activeFile) {
+                    updateActiveEditorButton(msg.activeFile);
+                }
+            } else if (msg.type === 'activeEditorChanged') {
+                updateActiveEditorButton(msg.fileName);
             } else if (msg.type === 'refactorPlanCreated') {
                 isGenerating = false;
                 const btnSend = document.getElementById('btn-send');

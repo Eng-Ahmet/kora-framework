@@ -5,6 +5,7 @@ const https = require('https');
 const { WorkspaceContextEngine } = require('./workspace-context-engine');
 const { ChangeReviewManager } = require('./change-review-manager');
 const { OllamaDiscoveryService } = require('./ollama-discovery-service');
+const { IntentUnderstandingEngine, IntentCategory } = require('./intent-understanding-engine');
 
 /**
  * Built-in Core Knowledge Base derived from:
@@ -166,6 +167,7 @@ class KoraCopilotEngine {
         this.workspaceEngine = new WorkspaceContextEngine(this.vscode);
         this.reviewManager = new ChangeReviewManager(this.vscode);
         this.ollamaService = new OllamaDiscoveryService();
+        this.intentEngine = new IntentUnderstandingEngine();
 
         this._loadKnowledgeFiles();
     }
@@ -353,6 +355,12 @@ class KoraCopilotEngine {
         const query = (prompt || '').trim();
         this.currentSteps = [];
 
+        // 0. Classify user intent dynamically
+        const intent = this.intentEngine.classify(query, {
+            attachments: options.attachments,
+            activeDoc
+        });
+
         // 1. Scan workspace if not scanned recently
         this.setState(AgentState.EXPLORING, 'Discovering project structure and module relationships...', options.onProgress);
         let workspaceRoots = [];
@@ -370,17 +378,6 @@ class KoraCopilotEngine {
             selectedFiles: options.selectedFiles
         });
 
-        // 3. Check if query is an audit or check request
-        const lowerQuery = query.toLowerCase();
-        if (lowerQuery.includes('audit') || lowerQuery.includes('check rules') || lowerQuery.includes('verify file')) {
-            if (activeDoc) {
-                this.setState(AgentState.COMPLETED, 'Audit completed', options.onProgress);
-                return this._generateEmbeddedResponse(query, activeDoc, context);
-            }
-            // Workspace-wide audit
-            return this.auditWorkspace(options.onProgress);
-        }
-
         const provider = (config && config.provider) ? config.provider.toLowerCase() : 'embedded';
 
         this.setState(AgentState.GENERATING, `Synthesizing response via ${provider}...`, options.onProgress);
@@ -388,20 +385,20 @@ class KoraCopilotEngine {
         let answer = '';
         if (provider === 'copilot') {
             try {
-                answer = await this._callCopilotLm(query, activeDoc, config, context);
+                answer = await this._callCopilotLm(query, activeDoc, config, context, intent, options.attachments);
             } catch (err) {
-                const fallbackResponse = this._generateEmbeddedResponse(query, activeDoc, context);
-                answer = `> **Copilot Notice**: Native GitHub Copilot request failed (${err.message}).\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
+                const fallbackResponse = this.intentEngine.generateEmbeddedResponse(intent, activeDoc, this.workspaceEngine, context, options.attachments);
+                answer = `> **Copilot Notice**: Native GitHub Copilot request failed (${err.message}).\n> Showing response from **Kora Embedded Engineering Agent**:\n\n` + fallbackResponse;
             }
         } else if (provider !== 'embedded') {
             try {
-                answer = await this._callExternalLlm(query, activeDoc, config, context, options.onChunk);
+                answer = await this._callExternalLlm(query, activeDoc, config, context, options.onChunk, intent, options.attachments);
             } catch (err) {
-                const fallbackResponse = this._generateEmbeddedResponse(query, activeDoc, context);
-                answer = `> **Provider Notice**: External LLM (${provider}) was unreachable: ${err.message}.\n> Showing response from **Kora Embedded Knowledge Engine** (offline):\n\n` + fallbackResponse;
+                const fallbackResponse = this.intentEngine.generateEmbeddedResponse(intent, activeDoc, this.workspaceEngine, context, options.attachments);
+                answer = `> **Provider Notice**: External LLM (${provider}) was unreachable: ${err.message}.\n> Showing response from **Kora Embedded Engineering Agent**:\n\n` + fallbackResponse;
             }
         } else {
-            answer = this._generateEmbeddedResponse(query, activeDoc, context);
+            answer = this.intentEngine.generateEmbeddedResponse(intent, activeDoc, this.workspaceEngine, context, options.attachments);
         }
 
         this.setState(AgentState.COMPLETED, 'Response ready', options.onProgress);
@@ -491,13 +488,8 @@ class KoraCopilotEngine {
             }
         }
 
-        if (candidatePaths.length === 0) {
-            if (options.activeFilePath) candidatePaths.push(path.resolve(options.activeFilePath));
-            else {
-                for (const [fPath] of this.workspaceEngine.indexedFiles) {
-                    if (candidatePaths.length < 5) candidatePaths.push(fPath);
-                }
-            }
+        if (candidatePaths.length === 0 && options.activeFilePath) {
+            candidatePaths.push(path.resolve(options.activeFilePath));
         }
 
         const steps = [];
@@ -541,6 +533,20 @@ class KoraCopilotEngine {
             }
         }
 
+        if (steps.length === 0) {
+            this.setState(AgentState.COMPLETED, 'Audit complete: all scanned files strictly satisfy Clean Architecture. No modifications needed.', onProgress);
+            return {
+                id: 'plan_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                goal,
+                scope: options.scope || (options.targetFiles ? 'active' : 'workspace'),
+                targetPath: options.activeFilePath || (options.targetFiles ? options.targetFiles[0] : null),
+                isClean: true,
+                understanding: `Audited components for '${goal}'. All scanned files are 100% compliant with Clean Architecture and Single-Null semantics! No changes needed.`,
+                filesCount: 0,
+                steps: []
+            };
+        }
+
         this.setState(AgentState.AWAITING_APPROVAL, `Refactoring plan generated for ${steps.length} file(s). Awaiting user approval.`, onProgress);
 
         return {
@@ -548,9 +554,8 @@ class KoraCopilotEngine {
             goal,
             scope: options.scope || (options.targetFiles ? 'active' : 'workspace'),
             targetPath: options.activeFilePath || (options.targetFiles ? options.targetFiles[0] : null),
-            understanding: steps.length > 0
-                ? `Analyzed workspace for '${goal}'. Identified ${steps.length} component(s) requiring clean architecture and invariant adjustments.`
-                : `Analyzed workspace for '${goal}'. All scanned components strictly satisfy Clean Architecture invariants!`,
+            isClean: false,
+            understanding: `Analyzed workspace for '${goal}'. Identified ${steps.length} component(s) requiring clean architecture and invariant adjustments.`,
             filesCount: steps.length,
             steps
         };
@@ -677,6 +682,22 @@ class KoraCopilotEngine {
             }
         }
 
+        if (proposedFiles.length === 0) {
+            this.setState(AgentState.COMPLETED, 'No rule violations found. All components satisfy Clean Architecture.', onProgress);
+            return {
+                proposal: {
+                    id: 'clean_' + Date.now(),
+                    title: 'Clean Architecture Audit (100% Compliant)',
+                    totalFiles: 0,
+                    files: []
+                },
+                rawProposal: { id: 'clean', files: [] },
+                steps: this.currentSteps,
+                isClean: true,
+                filesCount: 0
+            };
+        }
+
         this.setState(AgentState.REVIEWING, `Reviewing diffs across ${proposedFiles.length} file(s)...`, onProgress);
 
         const proposal = this.reviewManager.createProposal(
@@ -798,8 +819,8 @@ I understand the entire Kora project structure, Clean Architecture invariants, a
 - *"Scaffold unit tests for active models"*`;
     }
 
-    _buildSystemPrompt(prompt, activeDoc, context = null) {
-        const query = prompt.toLowerCase();
+    _buildSystemPrompt(prompt, activeDoc, context = null, intent = null, attachments = []) {
+        const query = (prompt || '').toLowerCase();
         let relevantContext = '';
         for (const item of KORA_KNOWLEDGE_BASE) {
             if (item.keywords.some(kw => query.includes(kw))) {
@@ -817,7 +838,24 @@ I understand the entire Kora project structure, Clean Architecture invariants, a
             workspaceContextStr = `\n\n[Current Active File: ${fileName}]\n\`\`\`kora\n${codeSnippet}\n\`\`\``;
         }
 
-        return `You are the Official Kora Framework AI Coding Agent & Compiler Assistant.
+        let attachmentsStr = '';
+        if (attachments && attachments.length > 0) {
+            attachmentsStr = `\n\n[USER ATTACHED FILES & FOLDERS]:\n`;
+            for (const att of attachments) {
+                if (att.type === 'folder' || att.isDirectory) {
+                    attachmentsStr += `### Folder: ${att.name || att.path} (${att.fileCount || 0} files)\nDirectory Tree:\n\`\`\`\n${att.tree || att.summary || ''}\n\`\`\`\n`;
+                    if (att.content) {
+                        attachmentsStr += `Key Folder Contents:\n${att.content.slice(0, 4000)}\n\n`;
+                    }
+                } else {
+                    attachmentsStr += `### File: ${att.name || att.path}\n\`\`\`\n${(att.content || '').slice(0, 4000)}\n\`\`\`\n\n`;
+                }
+            }
+        }
+
+        const intentInfo = intent ? `\nDetected Task Intent: ${intent.primaryIntent} (ReadOnly: ${intent.isReadOnly})` : '';
+
+        return `You are the Official Kora Framework AI Software Engineering Agent.
 Kora combines high DX with Rust-level memory safety, Go-inspired actor concurrency, and strict Clean Architecture enforcement.
 
 CORE INVARIANTS:
@@ -828,8 +866,10 @@ CORE INVARIANTS:
 5. Testing: Load stress tests require explicit teardown() to release simulated resources.
 
 INSTRUCTIONS:
-- Answer technical queries directly and provide compile-ready idiomatic Kora code.
-- Always be workspace-aware and understand relationships between files and layers.${relevantContext}${workspaceContextStr}`;
+- You are an intelligent software engineering agent, not a static chatbot.
+- Understand the user's intent dynamically (Explanation, Architecture, Review, Syntax Check, Formatting, Refactoring, Testing).
+- When reviewing or fixing code, if there are NO errors, confirm the code is clean and do not fabricate unnecessary changes.
+- If attached files or folders are provided, inspect them, understand their relationships, and address the user's questions about them.${intentInfo}${relevantContext}${workspaceContextStr}${attachmentsStr}`;
     }
 
     _resolveEndpoint(provider, customEndpoint) {
@@ -895,7 +935,7 @@ INSTRUCTIONS:
         }
     }
 
-    async _callCopilotLm(prompt, activeDoc, config, context = null) {
+    async _callCopilotLm(prompt, activeDoc, config, context = null, intent = null, attachments = []) {
         if (!this.vscode || !this.vscode.lm) {
             throw new Error("VS Code Language Model API (vscode.lm) is not available in this environment.");
         }
@@ -921,7 +961,7 @@ INSTRUCTIONS:
             if (found) selectedModel = found;
         }
 
-        const systemPrompt = this._buildSystemPrompt(prompt, activeDoc, context);
+        const systemPrompt = this._buildSystemPrompt(prompt, activeDoc, context, intent, attachments);
         const fullUserMessage = `${systemPrompt}\n\nUser Request:\n${prompt}`;
 
         let chatMessages;
@@ -1033,7 +1073,7 @@ INSTRUCTIONS:
         }
     }
 
-    async _callExternalLlm(prompt, activeDoc, config, context = null, onChunk = null) {
+    async _callExternalLlm(prompt, activeDoc, config, context = null, onChunk = null, intent = null, attachments = []) {
         const provider = (config.provider || 'embedded').toLowerCase();
         let effectiveModel = config.model;
 
@@ -1047,7 +1087,7 @@ INSTRUCTIONS:
 
         return new Promise((resolve, reject) => {
             const endpointUrl = this._resolveEndpoint(provider, config.endpoint);
-            const systemPrompt = this._buildSystemPrompt(prompt, activeDoc, context);
+            const systemPrompt = this._buildSystemPrompt(prompt, activeDoc, context, intent, attachments);
 
             let postData = '';
             let headers = { 'Content-Type': 'application/json' };

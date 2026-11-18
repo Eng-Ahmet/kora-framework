@@ -112,7 +112,7 @@
       }
     ],
     "viewsContainers": {
-      "activitybar": [
+      "secondarySidebar": [
         {
           "id": "kora-sidebar",
           "title": "Kora",
@@ -130,6 +130,11 @@
       ]
     },
     "commands": [
+      {
+        "command": "kora.attachToChat",
+        "title": "Kora: Attach to AI Chat",
+        "category": "Kora"
+      },
       {
         "command": "kora.smartRun",
         "title": "Kora: Smart Run (Entrypoint / Test Suite)",
@@ -282,6 +287,12 @@
           "command": "kora.smartRun",
           "when": "editorLangId == kora",
           "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "kora.attachToChat",
+          "group": "kora@1"
         }
       ]
     },

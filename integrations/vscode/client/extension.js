@@ -180,7 +180,16 @@ function activate(context) {
     }
 
     context.subscriptions.push(
-        vscode.window.onDidChangeActiveTextEditor(updateStatusBar),
+        vscode.window.onDidChangeActiveTextEditor(editor => {
+            updateStatusBar();
+            if (assistantViewProvider && assistantViewProvider.view) {
+                const fileName = editor && editor.document ? path.basename(editor.document.fileName) : '';
+                assistantViewProvider.view.webview.postMessage({
+                    type: 'activeEditorChanged',
+                    fileName: fileName
+                });
+            }
+        }),
         vscode.workspace.onDidChangeTextDocument(e => {
             if (vscode.window.activeTextEditor && e.document === vscode.window.activeTextEditor.document) {
                 updateStatusBar();
@@ -900,6 +909,18 @@ function activate(context) {
                     vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
                 } catch (e) {}
                 await assistantViewProvider.triggerWorkspaceRefactor(activeFile, 'Auto-Fix compiler diagnostics');
+            }
+        }),
+
+        vscode.commands.registerCommand('kora.attachToChat', async (uri, uris) => {
+            const targets = (uris && uris.length > 0) ? uris : (uri ? [uri] : []);
+            if (targets.length > 0 && assistantViewProvider) {
+                assistantViewProvider.switchTab('ask');
+                await assistantViewProvider.handleResolveDroppedAttachments(targets.map(u => u.fsPath), []);
+                try {
+                    vscode.commands.executeCommand('kora.assistantView.focus');
+                    vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+                } catch (e) {}
             }
         }),
 

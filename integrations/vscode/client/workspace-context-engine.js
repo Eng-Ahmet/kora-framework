@@ -10,6 +10,7 @@ class WorkspaceContextEngine {
     constructor(vscodeInstance = null) {
         this.vscode = vscodeInstance;
         this.indexedFiles = new Map(); // filePath -> FileMeta
+        this.indexedFolders = new Map(); // folderPath -> FolderMeta
         this.dependencyGraph = new Map(); // filePath -> Set<importedPath>
         this.reverseGraph = new Map(); // filePath -> Set<importerPath>
         this.symbolIndex = new Map(); // symbolName -> [{ filePath, kind, line }]
@@ -39,6 +40,11 @@ class WorkspaceContextEngine {
             '.cache'
         ]);
 
+        this.supportedExtensions = new Set([
+            '.kora', '.kr', '.md', '.txt', '.json', '.toml', '.yaml', '.yml',
+            '.rs', '.js', '.ts', '.jsx', '.tsx', '.py', '.sh', '.bash',
+            '.c', '.cpp', '.h', '.hpp', '.html', '.css'
+        ]);
         this.koraExtensions = new Set(['.kora', '.kr']);
         this.configFiles = new Set(['kora.toml', 'Cargo.toml', 'package.json']);
     }
@@ -82,6 +88,7 @@ class WorkspaceContextEngine {
 
         this.isIndexing = true;
         this.indexedFiles.clear();
+        this.indexedFolders.clear();
         this.dependencyGraph.clear();
         this.reverseGraph.clear();
         this.symbolIndex.clear();
@@ -129,10 +136,15 @@ class WorkspaceContextEngine {
                 }
 
                 if (entry.isDirectory()) {
+                    this.indexedFolders.set(fullPath, {
+                        fullPath,
+                        relPath,
+                        folderName: entry.name
+                    });
                     this._discoverFilesRecursive(fullPath, rootDir, results);
                 } else if (entry.isFile()) {
                     const ext = path.extname(entry.name).toLowerCase();
-                    if (this.koraExtensions.has(ext) || this.configFiles.has(entry.name) || relPath.startsWith('.agent')) {
+                    if (this.supportedExtensions.has(ext) || this.configFiles.has(entry.name) || relPath.startsWith('.agent')) {
                         results.push({
                             fullPath,
                             relPath,
@@ -491,6 +503,16 @@ class WorkspaceContextEngine {
             text += `\`\`\`kora\n${file.content.slice(0, 3000)}\n\`\`\`\n`;
         }
         return text;
+    }
+
+    /**
+     * Backward-compatible helper to scan and build context for a prompt.
+     */
+    async discoverContext(wsRoot, prompt = '') {
+        if (this.indexedFiles.size === 0) {
+            await this.scanWorkspace(wsRoot ? [wsRoot] : []);
+        }
+        return this.buildContextForQuery(prompt, { workspaceRoots: wsRoot ? [wsRoot] : [] });
     }
 }
 

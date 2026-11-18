@@ -32,8 +32,8 @@ class TestVSCodeManifest(unittest.TestCase):
     def test_right_sidebar_placement(self):
         """Kora must have its own dedicated container and icon in viewsContainers."""
         views_containers = self.pkg.get('contributes', {}).get('viewsContainers', {})
-        self.assertTrue('activitybar' in views_containers or 'secondarySideBar' in views_containers)
-        container = (views_containers.get('activitybar') or views_containers.get('secondarySideBar'))[0]
+        self.assertTrue('activitybar' in views_containers or 'secondarySideBar' in views_containers or 'secondarySidebar' in views_containers)
+        container = (views_containers.get('secondarySidebar') or views_containers.get('secondarySideBar') or views_containers.get('activitybar'))[0]
         self.assertEqual(container['id'], 'kora-sidebar')
         self.assertTrue('icon' in container)
 
@@ -515,7 +515,7 @@ class TestCommandResilienceAndWorkspaceScope(unittest.TestCase):
     def test_csp_and_drag_drop_support(self):
         self.assertIn('getNonce()', self.content)
         self.assertIn('drop-overlay', self.content)
-        self.assertIn('attachFileOrFolder', self.content)
+        self.assertTrue('resolveDroppedAttachments' in self.content or 'attachFileOrFolder' in self.content)
         self.assertIn('attached-files-bar', self.content)
         self.assertIn('@selection', self.content)
         self.assertIn('@problems', self.content)
@@ -545,6 +545,40 @@ class TestWebviewRealDOMNavigation(unittest.TestCase):
         result = subprocess.run(['node', test_script], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, f"Webview DOM navigation tests failed:\n{result.stderr}\n{result.stdout}")
         self.assertIn("All Webview real DOM navigation tests passed successfully!", result.stdout)
+
+
+class TestIntelligentEngineeringAgent(unittest.TestCase):
+    """Verifies the Intent Understanding Engine and non-destructive clean code handling."""
+
+    def test_intent_engine_module_exists(self):
+        engine_file = os.path.join(CLIENT_DIR, 'intent-understanding-engine.js')
+        self.assertTrue(os.path.exists(engine_file), "intent-understanding-engine.js must exist")
+
+    def test_intent_classification_node_script(self):
+        script = """
+        const { IntentUnderstandingEngine, IntentCategory } = require('./client/intent-understanding-engine');
+        const engine = new IntentUnderstandingEngine();
+        
+        const r1 = engine.classify('اشرح هيكلية المشروع');
+        if (r1.primaryIntent !== IntentCategory.ARCHITECTURE_ANALYSIS) process.exit(1);
+
+        const r2 = engine.classify('هل يوجد خطأ سنتاكس في هذا الكود؟');
+        if (r2.primaryIntent !== IntentCategory.SYNTAX_ANALYSIS) process.exit(2);
+
+        const r3 = engine.classify('أصلح الفورمات والتنسيق');
+        if (r3.primaryIntent !== IntentCategory.FORMATTING) process.exit(3);
+
+        const r4 = engine.classify('اشرح الملفات المرفقة', { attachments: [{ name: 'test.kora' }] });
+        if (r4.primaryIntent !== IntentCategory.ATTACHMENT_ANALYSIS) process.exit(4);
+
+        const r5 = engine.classify('Explain the Clean Architecture layers in this workspace');
+        if (r5.primaryIntent !== IntentCategory.ARCHITECTURE_ANALYSIS) process.exit(5);
+
+        console.log('INTENT_TESTS_OK');
+        """
+        result = subprocess.run(['node', '-e', script], cwd=ROOT_DIR, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, f"Intent classification failed: {result.stderr}")
+        self.assertIn("INTENT_TESTS_OK", result.stdout)
 
 
 if __name__ == '__main__':

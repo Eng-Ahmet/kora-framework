@@ -81,6 +81,15 @@ ${cssContent}
 </style>
 </head>
 <body>
+    <!-- Global Native Drag & Drop Overlay Indicator -->
+    <div id="drop-overlay" class="drop-overlay" style="display: none;">
+        <div class="drop-overlay-content">
+            <div class="drop-overlay-icon">📥</div>
+            <div class="drop-overlay-title">Drop Files or Folders Here</div>
+            <div class="drop-overlay-subtitle">Direct Explorer-to-AI Context Integration</div>
+        </div>
+    </div>
+
     <div class="header">
         <div class="logo">
             <img src="${logoUri}" width="20" height="20" class="logo-img" alt="Kora Logo" />
@@ -103,13 +112,6 @@ ${cssContent}
 
     <!-- 1. AI Agent Chat Tab (Primary) -->
     <div id="tab-ask" class="section active">
-        <!-- Drag & Drop Overlay Indicator -->
-        <div id="drop-overlay" class="drop-overlay" style="display: none;">
-            
-            <span>Drop File or Folder to Attach</span>
-            <span style="font-size: 10px; opacity: 0.85;">Will be indexed and attached to AI context</span>
-        </div>
-
         <div class="provider-bar">
             <div class="provider-select-group">
                 <span style="font-size: 10px; opacity: 0.8; font-weight: 600;">Engine:</span>
@@ -221,6 +223,8 @@ ${cssContent}
                 <div style="display: flex; align-items: center; gap: 4px; overflow-x: auto;">
                     <button class="btn-mention-pill" title="Reference entire project architecture">@workspace</button>
                     <button class="btn-mention-pill" title="Reference active editor code selection">@selection</button>
+                    <button class="btn-mention-pill" title="Reference specific project file">@file:</button>
+                    <button class="btn-mention-pill" title="Reference project directory/folder">@folder:</button>
                     <button class="btn-mention-pill" title="Reference current compiler diagnostics">@problems</button>
                 </div>
             </div>
@@ -230,8 +234,9 @@ ${cssContent}
                     <span>Auto-Fix & Refactor</span>
                 </button>
                 <div style="display: flex; align-items: center; gap: 4px;">
+                    <button class="btn-attach" id="btn-attach-active" data-action="attachActiveFile" title="Attach currently open editor file" style="display: none; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">+ Active File</button>
                     <button class="btn-attach" data-action="newChat" title="Clear conversation & start new chat">New Chat</button>
-                    <button class="btn-attach" id="btn-attach" data-action="triggerFilePicker" title="Attach File or Folder (Drag & Drop also supported)">Attach</button>
+                    <button class="btn-attach" id="btn-attach" data-action="triggerFilePicker" title="Attach File or Folder (or Hold Shift + Drag from Explorer)">Attach</button>
                     <button class="btn-stop-gen" id="btn-stop" style="display: none;" data-action="stopGeneration" title="Stop Generation">
                         <span>Stop</span>
                     </button>
