@@ -7,6 +7,91 @@ const { EXAMPLES_CATALOG, getNonce, getWebviewHtml } = require('./kora-webview-h
  * Kora Assistant Webview View Provider
  * Manages the AI Copilot side panel, chat sessions, diff reviews, and compiler diagnostics.
  */
+function analyzeKoraDocument(document) {
+    if (!document) return null;
+    const text = document.getText();
+    const fileName = path.basename(document.fileName);
+
+    const hasMain = /fn\s+main\s*\(/.test(text);
+    const hasListen = /app\.listen\s*\(/.test(text) || /\.listen\s*\(/.test(text);
+    const isTestFile = fileName.includes('test') || /class\s+[A-Za-z0-9_]*Test/.test(text);
+    const hasRoutes = /class\s+[A-Za-z0-9_]*Routes/.test(text) || /\b(get|post|put|delete)\s*\(/.test(text);
+    const hasController = /class\s+[A-Za-z0-9_]*Controller/.test(text);
+    const hasService = /class\s+[A-Za-z0-9_]*Service/.test(text);
+    const hasRepository = /class\s+[A-Za-z0-9_]*Repository/.test(text) || /interface\s+[A-Za-z0-9_]*Repository/.test(text);
+    const hasEntity = /@table\s*\(/.test(text) || /@entity\b/.test(text);
+    const hasModel = /\bmodel\s+[A-Za-z0-9_]+/.test(text);
+    const hasActor = /class\s+[A-Za-z0-9_]*Actor/.test(text);
+
+    let classification = "Library Module";
+    let icon = "";
+    let isRunnable = false;
+    let runCommand = null;
+
+    if (isTestFile) {
+        classification = "Automated Test Suite";
+        icon = "";
+        isRunnable = true;
+        runCommand = "kora.runTests";
+    } else if (hasMain || hasListen) {
+        classification = "Runnable Entrypoint";
+        icon = "";
+        isRunnable = true;
+        runCommand = "kora.runFile";
+    } else if (hasController) {
+        classification = "Clean Architecture Controller";
+        icon = "";
+    } else if (hasService) {
+        classification = "Clean Architecture Service";
+        icon = "";
+    } else if (hasRepository) {
+        classification = "Data Access Repository";
+        icon = "";
+    } else if (hasEntity) {
+        classification = "Database Entity (@table)";
+        icon = "";
+    } else if (hasModel) {
+        classification = "Pure DTO Model";
+        icon = "";
+    } else if (hasRoutes) {
+        classification = "HTTP Routing Module";
+        icon = "";
+    } else if (hasActor) {
+        classification = "Concurrency Actor";
+        icon = "";
+    }
+
+    // Extract symbols
+    const symbols = [];
+    const symRegex = /\b(pub\s+)?(model|class|interface|enum|fn)\s+([A-Za-z0-9_]+)/g;
+    let m;
+    while ((m = symRegex.exec(text)) !== null) {
+        symbols.push({ kind: m[2], name: m[3] });
+    }
+
+    // Extract imports
+    const imports = [];
+    const impRegex = /import\s*\{\s*([^}]+)\s*\}\s*from\s*["']([^"']+)["']/g;
+    let im;
+    while ((im = impRegex.exec(text)) !== null) {
+        imports.push({ symbols: im[1].split(',').map(s => s.trim()), path: im[2] });
+    }
+
+    return {
+        fileName,
+        filePath: document.fileName,
+        classification,
+        icon,
+        isRunnable,
+        runCommand,
+        symbols,
+        imports,
+        lineCount: document.lineCount,
+        hasMain,
+        isTestFile
+    };
+}
+
 class KoraAssistantViewProvider {
     constructor(extensionUri, engine) {
         this.extensionUri = extensionUri;
@@ -18,15 +103,15 @@ class KoraAssistantViewProvider {
     }
 
     resolveWebviewView(webviewView, context, token) {
-        this.view = webviewView;
-        webviewView.webview.options = {
-            enableScripts: true,
-            enableCommandUris: true,
-            enableForms: true,
-            localResourceRoots: [this.extensionUri]
-        };
+        try {
+            this.view = webviewView;
+            webviewView.webview.options = {
+                enableScripts: true,
+                enableCommandUris: true,
+                localResourceRoots: [this.extensionUri]
+            };
 
-        webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+            webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
 
         webviewView.webview.onDidReceiveMessage(async (message) => {
             switch (message.type) {
@@ -305,8 +390,18 @@ class KoraAssistantViewProvider {
         });
 
         if (vscode.window.activeTextEditor) {
-            const analysis = analyzeKoraDocument(vscode.window.activeTextEditor.document);
-            this.updateActiveFile(analysis);
+            try {
+                const analysis = analyzeKoraDocument(vscode.window.activeTextEditor.document);
+                if (analysis) this.updateActiveFile(analysis);
+            } catch (e) {}
+        }
+        } catch (err) {
+            console.error('Error in resolveWebviewView:', err);
+            try {
+                if (webviewView && webviewView.webview) {
+                    webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+                }
+            } catch (e) {}
         }
     }
 
@@ -799,5 +894,6 @@ class KoraAssistantViewProvider {
 }
 
 module.exports = {
-    KoraAssistantViewProvider
+    KoraAssistantViewProvider,
+    analyzeKoraDocument
 };

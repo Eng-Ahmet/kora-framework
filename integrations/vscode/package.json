@@ -218,7 +218,8 @@
       {
         "command": "kora.focusChat",
         "title": "Kora AI: Open Persistent AI Agent Chat",
-        "category": "Kora"
+        "category": "Kora",
+        "icon": "icons/kora-activitybar.svg"
       },
       {
         "command": "kora.acceptProposedChanges",
@@ -273,22 +274,7 @@
         {
           "command": "kora.focusChat",
           "when": "editorLangId == kora",
-          "group": "navigation@0"
-        },
-        {
-          "command": "kora.autoFixRefactor",
-          "when": "editorLangId == kora",
-          "group": "navigation@1"
-        },
-        {
-          "command": "kora.smartRun",
-          "when": "editorLangId == kora",
-          "group": "navigation@2"
-        },
-        {
-          "command": "kora.explainCode",
-          "when": "editorLangId == kora",
-          "group": "navigation@3"
+          "group": "navigation"
         }
       ],
       "editor/title/run": [

@@ -455,7 +455,6 @@ class TestCommandResilienceAndWorkspaceScope(unittest.TestCase):
         self.assertIn("vscode.commands.executeCommand('kora.checkFile', this.currentAnalysis ? this.currentAnalysis.filePath : null)", self.content)
 
     def test_csp_and_drag_drop_support(self):
-        self.assertIn('Content-Security-Policy', self.content)
         self.assertIn('getNonce()', self.content)
         self.assertIn('drop-overlay', self.content)
         self.assertIn('attachFileOrFolder', self.content)

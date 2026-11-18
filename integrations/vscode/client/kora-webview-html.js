@@ -65,7 +65,6 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob: vscode-webview:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob: vscode-webview:; style-src * 'unsafe-inline'; img-src * data: https: vscode-webview:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kora AI Agent</title>
 <style>
