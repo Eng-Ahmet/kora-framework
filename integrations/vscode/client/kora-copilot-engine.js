@@ -742,14 +742,19 @@ INSTRUCTIONS:
             }
         }
         if (provider === 'ollama') {
-            const raw = customEndpoint || 'http://localhost:11434/api/generate';
+            let raw = (customEndpoint && typeof customEndpoint === 'string' && customEndpoint.trim()) ||
+                      (typeof process !== 'undefined' && process.env && (process.env.OLLAMA_ENDPOINT || process.env.OLLAMA_HOST)) ||
+                      'http://localhost:11434';
+            raw = raw.trim();
+            if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+                raw = 'http://' + raw;
+            }
             try {
                 const u = new URL(raw);
-                if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
-                    if (!u.pathname.startsWith('/api/')) u.pathname = '/api/generate';
-                    return u.toString();
+                if (!u.pathname || u.pathname === '/' || !u.pathname.startsWith('/api/')) {
+                    u.pathname = '/api/generate';
                 }
-                return raw;
+                return u.toString();
             } catch {
                 return 'http://localhost:11434/api/generate';
             }

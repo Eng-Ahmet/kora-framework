@@ -20,10 +20,15 @@ class OllamaDiscoveryService {
     }
 
     _normalizeEndpoint(endpoint) {
-        let ep = endpoint || 'http://localhost:11434';
+        let ep = (endpoint && typeof endpoint === 'string' && endpoint.trim()) ||
+                 (typeof process !== 'undefined' && process.env && (process.env.OLLAMA_ENDPOINT || process.env.OLLAMA_HOST)) ||
+                 'http://localhost:11434';
+        ep = ep.trim();
         if (!ep.startsWith('http://') && !ep.startsWith('https://')) {
             ep = 'http://' + ep;
         }
+        // Strip any trailing Ollama api subpaths (e.g. /api/generate, /api/tags, /api) and trailing slashes
+        ep = ep.replace(/\/+(api(\/(generate|tags|chat|show|version))?)?\/?$/i, '');
         return ep.replace(/\/+$/, '');
     }
 
@@ -78,6 +83,54 @@ class OllamaDiscoveryService {
                 resolve({ online: false, error: 'Connection timed out (3s)' });
             });
         });
+    }
+
+    /**
+     * Auto-detects an active Ollama endpoint across preferred URL, environment variables,
+     * and standard local addresses (127.0.0.1, localhost, 0.0.0.0).
+     */
+    async autoDetectEndpoint(preferredEndpoint = null) {
+        const candidates = [];
+
+        // 1. If preferredEndpoint provided and is not an external cloud URL
+        if (preferredEndpoint && typeof preferredEndpoint === 'string' && preferredEndpoint.trim()) {
+            const raw = preferredEndpoint.trim();
+            const lower = raw.toLowerCase();
+            const isCloudUrl = lower.includes('azure.com') || lower.includes('openai.com') ||
+                               lower.includes('anthropic.com') || lower.includes('googleapis.com') ||
+                               lower.includes('github.com');
+            if (!isCloudUrl) {
+                candidates.push(this._normalizeEndpoint(raw));
+            }
+        }
+
+        // 2. Standard Ollama environment variables
+        const envEp = (typeof process !== 'undefined' && process.env && (process.env.OLLAMA_ENDPOINT || process.env.OLLAMA_HOST))
+            ? (process.env.OLLAMA_ENDPOINT || process.env.OLLAMA_HOST)
+            : null;
+        if (envEp) {
+            candidates.push(this._normalizeEndpoint(envEp));
+        }
+
+        // 3. Common local Ollama endpoints
+        candidates.push('http://127.0.0.1:11434');
+        candidates.push('http://localhost:11434');
+        candidates.push('http://0.0.0.0:11434');
+
+        // Deduplicate while preserving priority order
+        const unique = Array.from(new Set(candidates));
+
+        for (const ep of unique) {
+            try {
+                const status = await this.checkServerStatus(ep);
+                if (status.online) {
+                    this.setEndpoint(ep);
+                    return { found: true, endpoint: ep, allTested: unique };
+                }
+            } catch (e) {}
+        }
+
+        return { found: false, endpoint: candidates[0] || 'http://localhost:11434', allTested: unique };
     }
 
     /**

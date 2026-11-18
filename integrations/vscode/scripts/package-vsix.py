@@ -35,6 +35,7 @@ def build_vsix():
   <Default Extension="svg" ContentType="image/svg+xml" />
   <Default Extension="md" ContentType="text/markdown" />
   <Default Extension="js" ContentType="application/javascript" />
+  <Default Extension="css" ContentType="text/css" />
   <Default Extension="toml" ContentType="text/plain" />
   <Default Extension="kora" ContentType="text/plain" />
   <Default Extension="kr" ContentType="text/plain" />

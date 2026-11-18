@@ -16,6 +16,7 @@ import shutil
 import tempfile
 import hashlib
 import unittest
+import subprocess
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 CLIENT_DIR = os.path.join(ROOT_DIR, 'client')
@@ -382,6 +383,63 @@ class TestOllamaDiscoveryAndRanking(unittest.TestCase):
         self.assertEqual(status, 'no_models')
         self.assertEqual(rec, 'ollama pull qwen2.5-coder:7b')
 
+    def test_custom_ollama_endpoint_resolution(self):
+        """Verifies Node.js engine and service resolve custom Ollama endpoints correctly."""
+        node_script = """
+        const { KoraCopilotEngine } = require('./client/kora-copilot-engine.js');
+        const { OllamaDiscoveryService } = require('./client/ollama-discovery-service.js');
+        const eng = new KoraCopilotEngine();
+        const s = new OllamaDiscoveryService();
+
+        // 1. Custom IP without http protocol
+        const r1 = eng._resolveEndpoint('ollama', '192.168.1.100:11434');
+        const n1 = s._normalizeEndpoint('192.168.1.100:11434');
+        if (r1 !== 'http://192.168.1.100:11434/api/generate') process.exit(1);
+        if (n1 !== 'http://192.168.1.100:11434') process.exit(2);
+
+        // 2. Custom host with trailing slash
+        const r2 = eng._resolveEndpoint('ollama', 'http://my-ollama-host:8080/');
+        const n2 = s._normalizeEndpoint('http://my-ollama-host:8080/');
+        if (r2 !== 'http://my-ollama-host:8080/api/generate') process.exit(3);
+        if (n2 !== 'http://my-ollama-host:8080') process.exit(4);
+
+        // 3. User provides endpoint ending in /api/generate
+        const r3 = eng._resolveEndpoint('ollama', 'http://10.0.0.5:11434/api/generate');
+        const n3 = s._normalizeEndpoint('http://10.0.0.5:11434/api/generate');
+        if (r3 !== 'http://10.0.0.5:11434/api/generate') process.exit(5);
+        if (n3 !== 'http://10.0.0.5:11434') process.exit(6);
+
+        // 4. Fallback to process.env.OLLAMA_HOST
+        delete process.env.OLLAMA_ENDPOINT;
+        process.env.OLLAMA_HOST = 'ollama-container:11434';
+        const r4 = eng._resolveEndpoint('ollama', '');
+        const n4 = s._normalizeEndpoint('');
+        if (r4 !== 'http://ollama-container:11434/api/generate') process.exit(7);
+        if (n4 !== 'http://ollama-container:11434') process.exit(8);
+
+        console.log('OK');
+        """
+        res = subprocess.run(['node', '-e', node_script], cwd=ROOT_DIR, capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, f"Endpoint resolution failed: {res.stderr}")
+
+    def test_auto_detect_endpoint_filtering_cloud_urls(self):
+        """Validates autoDetectEndpoint ignores cloud endpoints like Azure/OpenAI and tests local fallbacks."""
+        node_script = """
+        const { OllamaDiscoveryService } = require('./client/ollama-discovery-service.js');
+        const s = new OllamaDiscoveryService();
+
+        async function run() {
+            const res = await s.autoDetectEndpoint('https://models.inference.ai.azure.com');
+            if (res.allTested.some(c => c.includes('azure.com'))) process.exit(1);
+            if (!res.allTested.includes('http://127.0.0.1:11434')) process.exit(2);
+            if (!res.allTested.includes('http://localhost:11434')) process.exit(3);
+            console.log('OK');
+        }
+        run();
+        """
+        res = subprocess.run(['node', '-e', node_script], cwd=ROOT_DIR, capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, f"Auto-detect endpoint filtering failed: {res.stderr}")
+
 
 class TestContextMentionsAndAutocomplete(unittest.TestCase):
     """Validates @ mention parsing, token resolution, and context generation."""
@@ -412,7 +470,7 @@ class TestWebviewUIAndAntigravityLayout(unittest.TestCase):
     def setUp(self):
         self.content = ''
         for fname in sorted(os.listdir(CLIENT_DIR)):
-            if fname.endswith('.js'):
+            if fname.endswith('.js') or fname.endswith('.css'):
                 with open(os.path.join(CLIENT_DIR, fname), 'r', encoding='utf-8') as f:
                     self.content += f.read() + '\n'
 
@@ -437,7 +495,7 @@ class TestCommandResilienceAndWorkspaceScope(unittest.TestCase):
     def setUp(self):
         self.content = ''
         for fname in sorted(os.listdir(CLIENT_DIR)):
-            if fname.endswith('.js'):
+            if fname.endswith('.js') or fname.endswith('.css'):
                 with open(os.path.join(CLIENT_DIR, fname), 'r', encoding='utf-8') as f:
                     self.content += f.read() + '\n'
 
@@ -467,6 +525,8 @@ class TestCommandResilienceAndWorkspaceScope(unittest.TestCase):
         self.assertIn('active-model-pill', self.content)
         self.assertIn('ollama-alert-banner', self.content)
         self.assertIn('ollama pull qwen2.5-coder:7b', self.content)
+        self.assertIn('cfg-settings-ollama-select', self.content)
+        self.assertIn('ollama-scan-status', self.content)
 
     def test_collapsible_agent_tracker(self):
         self.assertIn('toggleTrackerSteps', self.content)
@@ -475,6 +535,16 @@ class TestCommandResilienceAndWorkspaceScope(unittest.TestCase):
     def test_input_preservation_on_error(self):
         self.assertIn('assistantError', self.content)
         self.assertIn('chatInput.value = msg.originalPrompt', self.content)
+
+
+class TestWebviewRealDOMNavigation(unittest.TestCase):
+    """Executes real headless DOM integration tests for Webview navigation, CSP, and TabNavigationController."""
+
+    def test_webview_real_dom_navigation(self):
+        test_script = os.path.join(ROOT_DIR, 'scripts', 'test-webview-navigation.js')
+        result = subprocess.run(['node', test_script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, f"Webview DOM navigation tests failed:\n{result.stderr}\n{result.stdout}")
+        self.assertIn("All Webview real DOM navigation tests passed successfully!", result.stdout)
 
 
 if __name__ == '__main__':

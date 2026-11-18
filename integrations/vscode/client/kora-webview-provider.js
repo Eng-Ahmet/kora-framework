@@ -267,8 +267,19 @@ class KoraAssistantViewProvider {
                     {
                         const cfg = vscode.workspace.getConfiguration('kora.copilot');
                         const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : '';
-                        const effectiveModel = message.model || envModel || 'gemma:2b';
-                        if (message.endpoint) await cfg.update('endpoint', message.endpoint, vscode.ConfigurationTarget.Global);
+                        const envEndpoint = (typeof process !== 'undefined' && process.env && (process.env.OLLAMA_ENDPOINT || process.env.OLLAMA_HOST)) ? (process.env.OLLAMA_ENDPOINT || process.env.OLLAMA_HOST) : '';
+                        const targetEndpoint = message.endpoint || cfg.get('endpoint') || envEndpoint || 'http://localhost:11434';
+                        let effectiveModel = message.model;
+                        if (!effectiveModel || effectiveModel === 'auto') {
+                            try {
+                                const res = await this.engine.ollamaService.resolveBestModel('chat', null, targetEndpoint);
+                                if (res && res.model) effectiveModel = res.model;
+                            } catch (e) {}
+                        }
+                        if (!effectiveModel || effectiveModel === 'auto') {
+                            effectiveModel = envModel || 'qwen2.5-coder:7b';
+                        }
+                        if (message.endpoint !== undefined) await cfg.update('endpoint', message.endpoint, vscode.ConfigurationTarget.Global);
                         await cfg.update('model', effectiveModel, vscode.ConfigurationTarget.Global);
                         await cfg.update('provider', 'ollama', vscode.ConfigurationTarget.Global);
                         vscode.window.showInformationMessage(`Local Ollama configured (${effectiveModel})!`);
@@ -278,18 +289,33 @@ class KoraAssistantViewProvider {
                 case 'fetchOllamaModels':
                     {
                         const cfg = vscode.workspace.getConfiguration('kora.copilot');
-                        const endpoint = message.endpoint || cfg.get('endpoint', 'http://localhost:11434');
+                        const rawCandidate = message.endpoint || cfg.get('endpoint');
+                        
+                        // Smart auto-detection of alive endpoint
+                        const detection = await this.engine.ollamaService.autoDetectEndpoint(rawCandidate);
+                        const endpoint = detection.endpoint;
+
+                        // If user had a stale or cloud endpoint saved for Ollama, auto-heal to the discovered local endpoint
+                        if (detection.found && cfg.get('provider') === 'ollama' && cfg.get('endpoint') !== endpoint) {
+                            await cfg.update('endpoint', endpoint, vscode.ConfigurationTarget.Global);
+                        }
+
                         try {
                             const resolution = await this.engine.ollamaService.resolveBestModel('chat', cfg.get('model'), endpoint);
                             const ranked = await this.engine.ollamaService.getRankedModels('chat', endpoint);
+                            if (resolution && resolution.model && (!cfg.get('model') || cfg.get('model') === 'gemma:2b' || cfg.get('model') === 'default' || resolution.status === 'fallback')) {
+                                await cfg.update('model', resolution.model, vscode.ConfigurationTarget.Global);
+                            }
                             if (this.view) {
                                 this.view.webview.postMessage({
                                     type: 'ollamaModelsLoaded',
                                     models: ranked.map(m => m.name),
                                     detailedModels: ranked,
-                                    activeModel: resolution.model,
+                                    activeModel: resolution.model || 'qwen2.5-coder:7b',
                                     resolution: resolution,
-                                    status: resolution.status
+                                    status: resolution.status,
+                                    endpoint: endpoint,
+                                    detectedAlive: detection.found
                                 });
                             }
                         } catch (e) {
@@ -305,7 +331,9 @@ class KoraAssistantViewProvider {
                                         message: e.message,
                                         recommendation: 'ollama pull qwen2.5-coder:7b'
                                     },
-                                    status: 'no_models'
+                                    status: 'no_models',
+                                    endpoint: endpoint,
+                                    detectedAlive: false
                                 });
                             }
                         }
@@ -395,6 +423,8 @@ class KoraAssistantViewProvider {
                 if (analysis) this.updateActiveFile(analysis);
             } catch (e) {}
         }
+
+        this.syncProviderToWebview();
         } catch (err) {
             console.error('Error in resolveWebviewView:', err);
             try {
@@ -813,22 +843,40 @@ class KoraAssistantViewProvider {
     syncProviderToWebview() {
         if (this.view) {
             const config = vscode.workspace.getConfiguration('kora.copilot');
+            const provider = config.get('provider', 'embedded');
             const envModel = (typeof process !== 'undefined' && process.env && process.env.OLLAMA_MODEL) ? process.env.OLLAMA_MODEL : '';
+            const envEndpoint = (typeof process !== 'undefined' && process.env && (process.env.OLLAMA_ENDPOINT || process.env.OLLAMA_HOST)) ? (process.env.OLLAMA_ENDPOINT || process.env.OLLAMA_HOST) : '';
+            
+            let rawEndpoint = config.get('endpoint', '');
+            if (provider === 'ollama' && rawEndpoint) {
+                const lower = rawEndpoint.toLowerCase();
+                if (lower.includes('azure.com') || lower.includes('openai.com') || lower.includes('anthropic.com') || lower.includes('googleapis.com')) {
+                    rawEndpoint = '';
+                }
+            }
+            const effectiveEndpoint = rawEndpoint || envEndpoint || 'http://localhost:11434';
+            let effectiveModel = config.get('model', '');
+            if (provider === 'ollama' && (!effectiveModel || effectiveModel === 'gemma:2b' || effectiveModel === 'default')) {
+                effectiveModel = envModel || 'qwen2.5-coder:7b';
+            } else if (!effectiveModel) {
+                effectiveModel = envModel || 'qwen2.5-coder:7b';
+            }
+
             this.view.webview.postMessage({
                 type: 'syncConfig',
-                provider: config.get('provider', 'embedded'),
-                model: config.get('model', envModel || 'gemma:2b'),
+                provider: provider,
+                model: effectiveModel,
                 hasGitHubToken: Boolean(config.get('githubToken') || process.env.GITHUB_TOKEN),
-                endpoint: config.get('endpoint', ''),
+                endpoint: effectiveEndpoint,
                 envModel: envModel,
                 settings: {
-                    provider: config.get('provider', 'embedded'),
+                    provider: provider,
                     githubToken: config.get('githubToken', ''),
                     openaiKey: config.get('openaiKey', ''),
                     geminiKey: config.get('geminiKey', ''),
                     anthropicKey: config.get('anthropicKey', ''),
-                    model: config.get('model', envModel || 'gemma:2b'),
-                    endpoint: config.get('endpoint', '')
+                    model: effectiveModel,
+                    endpoint: effectiveEndpoint
                 }
             });
         }
