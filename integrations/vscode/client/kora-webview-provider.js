@@ -835,10 +835,19 @@ class KoraAssistantViewProvider {
     }
 
     switchTab(tabName) {
+        if (!tabName) return;
+        let effective = String(tabName).toLowerCase().trim();
+        if (effective.startsWith('tab-')) effective = effective.substring(4);
+        if (effective === 'learning') effective = 'learn';
+        if (effective === 'architecture') effective = 'arch';
+        if (effective === 'inspector') effective = 'copilot';
+        if (effective === 'chat' || effective === 'agent') effective = 'ask';
+        if (effective === 'example') effective = 'examples';
+        if (effective === 'setting') effective = 'settings';
         if (this.view) {
             this.view.webview.postMessage({
                 type: 'switchTab',
-                tab: tabName
+                tab: effective
             });
         }
     }

@@ -65,6 +65,7 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'unsafe-inline' 'unsafe-eval' ${webview.cspSource}; font-src ${webview.cspSource}; connect-src https: http:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kora AI Agent</title>
 <style>
@@ -914,18 +915,18 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
             <span>Kora AI Agent</span>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
-            <span class="active-model-pill" id="active-model-pill" data-tab="settings" data-action="switchTab" title="Active AI model. Click to configure settings.">Embedded</span>
+            <span class="active-model-pill" id="active-model-pill" data-tab="settings" data-action="switchTab" onclick="switchTab('settings')" title="Active AI model. Click to configure settings.">Embedded</span>
             <span class="engine-badge" id="engine-indicator">Active</span>
         </div>
     </div>
 
     <div class="tabs">
-        <button class="tab-btn active" data-tab="ask" data-tab="ask" data-action="switchTab">AI Agent</button>
-        <button class="tab-btn" data-tab="copilot" data-tab="copilot" data-action="switchTab">Inspector</button>
-        <button class="tab-btn" data-tab="arch" data-tab="arch" data-action="switchTab">Architecture</button>
-        <button class="tab-btn" data-tab="learn" data-tab="learn" data-action="switchTab">Learning</button>
-        <button class="tab-btn" data-tab="examples" data-tab="examples" data-action="switchTab">Examples (23)</button>
-        <button class="tab-btn" data-tab="settings" data-tab="settings" data-action="switchTab">Settings</button>
+        <button type="button" class="tab-btn active" data-tab="ask" onclick="switchTab('ask')" id="tab-nav-ask">AI Agent</button>
+        <button type="button" class="tab-btn" data-tab="copilot" onclick="switchTab('copilot')" id="tab-nav-copilot">Inspector</button>
+        <button type="button" class="tab-btn" data-tab="arch" onclick="switchTab('arch')" id="tab-nav-arch">Architecture</button>
+        <button type="button" class="tab-btn" data-tab="learn" onclick="switchTab('learn')" id="tab-nav-learn">Learning</button>
+        <button type="button" class="tab-btn" data-tab="examples" onclick="switchTab('examples')" id="tab-nav-examples">Examples (23)</button>
+        <button type="button" class="tab-btn" data-tab="settings" onclick="switchTab('settings')" id="tab-nav-settings">Settings</button>
     </div>
 
     <!-- 1. AI Agent Chat Tab (Primary) -->
@@ -1082,7 +1083,7 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
                 <button class="action-btn" data-action="runTests" onclick="runTests()" title="Execute test suites">Test Suite</button>
                 <button class="action-btn" data-action="explainCode" onclick="explainCode()" title="Explain code architecture">Explain Code</button>
                 <button class="action-btn" data-action="generateTests" onclick="generateTests()" title="Scaffold tests for active symbols">Scaffold Tests</button>
-                <button class="action-btn" data-tab="arch" data-action="switchTab" title="Inspect clean architecture layers">Architecture</button>
+                <button class="action-btn" data-tab="arch" data-action="switchTab" onclick="switchTab('arch')" title="Inspect clean architecture layers">Architecture</button>
                 <button class="action-btn" data-action="requestWorkspaceRefactor" onclick="requestWorkspaceRefactor()" style="grid-column: span 2; background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 600;" title="AI analyzes workspace/file and proposes coordinated code fixes with Diff Review">AI Auto-Fix & Refactor (Workspace)</button>
             </div>
         </div>
@@ -1278,6 +1279,12 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
         function dispatchAction(actionName, targetEl, event) {
             if (!actionName) return;
             switch (actionName) {
+                case 'switchTab':
+                    if (targetEl) {
+                        const t = targetEl.getAttribute('data-tab') || 'ask';
+                        switchTab(t);
+                    }
+                    break;
                 case 'smartRun':
                     smartRun();
                     break;
@@ -1362,14 +1369,39 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
         }
 
 
-        const vscode = acquireVsCodeApi();
+        let vscode;
+        try {
+            vscode = acquireVsCodeApi();
+        } catch (e) {
+            vscode = {
+                postMessage: () => {},
+                getState: () => ({ history: [] }),
+                setState: () => {}
+            };
+        }
 
-        function switchTab(name) {
-            if (!name) return;
+        function normalizeTabName(name) {
+            if (!name) return 'ask';
+            let t = String(name).toLowerCase().trim();
+            if (t.startsWith('tab-')) t = t.substring(4);
+            if (t === 'learning') return 'learn';
+            if (t === 'architecture') return 'arch';
+            if (t === 'inspector') return 'copilot';
+            if (t === 'chat' || t === 'agent') return 'ask';
+            if (t === 'example') return 'examples';
+            if (t === 'setting') return 'settings';
+            return t;
+        }
+
+        function switchTab(rawName) {
+            const name = normalizeTabName(rawName);
+            const validTabs = ['ask', 'copilot', 'arch', 'learn', 'examples', 'settings'];
+            const targetTab = validTabs.includes(name) ? name : 'ask';
+
             const tabButtons = document.querySelectorAll('.tab-btn');
             tabButtons.forEach(b => {
                 const target = b.getAttribute('data-tab');
-                if (target === name) {
+                if (target === targetTab) {
                     b.classList.add('active');
                 } else {
                     b.classList.remove('active');
@@ -1378,9 +1410,9 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
 
             const sections = document.querySelectorAll('.section');
             sections.forEach(s => {
-                if (s.id === 'tab-' + name) {
+                if (s.id === 'tab-' + targetTab) {
                     s.classList.add('active');
-                    s.style.display = (name === 'ask' ? 'flex' : 'block');
+                    s.style.display = (targetTab === 'ask' ? 'flex' : 'block');
                 } else {
                     s.classList.remove('active');
                     s.style.display = 'none';
@@ -1388,14 +1420,34 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
             });
 
             try {
-                const s = vscode.getState() || { history: [] };
-                s.activeTab = name;
-                vscode.setState(s);
+                if (typeof vscode !== 'undefined' && vscode.getState) {
+                    const st = vscode.getState() || { history: [] };
+                    st.activeTab = targetTab;
+                    vscode.setState(st);
+                }
             } catch (e) {}
         }
         window.switchTab = switchTab;
+        window.normalizeTabName = normalizeTabName;
+        window.openArch = function() { switchTab('arch'); };
+        window.openLearning = function() { switchTab('learn'); };
+        window.openExamples = function() { switchTab('examples'); };
+        window.openInspector = function() { switchTab('copilot'); };
+        window.openSettings = function() { switchTab('settings'); };
 
-        // Comprehensive Universal Event Delegation (CSP compliant with nonce)
+        // Directly bind all tab buttons immediately so tabs NEVER fail
+        function bindAllTabButtons() {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.onclick = function(e) {
+                    if (e) e.preventDefault();
+                    const tab = this.getAttribute('data-tab');
+                    if (tab) switchTab(tab);
+                };
+            });
+        }
+        bindAllTabButtons();
+
+        // Comprehensive Universal Event Delegation (CSP compliant)
         document.addEventListener('click', function(e) {
             // 1. Tab buttons
             const tabBtn = e.target.closest('.tab-btn');
@@ -2594,6 +2646,10 @@ function getWebviewHtml(webview, extensionUri, catalog, nonce) {
         window.auditFile = auditFile;
         window.generateTests = generateTests;
         window.openArch = function() { switchTab('arch'); };
+        window.openLearning = function() { switchTab('learn'); };
+        window.openExamples = function() { switchTab('examples'); };
+        window.openInspector = function() { switchTab('copilot'); };
+        window.openSettings = function() { switchTab('settings'); };
         window.analyzeWorkspace = analyzeWorkspace;
         window.requestWorkspaceRefactor = requestWorkspaceRefactor;
         window.toggleConfigPanel = toggleConfigPanel;

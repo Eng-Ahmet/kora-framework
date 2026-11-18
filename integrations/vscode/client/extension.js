@@ -867,14 +867,14 @@ function activate(context) {
 
         vscode.commands.registerCommand('kora.openLearningCenter', () => {
             if (assistantViewProvider) {
-                assistantViewProvider.switchTab('learning');
+                assistantViewProvider.switchTab('learn');
                 vscode.commands.executeCommand('kora.assistantView.focus');
             }
         }),
 
         vscode.commands.registerCommand('kora.openArchitectureExplorer', () => {
             if (assistantViewProvider) {
-                assistantViewProvider.switchTab('architecture');
+                assistantViewProvider.switchTab('arch');
                 vscode.commands.executeCommand('kora.assistantView.focus');
             }
         }),
