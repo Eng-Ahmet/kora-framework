@@ -261,7 +261,21 @@ class KoraAssistantViewProvider {
                 case 'openFile':
                     if (message.filePath) {
                         try {
-                            const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(message.filePath));
+                            let targetPath = String(message.filePath).replace(/^file:\/\//, '');
+                            try { targetPath = decodeURIComponent(targetPath); } catch (e) {}
+                            if (!path.isAbsolute(targetPath)) {
+                                const root = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] ? vscode.workspace.workspaceFolders[0].uri.fsPath : '';
+                                if (root) targetPath = path.join(root, targetPath);
+                            }
+                            const uri = vscode.Uri.file(targetPath);
+                            try {
+                                const stat = await vscode.workspace.fs.stat(uri);
+                                if (stat.type === vscode.FileType.Directory) {
+                                    await vscode.commands.executeCommand('revealInExplorer', uri);
+                                    break;
+                                }
+                            } catch (e) {}
+                            const doc = await vscode.workspace.openTextDocument(uri);
                             await vscode.window.showTextDocument(doc);
                         } catch (e) {
                             vscode.window.showErrorMessage(`Could not open file: ${e.message}`);

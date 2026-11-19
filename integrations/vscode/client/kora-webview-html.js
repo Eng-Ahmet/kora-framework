@@ -48,6 +48,26 @@ function getNonce() {
  */
 function getWebviewHtml(webview, extensionUri, catalog, nonce) {
     const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'icon.png'));
+    const iconsDir = vscode.Uri.joinPath(extensionUri, 'icons');
+    const iconMap = {
+        file: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-file.svg')).toString(),
+        service: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-service.svg')).toString(),
+        model: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-model.svg')).toString(),
+        controller: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-controller.svg')).toString(),
+        repository: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-repository.svg')).toString(),
+        routes: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-routes.svg')).toString(),
+        entity: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-entity.svg')).toString(),
+        dto: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-dto.svg')).toString(),
+        interface: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-interface.svg')).toString(),
+        enum: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-enum.svg')).toString(),
+        middleware: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-middleware.svg')).toString(),
+        validator: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-validator.svg')).toString(),
+        event: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-event.svg')).toString(),
+        test: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-test.svg')).toString(),
+        seeder: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-seeder.svg')).toString(),
+        config: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-config.svg')).toString(),
+        module: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-module.svg')).toString()
+    };
     const catalogList = catalog || EXAMPLES_CATALOG;
     const catalogHtml = catalogList.map(ex => `
         <div class="example-card" data-slug="${ex.slug}" data-action="cloneExample" data-action="cloneExample" data-slug="${ex.slug}">
@@ -462,6 +482,7 @@ ${cssContent}
     
     
     <script nonce="${nonce}">
+        window.KORA_ICONS = ${JSON.stringify(iconMap)};
 `;
 
     const htmlAfterScript = `

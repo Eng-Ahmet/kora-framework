@@ -1651,6 +1651,54 @@
             }
         }
 
+        function getIconForPath(filePath) {
+            if (!filePath) return (window.KORA_ICONS && window.KORA_ICONS.file) || '';
+            const raw = String(filePath).toLowerCase();
+            const name = raw.split(/[/\\]/).filter(Boolean).pop() || raw;
+            const icons = window.KORA_ICONS || {};
+
+            if (name.includes('.service.') || name.endsWith('service.kora') || name.endsWith('service.kr')) return icons.service || icons.file;
+            if (name.includes('.model.') || name.includes('.models.') || name.endsWith('model.kora') || name.endsWith('model.kr')) return icons.model || icons.file;
+            if (name.includes('.test.') || name.includes('.spec.') || name.endsWith('test.kora') || name.endsWith('test.kr') || name === 'tests' || raw.includes('/tests/')) return icons.test || icons.file;
+            if (name.includes('.controller.') || name.endsWith('controller.kora')) return icons.controller || icons.file;
+            if (name.includes('.repository.') || name.includes('.repo.') || name.endsWith('repository.kora')) return icons.repository || icons.file;
+            if (name.includes('.routes.') || name.includes('.router.') || name.endsWith('routes.kora')) return icons.routes || icons.file;
+            if (name.includes('.entity.') || name.endsWith('entity.kora')) return icons.entity || icons.file;
+            if (name.includes('.dto.') || name.endsWith('dto.kora')) return icons.dto || icons.file;
+            if (name.includes('.interface.') || name.endsWith('interface.kora')) return icons.interface || icons.file;
+            if (name.includes('.enum.') || name.endsWith('enum.kora')) return icons.enum || icons.file;
+            if (name.includes('.middleware.') || name.includes('.guard.') || name.endsWith('middleware.kora')) return icons.middleware || icons.file;
+            if (name.includes('.validator.') || name.endsWith('validator.kora')) return icons.validator || icons.file;
+            if (name.includes('.event.') || name.includes('.events.') || name.endsWith('event.kora')) return icons.event || icons.file;
+            if (name.includes('.seeder.') || name.includes('.seed.') || name.endsWith('seeder.kora')) return icons.seeder || icons.file;
+            if (name.includes('.module.') || name.endsWith('module.kora')) return icons.module || icons.file;
+            if (name === 'kora.toml' || name === 'kora.lock' || name.includes('.config.')) return icons.config || icons.file;
+
+            return icons.file || '';
+        }
+
+        function createOpenFilePill(filePath, displayLabel) {
+            let rawPath = String(filePath || '').trim().replace(/^file:\/\//, '');
+            rawPath = rawPath.replace(/&amp;/g, '&');
+
+            let cleanName = displayLabel ? String(displayLabel).trim() : '';
+            if (!cleanName || cleanName.includes('/') || cleanName.includes('\\') || cleanName.startsWith('file:')) {
+                cleanName = rawPath.split(/[/\\]/).filter(Boolean).pop() || rawPath;
+            }
+            if (cleanName.endsWith('/')) {
+                cleanName = cleanName.slice(0, -1);
+            }
+            if (rawPath.endsWith('/tests') || rawPath.endsWith('/tests/')) {
+                cleanName = 'tests/';
+            }
+
+            const iconUrl = getIconForPath(rawPath);
+            const safePath = escapeHtml(encodeURI(rawPath));
+            const safeName = escapeHtml(cleanName);
+            const iconImg = iconUrl ? `<img src="${iconUrl}" class="file-ref-icon" alt="" />` : '<span style="font-size: 11px;">📄</span>';
+            return `<span class="file-ref-pill" data-path="${safePath}" title="Click to open ${safeName}"><span style="display:inline-flex; align-items:center;">${iconImg}</span><span class="file-ref-name">${safeName}</span></span>`;
+        }
+
         function formatInlineMarkdown(str) {
             if (!str) return '';
             let s = escapeHtml(str);
@@ -1658,10 +1706,43 @@
             s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
             s = s.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #F3F4F6;">$1</strong>');
             s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-            s = s.replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 10.5px; color: #FBBF24;">$1</code>');
-            s = s.replace(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/g, (match, label, p) => {
-                const safePath = escapeHtml(encodeURI(p.replace(/&amp;/g, '&')));
-                return `<span class="file-ref-pill" data-path="${safePath}" title="Click to open">${label}</span>`;
+            s = s.replace(/`([^`]+)`/g, (m, code) => {
+                if (code.includes('.kora') || code.includes('.kr') || code.endsWith('kora.toml') || code.endsWith('kora.lock')) {
+                    return createOpenFilePill(code);
+                }
+                return `<code style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 10.5px; color: #FBBF24;">${code}</code>`;
+            });
+
+            // 1. Markdown file links: [label](file://path) or [label](path)
+            s = s.replace(/\[([^\]]+)\]\((?:file:\/\/)?([^)]+)\)/g, (match, label, p) => {
+                if (p.includes('.') || p.includes('/') || p.includes('\\')) {
+                    return createOpenFilePill(p, label);
+                }
+                return match;
+            });
+
+            // 2. Lines like "Location: /path/to/file" -> replace with file pill
+            s = s.replace(/(?:Location|Path):\s*([a-zA-Z0-9_./-]+\.(?:kora|kr|toml|lock|json|rs|js|ts)|[a-zA-Z0-9_./-]+\/tests\/?|[a-zA-Z0-9_./-]+)/gi, (match, p) => {
+                const trimmed = p.trim();
+                if (trimmed.includes('/') && (trimmed.includes('.') || trimmed.endsWith('tests') || trimmed.endsWith('tests/'))) {
+                    return createOpenFilePill(trimmed);
+                }
+                return match;
+            });
+
+            // 3. Standalone absolute paths: /home/.../order_processor.service.kora
+            s = s.replace(/(?<!["'=])(\/(?:[a-zA-Z0-9_.-]+\/)+[a-zA-Z0-9_.-]+\.(?:kora|kr|toml|lock|json|rs|js|ts)|\/(?:[a-zA-Z0-9_.-]+\/)+tests\/?)/g, (match, p) => {
+                return createOpenFilePill(p);
+            });
+
+            // 4. Relative paths like services/order_processor.service.kora
+            s = s.replace(/(?<!["'=/\w])([a-zA-Z0-9_-]+\/[a-zA-Z0-9_./-]+\.(?:kora|kr))/g, (match, p) => {
+                return createOpenFilePill(p);
+            });
+
+            // 5. Common kora filenames: hello.test.kora, order_processor.service.kora
+            s = s.replace(/(?<!["'=/\w])([a-zA-Z0-9_-]+\.(?:service|model|controller|repository|entity|dto|test|routes|seeder|validator|middleware|event|interface|enum)\.kora)(?!["'=/\w])/g, (match, p) => {
+                return createOpenFilePill(p);
             });
 
             return s;
