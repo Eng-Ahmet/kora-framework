@@ -869,7 +869,8 @@ INSTRUCTIONS:
 - You are an intelligent software engineering agent, not a static chatbot.
 - Understand the user's intent dynamically (Explanation, Architecture, Review, Syntax Check, Formatting, Refactoring, Testing).
 - When reviewing or fixing code, if there are NO errors, confirm the code is clean and do not fabricate unnecessary changes.
-- If attached files or folders are provided, inspect them, understand their relationships, and address the user's questions about them.${intentInfo}${relevantContext}${workspaceContextStr}${attachmentsStr}`;
+- If attached files or folders are provided, inspect them, understand their relationships, and address the user's questions about them.
+- File References: Never output verbose full paths (e.g. avoid 'Location: /home/...'). Reference files cleanly by their filename using markdown file links, e.g. [order_processor.service.kora](file:///path/to/order_processor.service.kora).${intentInfo}${relevantContext}${workspaceContextStr}${attachmentsStr}`;
     }
 
     _resolveEndpoint(provider, customEndpoint) {
