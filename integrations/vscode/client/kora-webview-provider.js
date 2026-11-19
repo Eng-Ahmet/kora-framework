@@ -261,22 +261,62 @@ class KoraAssistantViewProvider {
                 case 'openFile':
                     if (message.filePath) {
                         try {
-                            let targetPath = String(message.filePath).replace(/^file:\/\//, '');
+                            let targetPath = String(message.filePath).replace(/^file:\/\//, '').trim();
                             try { targetPath = decodeURIComponent(targetPath); } catch (e) {}
-                            if (!path.isAbsolute(targetPath)) {
+
+                            let uri = null;
+                            const isDirQuery = targetPath.endsWith('/') || targetPath.endsWith('/tests') || targetPath === 'tests';
+                            const cleanTarget = targetPath.replace(/\/+$/, '');
+
+                            if (path.isAbsolute(cleanTarget) && fs.existsSync(cleanTarget)) {
+                                uri = vscode.Uri.file(cleanTarget);
+                            } else {
                                 const root = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0] ? vscode.workspace.workspaceFolders[0].uri.fsPath : '';
-                                if (root) targetPath = path.join(root, targetPath);
-                            }
-                            const uri = vscode.Uri.file(targetPath);
-                            try {
-                                const stat = await vscode.workspace.fs.stat(uri);
-                                if (stat.type === vscode.FileType.Directory) {
-                                    await vscode.commands.executeCommand('revealInExplorer', uri);
-                                    break;
+                                const candidate = root ? path.join(root, cleanTarget) : cleanTarget;
+                                if (fs.existsSync(candidate)) {
+                                    uri = vscode.Uri.file(candidate);
+                                } else {
+                                    const baseName = path.basename(cleanTarget);
+                                    if (isDirQuery) {
+                                        try {
+                                            const sampleFile = await vscode.workspace.findFiles(`**/${baseName}/*`, '**/node_modules/**', 1);
+                                            if (sampleFile && sampleFile.length > 0) {
+                                                uri = vscode.Uri.file(path.dirname(sampleFile[0].fsPath));
+                                            }
+                                        } catch (e) {}
+                                    }
+                                    if (!uri) {
+                                        let found = [];
+                                        if (cleanTarget.includes('/')) {
+                                            try {
+                                                found = await vscode.workspace.findFiles(`**/${cleanTarget.replace(/^\/+/, '')}`, '**/node_modules/**', 1);
+                                            } catch (e) {}
+                                        }
+                                        if ((!found || found.length === 0) && baseName) {
+                                            try {
+                                                found = await vscode.workspace.findFiles(`**/${baseName}`, '**/node_modules/**', 1);
+                                            } catch (e) {}
+                                        }
+                                        if (found && found.length > 0) {
+                                            uri = found[0];
+                                        } else {
+                                            uri = vscode.Uri.file(candidate);
+                                        }
+                                    }
                                 }
-                            } catch (e) {}
-                            const doc = await vscode.workspace.openTextDocument(uri);
-                            await vscode.window.showTextDocument(doc);
+                            }
+
+                            if (uri) {
+                                try {
+                                    const stat = await vscode.workspace.fs.stat(uri);
+                                    if (stat.type === vscode.FileType.Directory) {
+                                        await vscode.commands.executeCommand('revealInExplorer', uri);
+                                        break;
+                                    }
+                                } catch (e) {}
+                                const doc = await vscode.workspace.openTextDocument(uri);
+                                await vscode.window.showTextDocument(doc);
+                            }
                         } catch (e) {
                             vscode.window.showErrorMessage(`Could not open file: ${e.message}`);
                         }

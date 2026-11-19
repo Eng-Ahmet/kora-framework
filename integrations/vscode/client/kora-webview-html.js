@@ -48,25 +48,35 @@ function getNonce() {
  */
 function getWebviewHtml(webview, extensionUri, catalog, nonce) {
     const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'icon.png'));
-    const iconsDir = vscode.Uri.joinPath(extensionUri, 'icons');
+    const getSvgDataUri = (filename) => {
+        try {
+            const p = path.join(extensionUri.fsPath, 'icons', filename);
+            if (fs.existsSync(p)) {
+                const buf = fs.readFileSync(p);
+                return `data:image/svg+xml;base64,${buf.toString('base64')}`;
+            }
+        } catch (e) {}
+        return '';
+    };
+
     const iconMap = {
-        file: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-file.svg')).toString(),
-        service: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-service.svg')).toString(),
-        model: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-model.svg')).toString(),
-        controller: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-controller.svg')).toString(),
-        repository: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-repository.svg')).toString(),
-        routes: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-routes.svg')).toString(),
-        entity: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-entity.svg')).toString(),
-        dto: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-dto.svg')).toString(),
-        interface: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-interface.svg')).toString(),
-        enum: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-enum.svg')).toString(),
-        middleware: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-middleware.svg')).toString(),
-        validator: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-validator.svg')).toString(),
-        event: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-event.svg')).toString(),
-        test: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-test.svg')).toString(),
-        seeder: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-seeder.svg')).toString(),
-        config: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-config.svg')).toString(),
-        module: webview.asWebviewUri(vscode.Uri.joinPath(iconsDir, 'kora-module.svg')).toString()
+        file: getSvgDataUri('kora-file.svg'),
+        service: getSvgDataUri('kora-service.svg'),
+        model: getSvgDataUri('kora-model.svg'),
+        controller: getSvgDataUri('kora-controller.svg'),
+        repository: getSvgDataUri('kora-repository.svg'),
+        routes: getSvgDataUri('kora-routes.svg'),
+        entity: getSvgDataUri('kora-entity.svg'),
+        dto: getSvgDataUri('kora-dto.svg'),
+        interface: getSvgDataUri('kora-interface.svg'),
+        enum: getSvgDataUri('kora-enum.svg'),
+        middleware: getSvgDataUri('kora-middleware.svg'),
+        validator: getSvgDataUri('kora-validator.svg'),
+        event: getSvgDataUri('kora-event.svg'),
+        test: getSvgDataUri('kora-test.svg'),
+        seeder: getSvgDataUri('kora-seeder.svg'),
+        config: getSvgDataUri('kora-config.svg'),
+        module: getSvgDataUri('kora-module.svg')
     };
     const catalogList = catalog || EXAMPLES_CATALOG;
     const catalogHtml = catalogList.map(ex => `
