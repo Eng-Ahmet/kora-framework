@@ -159,7 +159,10 @@ class ChangeReviewManager {
      * Previews visual side-by-side diff using VS Code's native diff editor.
      */
     async openVisualDiff(filePath, proposalId = null) {
-        const proposal = this.getProposal(proposalId);
+        let proposal = this.getProposal(proposalId);
+        if (!proposal && this.proposals && this.proposals.size > 0) {
+            proposal = Array.from(this.proposals.values())[this.proposals.size - 1];
+        }
         if (!proposal) throw new Error('No active proposal found to diff');
 
         const normTarget = filePath ? path.resolve(filePath) : null;
@@ -183,8 +186,8 @@ class ChangeReviewManager {
         if (this.vscode && this.vscode.commands && this.vscode.Uri) {
             const origUri = this.vscode.Uri.file(resolvedTarget);
             const proposedUri = this.vscode.Uri.file(proposedFilePath);
-            const title = `${fileName} (Current) <-> ${fileName} (AI Proposed Refactor)`;
-            await this.vscode.commands.executeCommand('vscode.diff', origUri, proposedUri, title);
+            const title = `${fileName} (Original - Red) ↔ ${fileName} (AI Proposed - Green)`;
+            await this.vscode.commands.executeCommand('vscode.diff', origUri, proposedUri, title, { preview: false });
         }
 
         return proposedFilePath;
