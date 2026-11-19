@@ -216,9 +216,86 @@ class KoraAssistantViewProvider {
                     break;
                 case 'previewDiff':
                     try {
+                        if (message.code) {
+                            let targetFilePath = message.filePath ? String(message.filePath).replace(/^file:\/\//, '') : null;
+                            if (targetFilePath) {
+                                try { targetFilePath = decodeURIComponent(targetFilePath); } catch (e) {}
+                            }
+
+                            // 1. If not specified, look at active editor
+                            if (!targetFilePath && vscode.window.activeTextEditor) {
+                                const activeDoc = vscode.window.activeTextEditor.document;
+                                if (activeDoc && activeDoc.fileName && !activeDoc.fileName.includes('.diff_cache') && !activeDoc.fileName.includes('kora_visual_diffs') && !activeDoc.isUntitled) {
+                                    targetFilePath = activeDoc.fileName;
+                                }
+                            }
+
+                            // 2. Look at current analysis
+                            if (!targetFilePath && this.currentAnalysis && this.currentAnalysis.filePath) {
+                                targetFilePath = this.currentAnalysis.filePath;
+                            }
+
+                            // 3. Inspect visible text editors
+                            if (!targetFilePath && vscode.window.visibleTextEditors && vscode.window.visibleTextEditors.length > 0) {
+                                for (const ed of vscode.window.visibleTextEditors) {
+                                    if (ed.document && ed.document.fileName && !ed.document.isUntitled && !ed.document.fileName.includes('kora_visual_diffs')) {
+                                        targetFilePath = ed.document.fileName;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // 4. Try to infer from code content / class name
+                            if (!targetFilePath) {
+                                const codeStr = String(message.code);
+                                let candidateName = null;
+                                if (codeStr.includes('class OrderProcessor') || codeStr.includes('OrderProcessor')) candidateName = 'order_processor.service.kora';
+                                else if (codeStr.includes('model Coordinates') || codeStr.includes('Coordinates')) candidateName = 'coordinates.model.kora';
+                                else if (codeStr.includes('test') && codeStr.includes('hello')) candidateName = 'hello.test.kora';
+
+                                if (candidateName) {
+                                    try {
+                                        const found = await vscode.workspace.findFiles('**/' + candidateName, '**/node_modules/**', 1);
+                                        if (found && found.length > 0) targetFilePath = found[0].fsPath;
+                                    } catch (e) {}
+                                }
+                            }
+
+                            const os = require('os');
+                            const tempDir = path.join(os.tmpdir(), 'kora_visual_diffs');
+                            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+                            let baseName = targetFilePath ? path.basename(targetFilePath) : 'component.kora';
+                            let leftUri = null;
+
+                            if (targetFilePath && fs.existsSync(targetFilePath)) {
+                                leftUri = vscode.Uri.file(targetFilePath);
+                            } else {
+                                // Create an empty original file so the left side is empty and right side is green additions
+                                const emptyOriginal = path.join(tempDir, `original_empty_${baseName}`);
+                                fs.writeFileSync(emptyOriginal, '', 'utf8');
+                                leftUri = vscode.Uri.file(emptyOriginal);
+                            }
+
+                            const proposedPath = path.join(tempDir, `proposed_${baseName}`);
+                            fs.writeFileSync(proposedPath, message.code, 'utf8');
+                            const rightUri = vscode.Uri.file(proposedPath);
+
+                            const diffTitle = `${baseName} (Original - Red) ↔ ${baseName} (AI Proposed - Green)`;
+                            await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, diffTitle, { preview: false });
+                            break;
+                        }
+
                         await this.engine.reviewManager.openVisualDiff(message.filePath, message.proposalId);
                     } catch (e) {
                         vscode.window.showErrorMessage(`Failed to open visual diff: ${e.message}`);
+                    }
+                    break;
+                case 'runInTerminal':
+                    if (message.command) {
+                        let terminal = vscode.window.terminals.find(t => t.name === 'Kora Terminal') || vscode.window.createTerminal('Kora Terminal');
+                        terminal.show();
+                        terminal.sendText(message.command.trim());
                     }
                     break;
                 case 'resolveDroppedAttachments':

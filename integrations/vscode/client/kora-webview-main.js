@@ -1572,8 +1572,9 @@
                     appendMarkdownText(preText, container);
                 }
 
-                const lang = match[1] || 'kora';
+                const lang = (match[1] || 'kora').toLowerCase();
                 const code = match[2];
+                const isShell = ['bash', 'sh', 'shell', 'zsh', 'terminal', 'cmd', 'powershell'].includes(lang);
 
                 const card = document.createElement('div');
                 card.style.margin = '8px 0';
@@ -1608,21 +1609,36 @@
                 bar.style.background = 'rgba(0,0,0,0.2)';
                 bar.style.borderTop = '1px solid rgba(255,255,255,0.08)';
 
-                const btnApply = document.createElement('button');
-                btnApply.className = 'btn-prop-sm';
-                btnApply.style.background = '#10B981';
-                btnApply.style.color = '#fff';
-                btnApply.innerText = 'Apply to File';
-                btnApply.onclick = () => {
-                    vscode.postMessage({ type: 'applyFix', code: code });
-                };
+                if (isShell) {
+                    const btnRun = document.createElement('button');
+                    btnRun.className = 'btn-prop-sm';
+                    btnRun.style.background = '#3B82F6';
+                    btnRun.style.color = '#fff';
+                    btnRun.innerText = 'Run in Terminal';
+                    btnRun.onclick = () => {
+                        vscode.postMessage({ type: 'runInTerminal', command: code });
+                    };
+                    bar.appendChild(btnRun);
+                } else {
+                    const btnApply = document.createElement('button');
+                    btnApply.className = 'btn-prop-sm';
+                    btnApply.style.background = '#10B981';
+                    btnApply.style.color = '#fff';
+                    btnApply.innerText = 'Apply to File';
+                    btnApply.onclick = () => {
+                        vscode.postMessage({ type: 'applyFix', code: code });
+                    };
 
-                const btnDiff = document.createElement('button');
-                btnDiff.className = 'btn-prop-sm';
-                btnDiff.innerText = 'Diff';
-                btnDiff.onclick = () => {
-                    vscode.postMessage({ type: 'previewDiff', code: code });
-                };
+                    const btnDiff = document.createElement('button');
+                    btnDiff.className = 'btn-prop-sm';
+                    btnDiff.innerText = 'Diff';
+                    btnDiff.onclick = () => {
+                        vscode.postMessage({ type: 'previewDiff', code: code });
+                    };
+
+                    bar.appendChild(btnApply);
+                    bar.appendChild(btnDiff);
+                }
 
                 const btnCopy = document.createElement('button');
                 btnCopy.className = 'btn-prop-sm';
@@ -1632,9 +1648,6 @@
                     btnCopy.innerText = 'Copied';
                     setTimeout(() => { btnCopy.innerText = 'Copy'; }, 1500);
                 };
-
-                bar.appendChild(btnApply);
-                bar.appendChild(btnDiff);
                 bar.appendChild(btnCopy);
 
                 card.appendChild(header);
